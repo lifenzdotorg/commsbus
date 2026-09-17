@@ -16,10 +16,10 @@ void FocusTextEditor::focusGained (FocusChangeType gtype)
     }
 }
 
-class SonobusChatTabbedButtonBar : public TabbedButtonBar
+class CommsbusChatTabbedButtonBar : public TabbedButtonBar
 {
 public:
-    SonobusChatTabbedButtonBar(TabbedButtonBar::Orientation orientation, ChatView & editor_) : TabbedButtonBar(orientation), editor(editor_) {
+    CommsbusChatTabbedButtonBar(TabbedButtonBar::Orientation orientation, ChatView & editor_) : TabbedButtonBar(orientation), editor(editor_) {
 
     }
 
@@ -39,7 +39,7 @@ protected:
 };
 
 
-ChatView::ChatView(SonobusAudioProcessor& proc, AooServerConnectionInfo & connectinfo) : processor(proc), currConnectionInfo(connectinfo)
+ChatView::ChatView(CommsbusAudioProcessor& proc, AooServerConnectionInfo & connectinfo) : processor(proc), currConnectionInfo(connectinfo)
 {
     updateFontSizes();
 
@@ -64,7 +64,7 @@ ChatView::ChatView(SonobusAudioProcessor& proc, AooServerConnectionInfo & connec
     mTitleLabel->setFont(Font(18, Font::bold));
     mTitleLabel->setColour(Label::textColourId, Colour(0xeeffffff));
 
-    mChatTabs = std::make_unique<SonobusChatTabbedButtonBar>(TabbedButtonBar::Orientation::TabsAtBottom, *this);
+    mChatTabs = std::make_unique<CommsbusChatTabbedButtonBar>(TabbedButtonBar::Orientation::TabsAtBottom, *this);
     mChatTabs->setMinimumTabScaleFactor(0.2f);
     //mChatTabs->setColour(TabbedButtonBar::frontTextColourId, Colour::fromFloatRGBA(0.4, 0.8, 1.0, 1.0));
     mChatTabs->setColour(TabbedButtonBar::frontOutlineColourId, Colour::fromFloatRGBA(0.5, 0.9, 1.0, 0.7));
@@ -649,11 +649,11 @@ void ChatView::showSaveChat()
 {
     SafePointer<ChatView> safeThis (this);
 
-    File recdir; // = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("SonoBus Setups");
+    File recdir; // = File::getSpecialLocation(File::userDocumentsDirectory).getChildFile("Commsbus Setups");
 
     // TODO - on iOS we need to give it a name first
 //#if (JUCE_IOS || JUCE_ANDROID)
-    String filename = String("SonoBusChat_") + Time::getCurrentTime().formatted("%Y-%m-%d_%H.%M.%S");
+    String filename = String("CommsbusChat_") + Time::getCurrentTime().formatted("%Y-%m-%d_%H.%M.%S");
     recdir = File::getSpecialLocation(File::userDocumentsDirectory).getNonexistentChildFile (filename, ".txt");
 //#endif
 

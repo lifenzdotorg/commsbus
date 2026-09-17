@@ -7,7 +7,7 @@
 #include "JuceHeader.h"
 
 #include "SonoUtility.h"
-#include "SonobusTypes.h"
+#include "CommsbusTypes.h"
 
 //==============================================================================
 class WaveformTransportComponent  : public Component,
@@ -606,9 +606,9 @@ private:
 
     void showPopupMenu (Rectangle<int> bounds) {
         auto menu = PopupMenu();
-        menu.addCommandItem(&commandManager, SonobusCommands::TrimSelectionToNewFile);
-        menu.addCommandItem(&commandManager, SonobusCommands::ShareFile);
-        menu.addCommandItem(&commandManager, SonobusCommands::CloseFile);
+        menu.addCommandItem(&commandManager, CommsbusCommands::TrimSelectionToNewFile);
+        menu.addCommandItem(&commandManager, CommsbusCommands::ShareFile);
+        menu.addCommandItem(&commandManager, CommsbusCommands::CloseFile);
 
 
         menu.showMenuAsync(PopupMenu::Options().withTargetScreenArea(bounds));

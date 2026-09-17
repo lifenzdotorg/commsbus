@@ -6,7 +6,7 @@
 
 #include "JuceHeader.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
@@ -29,7 +29,7 @@ public PolarityInvertView::Listener,
 public EffectsBaseView::HeaderListener
 {
 public:
-    ChannelGroupEffectsView(SonobusAudioProcessor& proc, bool peermode=false);
+    ChannelGroupEffectsView(CommsbusAudioProcessor& proc, bool peermode=false);
     virtual ~ChannelGroupEffectsView();
 
 
@@ -75,7 +75,7 @@ public:
 
 protected:
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     ListenerList<Listener> listeners;
 
@@ -108,7 +108,7 @@ public ReverbSendView::Listener,
 public EffectsBaseView::HeaderListener
 {
 public:
-    ChannelGroupMonitorEffectsView(SonobusAudioProcessor& proc, bool peermode=false);
+    ChannelGroupMonitorEffectsView(CommsbusAudioProcessor& proc, bool peermode=false);
     virtual ~ChannelGroupMonitorEffectsView();
 
 
@@ -151,7 +151,7 @@ public:
 
 protected:
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     ListenerList<Listener> listeners;
 
@@ -176,7 +176,7 @@ public ReverbView::Listener,
 public EffectsBaseView::HeaderListener
 {
 public:
-    ChannelGroupReverbEffectsView(SonobusAudioProcessor& proc);
+    ChannelGroupReverbEffectsView(CommsbusAudioProcessor& proc);
     virtual ~ChannelGroupReverbEffectsView();
 
 
@@ -207,7 +207,7 @@ public:
 
 protected:
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     ListenerList<Listener> listeners;
 
@@ -303,7 +303,7 @@ public ChannelGroupMonitorEffectsView::Listener,
 public MultiTimer
 {
 public:
-    ChannelGroupsView(SonobusAudioProcessor&, bool peerMode, int peerIndex=0);
+    ChannelGroupsView(CommsbusAudioProcessor&, bool peerMode, int peerIndex=0);
     virtual ~ChannelGroupsView();
 
 
@@ -417,7 +417,7 @@ protected:
 
     SonoBigTextLookAndFeel addLnf;
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     ListenerList<Listener> listeners;
 

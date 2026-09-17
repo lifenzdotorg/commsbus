@@ -36,7 +36,7 @@ endif()
 # `project()` command. `project()` sets up some helpful variables that describe source/binary
 # directories, and the current project version. This is a standard CMake command.
 
-project(SonoBus VERSION 1.7.2)
+project(Commsbus VERSION 1.7.2)
 
 set(BUILDVERSION 80)
 
@@ -82,38 +82,12 @@ juce_add_modules(deps/ff_meters)
 
 
 
-set (FormatsToBuild VST3 Standalone)
+set (FormatsToBuild Standalone)
 
-# On Mac, a AU version will be built too
-if (APPLE)
-    list (APPEND FormatsToBuild AU)
-endif()
-
-# On Linux, LV2 will be built too
-if (UNIX)
-    list (APPEND FormatsToBuild LV2)
-endif()
-
-# If you are building a VST2 or AAX plugin, CMake needs to be told where to find these SDKs on your
-# system. This setup should be done before calling `juce_add_plugin`.
-
-#juce_set_vst2_sdk_path("../VST2_SDK")
-#juce_set_aax_sdk_path("../AAX_SDK_2p3p2")
-
-
-if (AAX_SDK_PATH)
-    juce_set_aax_sdk_path (${AAX_SDK_PATH})
-    
-    if (APPLE OR (NOT ("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")))
-      list (APPEND FormatsToBuild AAX)
-    endif()
-endif()
-
-if (VST2_SDK_PATH)
-    juce_set_vst2_sdk_path (${VST2_SDK_PATH})
-    list (APPEND FormatsToBuild VST)
-endif()
-
+# Commsbus is a standalone application only. The VST3/AU/AAX/LV2/VST2 plugin
+# formats that upstream SonoBus builds were deliberately removed -- see
+# CLAUDE.md. juce_add_plugin is still used because the JUCE standalone wrapper
+# is built on top of it, but Standalone is the only format produced.
 
 set (MacPList "<plist version=\"1.0\">
 <dict>
@@ -123,10 +97,10 @@ set (MacPList "<plist version=\"1.0\">
 <array>
      <dict>
          <key>CFBundleURLName</key>
-         <string>net.sonobus</string>
+         <string>net.commsbus</string>
          <key>CFBundleURLSchemes</key>
          <array>
-              <string>sonobus</string>
+              <string>commsbus</string>
          </array>
       </dict>
    </array>
@@ -140,46 +114,31 @@ set (MacPList "<plist version=\"1.0\">
 # the formats specified by the FORMATS arguments. This function accepts many optional arguments.
 # Check the readme at `docs/CMake API.md` in the JUCE repo for the full list.
 
-function(sono_add_custom_plugin_target target_name product_name formats is_instrument plugincode)
-
-   if (is_instrument)
-        set (vst3cats Instrument Network)
-        set (vst2cat "kPlugCategSynth")
-    else()
-        set (vst3cats Fx Network)        
-        set (vst2cat "kPlugCategEffect")
-   endif()
+function(commsbus_add_app_target target_name product_name formats is_instrument plugincode)
 
     juce_add_plugin("${target_name}"
         IS_SYNTH "${is_instrument}"
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT TRUE
         EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-        COMPANY_NAME "Sonosaurus"
-        BUNDLE_ID "com.Sonosaurus.SonoBus"
+        COMPANY_NAME "LifeNZ"
+        BUNDLE_ID "org.lifenz.Commsbus"
         MICROPHONE_PERMISSION_ENABLED TRUE
         
-        ICON_BIG "images/sonobus_icon_mac_1024.png"
-        ICON_SMALL "images/sonobus_icon_mac_256.png"
+        ICON_BIG "images/commsbus_icon_mac_1024.png"
+        ICON_SMALL "images/commsbus_icon_mac_256.png"
         NEEDS_WEB_BROWSER FALSE
-        VST2_CATEGORY "${vst2cat}"
-        VST3_CATEGORIES "${vst3cats}"
-        AAX_CATEGORY "AAX_ePlugInCategory_None"
-
-	LV2URI "https://sonobus.net/lv2/sonobus"
-	
         # mac settings
         HARDENED_RUNTIME_ENABLED TRUE
         HARDENED_RUNTIME_OPTIONS "com.apple.security.device.audio-input"
         PLIST_TO_MERGE "${MacPList}"
-        AU_MAIN_TYPE "kAudioUnitType_MusicEffect"
         
         
         # other settings...
         PLUGIN_MANUFACTURER_CODE Sono
         PLUGIN_CODE ${plugincode}
         FORMATS ${formats}
-        DESCRIPTION "SonoBus - Network Audio"
+        DESCRIPTION "Commsbus - Network Audio"
         PRODUCT_NAME "${product_name}")
 
     juce_generate_juce_header("${target_name}")
@@ -200,6 +159,10 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
 
     set(PlatSourceFiles
         Source/CrossPlatformUtils.h
+        Source/CommsbusAutoStart.h
+        Source/CommsbusAutoStartGeneric.cpp
+        Source/CommsbusSingleInstance.h
+        Source/CommsbusSingleInstanceGeneric.cpp
       )
 
 
@@ -208,6 +171,8 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
         list (APPEND HEADER_INCLUDES deps/mac/include)
         list (APPEND LIB_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/deps/mac/lib)
         list (APPEND PlatSourceFiles  Source/CrossPlatformUtilsMac.mm)
+        list (APPEND PlatSourceFiles  Source/CommsbusAutoStartMac.mm)
+        list (APPEND PlatSourceFiles  Source/CommsbusSingleInstanceMac.mm)
     elseif (WIN32)
         list (APPEND HEADER_INCLUDES deps/windows ../asiosdk/common)
         list (APPEND PlatSourceFiles  Source/CrossPlatformUtilsWindows.cpp)
@@ -240,6 +205,8 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
 
     set(SourceFiles
         ${PlatSourceFiles}
+        Source/AutoConnectManager.cpp
+        Source/AutoConnectManager.h
         Source/AutoUpdater.cpp
         Source/AutoUpdater.h
         Source/BeatToggleGrid.cpp
@@ -317,11 +284,11 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
         Source/SoundboardView.h
         Source/SoundSampleButtonColourPicker.cpp
         Source/SoundSampleButtonColourPicker.h
-        Source/SonobusPluginEditor.cpp
-        Source/SonobusPluginEditor.h
-        Source/SonobusPluginProcessor.cpp
-        Source/SonobusPluginProcessor.h
-        Source/SonobusTypes.h
+        Source/CommsbusAudioProcessorEditor.cpp
+        Source/CommsbusAudioProcessorEditor.h
+        Source/CommsbusAudioProcessor.cpp
+        Source/CommsbusAudioProcessor.h
+        Source/CommsbusTypes.h
         Source/SuggestNewGroupView.cpp
         Source/SuggestNewGroupView.h
         Source/VDONinjaView.h
@@ -454,7 +421,7 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
         JUCE_USE_OBOE_STABILIZED_CALLBACK=1
         JUCE_LOAD_CURL_SYMBOLS_LAZILY=1
         FF_AUDIO_ALLOW_ALLOCATIONS_IN_MEASURE_BLOCK=0
-        SONOBUS_BUILD_VERSION="${VERSION}"
+        COMMSBUS_BUILD_VERSION="${VERSION}"
         ${PLAT_COMPILE_DEFS} )
 
     juce_add_binary_data("${target_name}_SBData" SOURCES
@@ -548,8 +515,8 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
         images/settings_icon.svg
         images/skipback_icon.svg
         images/skipforward_icon.svg
-        images/sonobus_logo_96.png
-        images/sonobus_title_small.png
+        images/commsbus_logo_96.png
+        images/commsbus_title_small.png
         images/soundboard.svg
         images/speaker.svg
         images/speaker_disabled.svg
@@ -621,11 +588,9 @@ function(sono_add_custom_plugin_target target_name product_name formats is_instr
 endfunction()
 
 # most of the targets
-sono_add_custom_plugin_target(SonoBus SonoBus "${FormatsToBuild}" FALSE  "NBus")
+commsbus_add_app_target(Commsbus Commsbus "${FormatsToBuild}" FALSE  "NBus")
 
 # Mobile targets
-#sono_add_custom_plugin_target(SonoBusMobile "AUv3 Standalone" FALSE "NBus")
+#commsbus_add_app_target(CommsbusMobile "AUv3 Standalone" FALSE "NBus")
 
-# add VSTi target
-sono_add_custom_plugin_target(SonoBusInst "SonoBusInstrument" "VST3" TRUE  "IBus")
 

@@ -9,7 +9,7 @@
 #include "SoundboardEditView.h"
 #include "SampleEditView.h"
 
-SoundboardView::SoundboardView(SonobusAudioProcessor& audioproc, SoundboardChannelProcessor* channelProcessor, File supportDir)
+SoundboardView::SoundboardView(CommsbusAudioProcessor& audioproc, SoundboardChannelProcessor* channelProcessor, File supportDir)
         : audioProcessor(audioproc), processor(std::make_unique<SoundboardProcessor>(channelProcessor, supportDir))
 {
     setOpaque(true);
@@ -220,7 +220,7 @@ void SoundboardView::createControlPanel()
     auto sendallstr = TRANS("Send Soundboard Playback to All");
     mSendAudioButton->setTooltip(sendallstr);
     mSendAudioButton->setTitle(sendallstr);
-    mSendAudioAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.getValueTreeState(), SonobusAudioProcessor::paramSendSoundboardAudio, *mSendAudioButton);
+    mSendAudioAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.getValueTreeState(), CommsbusAudioProcessor::paramSendSoundboardAudio, *mSendAudioButton);
 
     addAndMakeVisible(mSendAudioButton.get());
 

@@ -56,11 +56,12 @@ extern juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
 #include "SonoStandaloneFilterWindow.h"
 #include "SonoLookAndFeel.h"
+#include "CommsbusSingleInstance.h"
 
-#include "SonobusPluginEditor.h"
+#include "CommsbusAudioProcessorEditor.h"
 
 #if JUCE_ANDROID
-#include "android/SonoBusActivity.h"
+#include "android/CommsbusActivity.h"
 
 #if JUCE_USE_ANDROID_OPENSLES || JUCE_USE_ANDROID_OBOE
   #include "juce_audio_devices/native/juce_HighPerformanceAudioHelpers_android.h"
@@ -72,10 +73,10 @@ namespace juce
 {
 
 //==============================================================================
-class SonobusStandaloneFilterApp  : public JUCEApplication, public Timer
+class CommsbusStandaloneFilterApp  : public JUCEApplication, public Timer
 {
 public:
-    SonobusStandaloneFilterApp()
+    CommsbusStandaloneFilterApp()
     {
         PluginHostType::jucePlugInClientCurrentWrapperType = AudioProcessor::wrapperType_Standalone;
 
@@ -83,9 +84,9 @@ public:
 
         options.applicationName     = getApplicationName();
         options.filenameSuffix      = ".settings";
-        options.osxLibrarySubFolder = "Application Support/SonoBus";
+        options.osxLibrarySubFolder = "Application Support/Commsbus";
        #if JUCE_LINUX
-        options.folderName          = "~/.config/sonobus";
+        options.folderName          = "~/.config/commsbus";
        #else
         options.folderName          = "";
        #endif
@@ -94,7 +95,7 @@ public:
 
 #if JUCE_LINUX
         // we moved linux settings location in 1.3.19, one time change
-        File oldsettings("~/.config/SonoBus.settings");
+        File oldsettings("~/.config/Commsbus.settings");
         if (oldsettings.exists()) {
             File newsettings = options.getDefaultFile();
             if (!newsettings.getParentDirectory().exists()) {
@@ -105,7 +106,7 @@ public:
 #endif
     }
 
-    ~SonobusStandaloneFilterApp()
+    ~CommsbusStandaloneFilterApp()
     {
 #if JUCE_ANDROID && JUCE_OPENGL
         detachGL();
@@ -124,6 +125,12 @@ public:
     bool doInitialConnect = false;
     bool doImmediateQuit = false;
     bool doHeadless = false;
+    bool allowMultipleInstances = false;
+
+    // Held for the lifetime of the process; see initialise(). The underlying
+    // fcntl record lock is released by the kernel even on SIGKILL, so a crashed
+    // Commsbus never leaves a stale lock behind.
+    std::unique_ptr<InterProcessLock> singleInstanceLock;
     String loadSetupFilename;
     String cmdlineArgUrl;
 
@@ -312,6 +319,9 @@ public:
         const String headlessSpec("-q|--headless");
         const String headlessSpecDesc("-q|--headless");
 
+        const String multiSpec("--allow-multiple");
+        const String multiSpecDesc("--allow-multiple");
+
         const String loadSetupSpec("-l|--load-setup");
         const String loadSetupSpecDesc("-l|--load-setup <setup-filename>");
 
@@ -347,6 +357,12 @@ public:
         app.addCommand ({ loadSetupSpec, loadSetupSpecDesc,
             TRANS("Specify the filename of a setup file to load."),
             TRANS("The setup file can be created using the Save Setup feature from the full application, and includes any device selection, input mixer setup, and all other options. If you don't specify a full or relative pathname it will look for a preset file by that name in the last used setup folder."),
+            nullptr
+        });
+
+        app.addCommand ({ multiSpec, multiSpecDesc,
+            TRANS("Allow more than one copy of Commsbus to run at once."),
+            TRANS("Commsbus normally refuses to start a second time so that a copy launched at login and a copy launched by hand cannot fight over the same audio device. Use this to override that."),
             nullptr
         });
 
@@ -414,6 +430,10 @@ public:
         }
 
 
+        if (arglist.removeOptionIfFound(multiSpec)) {
+            allowMultipleInstances = true;
+        }
+
         if (arglist.removeOptionIfFound(headlessSpec)) {
 
             doHeadless = true;
@@ -442,6 +462,24 @@ public:
             return;
         };
 
+        // Single-instance guard. With the login agent installed it is easy to end
+        // up with launchd's copy and a hand-launched copy both open, fighting over
+        // the same audio device and the same UDP port. Refuse the second one and
+        // surface the one already running instead.
+        if (! allowMultipleInstances) {
+            singleInstanceLock.reset (new InterProcessLock ("org.lifenz.commsbus.singleinstance"));
+
+            if (! singleInstanceLock->enter (0)) {
+                singleInstanceLock.reset();
+
+                DBG("Another instance of Commsbus is already running - activating it and quitting");
+                activateExistingCommsbusInstance();
+
+                quit();
+                return;
+            }
+        }
+
 
         if (!doHeadless) {
             mainWindow.reset (createWindow());
@@ -455,9 +493,9 @@ public:
             Desktop::getInstance().setScreenSaverEnabled(false);
 
 
-            if (auto * sonoproc = dynamic_cast<SonobusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
+            if (auto * sonoproc = dynamic_cast<CommsbusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
                 if (sonoproc->hasEditor()) {
-                    if (auto * sonoeditor = dynamic_cast<SonobusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
+                    if (auto * sonoeditor = dynamic_cast<CommsbusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
                         sonoeditor->saveSettingsIfNeeded = [this]() {
                             mainWindow->pluginHolder->savePluginState();
                             mainWindow->pluginHolder->saveAudioDeviceState();
@@ -517,7 +555,7 @@ public:
 
             pluginHolder.reset (createHeadlessPlugin());
 
-            if (auto * sonoproc = dynamic_cast<SonobusAudioProcessor*>(pluginHolder->processor.get())) {
+            if (auto * sonoproc = dynamic_cast<CommsbusAudioProcessor*>(pluginHolder->processor.get())) {
 
                 // apply command line connection stuff
 
@@ -574,17 +612,17 @@ public:
 
     bool loadSettingsFromFile(const File & file)
     {
-        SonobusAudioProcessor * processor = nullptr;
+        CommsbusAudioProcessor * processor = nullptr;
         AudioDeviceManager * deviceManager = nullptr;
         StandalonePluginHolder * plugHolder = nullptr;
 
         if (mainWindow != nullptr && mainWindow->pluginHolder != nullptr) {
-            processor = dynamic_cast<SonobusAudioProcessor*>(mainWindow->pluginHolder->processor.get());
+            processor = dynamic_cast<CommsbusAudioProcessor*>(mainWindow->pluginHolder->processor.get());
             deviceManager = &mainWindow->getDeviceManager();
             plugHolder = mainWindow->pluginHolder.get();
         }
         else if (pluginHolder != nullptr) {
-            processor = dynamic_cast<SonobusAudioProcessor*>(pluginHolder->processor.get());
+            processor = dynamic_cast<CommsbusAudioProcessor*>(pluginHolder->processor.get());
             deviceManager = &pluginHolder->deviceManager;
             plugHolder = pluginHolder.get();
         }
@@ -680,6 +718,14 @@ public:
             mainWindow->pluginHolder->saveAudioDeviceState();
         }
 
+        // Release the single-instance lock explicitly, so a relaunch during a slow
+        // shutdown is not refused. (The kernel would drop it at process exit
+        // anyway, including if we are killed.)
+        if (singleInstanceLock != nullptr) {
+            singleInstanceLock->exit();
+            singleInstanceLock.reset();
+        }
+
 #if JUCE_ANDROID
         setAndroidForegroundServiceActive(false);
   #if JUCE_OPENGL
@@ -700,9 +746,9 @@ public:
         
         if (mainWindow.get() != nullptr) {
             
-            if (auto * sonoproc = dynamic_cast<SonobusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
+            if (auto * sonoproc = dynamic_cast<CommsbusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
                 if (sonoproc->hasEditor()) {
-                    if (auto * sonoeditor = dynamic_cast<SonobusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
+                    if (auto * sonoeditor = dynamic_cast<CommsbusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
                         sonoeditor->handleURL(url.toString(true));
                         mainWindow->toFront(true);
                     }
@@ -717,9 +763,9 @@ public:
         
         if (mainWindow.get() != nullptr) {
             
-            if (auto * sonoproc = dynamic_cast<SonobusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
+            if (auto * sonoproc = dynamic_cast<CommsbusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
                 if (sonoproc->hasEditor()) {
-                    if (auto * sonoeditor = dynamic_cast<SonobusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
+                    if (auto * sonoeditor = dynamic_cast<CommsbusAudioProcessorEditor*>(sonoproc->createEditorIfNeeded())) {
                         sonoeditor->handleURL(url);
                         mainWindow->toFront(true);
                     }
@@ -735,7 +781,7 @@ public:
             mainWindow->pluginHolder->savePluginState();
             mainWindow->pluginHolder->saveAudioDeviceState();
 
-            if (auto * sonoproc = dynamic_cast<SonobusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
+            if (auto * sonoproc = dynamic_cast<CommsbusAudioProcessor*>(mainWindow->pluginHolder->processor.get())) {
                 if (sonoproc->getNumberRemotePeers() == 0 && !mainWindow->pluginHolder->isInterAppAudioConnected()) {
                     // shutdown audio engine
                     DBG("no connections shutting down audio");
@@ -770,7 +816,7 @@ public:
         LocalRef<jobject> activity (getMainActivity());
 
         if (activity != nullptr) {
-            getEnv()->CallVoidMethod(activity.get(), SonoBusActivity.setForegroundServiceActive, flag);
+            getEnv()->CallVoidMethod(activity.get(), CommsbusActivity.setForegroundServiceActive, flag);
         }
     #endif
     }
@@ -816,7 +862,7 @@ public:
         
         if (mainWindow.get() != nullptr) {
             if (auto * editor = mainWindow->getEditor()) {
-                if (auto * sonoeditor = dynamic_cast<SonobusAudioProcessorEditor*>(editor)) {
+                if (auto * sonoeditor = dynamic_cast<CommsbusAudioProcessorEditor*>(editor)) {
                     if (!sonoeditor->requestedQuit()) {
                         // they'll handle it
                         return;
@@ -915,6 +961,6 @@ Image JUCE_CALLTYPE juce_getIAAHostIcon (int size)
 #endif
 #endif
 
-START_JUCE_APPLICATION (SonobusStandaloneFilterApp);
+START_JUCE_APPLICATION (CommsbusStandaloneFilterApp);
 
 //#endif

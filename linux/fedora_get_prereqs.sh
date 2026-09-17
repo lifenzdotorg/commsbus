@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Install prerequisite packages for SonoBus build on Fedora
+# Install prerequisite packages for Commsbus build on Fedora
 
-GITREPO="https://github.com/essej/sonobus.git"
+GITREPO="https://github.com/essej/commsbus.git"
 
 PREREQS="libopusenc \
 	libopusenc-devel \

@@ -64,9 +64,9 @@ void LatestVersionCheckerAndUpdater::run()
         if (showAlertWindows)
             AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
                                               "Update Server Communication Error",
-                                              "Failed to communicate with the SonoBus update server.\n"
+                                              "Failed to communicate with the Commsbus update server.\n"
                                               "Please try again in a few minutes.\n\n"
-                                              "If this problem persists you can download the latest version of SonoBus from sonobus.net");
+                                              "If this problem persists you can download the latest version of Commsbus from github.com/lifenzdotorg/commsbus");
 
         return;
     }
@@ -76,7 +76,7 @@ void LatestVersionCheckerAndUpdater::run()
         if (showAlertWindows)
             AlertWindow::showMessageBoxAsync (AlertWindow::InfoIcon,
                                               "No New Version Available",
-                                              "Your SonoBus version is up to date.");
+                                              "Your Commsbus version is up to date.");
         return;
     }
 
@@ -94,7 +94,7 @@ void LatestVersionCheckerAndUpdater::run()
        #endif
     }();
 
-    String requiredFilename ("sonobus-" + info->versionString + "-" + osString + "."); // to end with any extension
+    String requiredFilename ("commsbus-" + info->versionString + "-" + osString + "."); // to end with any extension
 
     for (auto& asset : info->assets)
     {
@@ -124,12 +124,12 @@ class UpdateDialog  : public Component
 public:
     UpdateDialog (const String& newVersion, const String& releaseNotes)
     {
-        titleLabel.setText ("SonoBus version " + newVersion, dontSendNotification);
+        titleLabel.setText ("Commsbus version " + newVersion, dontSendNotification);
         titleLabel.setFont ({ 15.0f, Font::bold });
         titleLabel.setJustificationType (Justification::centred);
         addAndMakeVisible (titleLabel);
 
-        contentLabel.setText ("A new version of SonoBus is available - would you like to download it?", dontSendNotification);
+        contentLabel.setText ("A new version of Commsbus is available - would you like to download it?", dontSendNotification);
         contentLabel.setFont (15.0f);
         contentLabel.setJustificationType (Justification::topLeft);
         addAndMakeVisible (contentLabel);
@@ -161,8 +161,8 @@ public:
         //dontAskAgainButton.setToggleState (getGlobalProperties().getValue (Ids::dontQueryForUpdate, {}).isNotEmpty(), dontSendNotification);
         //addAndMakeVisible (dontAskAgainButton);
 
-        appIcon = Drawable::createFromImageData (BinaryData::sonobus_logo_96_png,
-                                                  BinaryData::sonobus_logo_96_pngSize);
+        appIcon = Drawable::createFromImageData (BinaryData::commsbus_logo_96_png,
+                                                  BinaryData::commsbus_logo_96_pngSize);
         lookAndFeelChanged();
 
         setSize (500, 300);
@@ -204,7 +204,7 @@ public:
     {
         DialogWindow::LaunchOptions options;
 
-        options.dialogTitle = "Download SonoBus version " + newVersionString + "?";
+        options.dialogTitle = "Download Commsbus version " + newVersionString + "?";
         options.resizable = false;
 
         auto* content = new UpdateDialog (newVersionString, releaseNotes);
@@ -466,7 +466,7 @@ private:
         ZipFile zip (input);
 
         if (zip.getNumEntries() == 0)
-            return Result::fail ("The downloaded file was not a valid SonoBus release file!");
+            return Result::fail ("The downloaded file was not a valid Commsbus release file!");
 
         struct ScopedDownloadFolder
         {
@@ -514,7 +514,7 @@ private:
                                      "Please select a folder that is writable by the current user.");
         }
 
-        if (! unzipTarget.folder.getChildFile ("SonoBus").moveFileTo (targetFolder))
+        if (! unzipTarget.folder.getChildFile ("Commsbus").moveFileTo (targetFolder))
             return Result::fail ("Could not overwrite the existing folder!\n\n"
                                  "This may happen if you are trying to download into a directory that requires administrator privileges to modify.\n"
                                  "Please select a folder that is writable by the current user.");
@@ -557,17 +557,17 @@ void restartProcess (const File& targetFolder)
 
    #if JUCE_MAC || JUCE_LINUX
     #if JUCE_MAC
-     auto newProcess = targetFolder.getChildFile ("SonoBus.app").getChildFile ("Contents").getChildFile ("MacOS").getChildFile ("SonoBus");
+     auto newProcess = targetFolder.getChildFile ("Commsbus.app").getChildFile ("Contents").getChildFile ("MacOS").getChildFile ("Commsbus");
     #elif JUCE_LINUX
-     auto newProcess = targetFolder.getChildFile ("SonoBus");
+     auto newProcess = targetFolder.getChildFile ("Commsbus");
     #endif
 
-    StringArray command ("/bin/sh", "-c", "while killall -0 SonoBus; do sleep 5; done; " + newProcess.getFullPathName().quoted());
+    StringArray command ("/bin/sh", "-c", "while killall -0 Commsbus; do sleep 5; done; " + newProcess.getFullPathName().quoted());
    #elif JUCE_WINDOWS
-    auto newProcess = targetFolder.getChildFile ("SonoBus.exe");
+    auto newProcess = targetFolder.getChildFile ("Commsbus.exe");
 
-    auto command = "cmd.exe /c\"@echo off & for /l %a in (0) do ( tasklist | find \"SonoBus\" >nul & ( if errorlevel 1 ( "
-                    + targetFolder.getChildFile ("SonoBus.exe").getFullPathName().quoted() + " & exit /b ) else ( timeout /t 10 >nul ) ) )\"";
+    auto command = "cmd.exe /c\"@echo off & for /l %a in (0) do ( tasklist | find \"Commsbus\" >nul & ( if errorlevel 1 ( "
+                    + targetFolder.getChildFile ("Commsbus.exe").getFullPathName().quoted() + " & exit /b ) else ( timeout /t 10 >nul ) ) )\"";
    #endif
 
     if (newProcess.existsAsFile())

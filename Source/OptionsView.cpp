@@ -2,6 +2,7 @@
 // Copyright (C) 2021 Jesse Chappell
 
 #include "OptionsView.h"
+#include "CommsbusAutoStart.h"
 
 #if JUCE_ANDROID
 #include "juce_core/native/juce_BasicNativeHeaders.h"
@@ -11,10 +12,10 @@
 
 using namespace SonoAudio;
 
-class SonobusOptionsTabbedComponent : public TabbedComponent
+class CommsbusOptionsTabbedComponent : public TabbedComponent
 {
 public:
-    SonobusOptionsTabbedComponent(TabbedButtonBar::Orientation orientation, OptionsView & editor_) : TabbedComponent(orientation), editor(editor_) {
+    CommsbusOptionsTabbedComponent(TabbedButtonBar::Orientation orientation, OptionsView & editor_) : TabbedComponent(orientation), editor(editor_) {
 
     }
 
@@ -78,7 +79,7 @@ void OptionsView::initializeLanguages()
 }
 
 
-OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceManager*()> getaudiodevicemanager)
+OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDeviceManager*()> getaudiodevicemanager)
 : Component(), getAudioDeviceManager(getaudiodevicemanager), processor(proc), smallLNF(14), sonoSliderLNF(13)
 {
     setColour (nameTextColourId, Colour::fromFloatRGBA(1.0f, 1.0f, 1.0f, 0.9f));
@@ -112,14 +113,14 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
 
     mBufferTimeSlider->setTooltip(TRANS("This controls controls the default jitter buffer size to start with. When using the Auto modes, it is recommended to keep the value at the minimum so it starts from the lowest possible value. Generally you will only want to set this higher if you are using a Manual mode default which is not recommended."));
 
-    mBufferTimeAttachment     = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramDefaultNetbufMs, *mBufferTimeSlider);
+    mBufferTimeAttachment     = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramDefaultNetbufMs, *mBufferTimeSlider);
 
     mOptionsAutosizeDefaultChoice = std::make_unique<SonoChoiceButton>();
     mOptionsAutosizeDefaultChoice->addChoiceListener(this);
-    mOptionsAutosizeDefaultChoice->addItem(TRANS("Manual"), SonobusAudioProcessor::AutoNetBufferModeOff);
-    mOptionsAutosizeDefaultChoice->addItem(TRANS("Auto Up"), SonobusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly);
-    mOptionsAutosizeDefaultChoice->addItem(TRANS("Auto"), SonobusAudioProcessor::AutoNetBufferModeAutoFull);
-    mOptionsAutosizeDefaultChoice->addItem(TRANS("Initial Auto"), SonobusAudioProcessor::AutoNetBufferModeInitAuto);
+    mOptionsAutosizeDefaultChoice->addItem(TRANS("Manual"), CommsbusAudioProcessor::AutoNetBufferModeOff);
+    mOptionsAutosizeDefaultChoice->addItem(TRANS("Auto Up"), CommsbusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly);
+    mOptionsAutosizeDefaultChoice->addItem(TRANS("Auto"), CommsbusAudioProcessor::AutoNetBufferModeAutoFull);
+    mOptionsAutosizeDefaultChoice->addItem(TRANS("Initial Auto"), CommsbusAudioProcessor::AutoNetBufferModeInitAuto);
 
     mOptionsAutosizeDefaultChoice->setTooltip(TRANS("This controls how the jitter buffers are automatically adjusted based on network conditions. The Auto mode is the recommended choice as it will adjust the jitter buffers up or down based on current conditions. The Auto-Up will only make the buffers larger. The Initial Auto will do an initial adjustment from the smallest value and once it stabilizes will no longer change, even if network conditions worsen. Manual will let you set the jitter buffer manually, leaving it up to you to deal with if network conditions change, but can be useful with known users."));
 
@@ -129,10 +130,10 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     mOptionsFormatChoiceDefaultChoice->addChoiceListener(this);
     int numformats = processor.getNumberAudioCodecFormats();
     for (int i=0; i < numformats; ++i) {
-        SonobusAudioProcessor::AudioCodecFormatInfo finfo;
+        CommsbusAudioProcessor::AudioCodecFormatInfo finfo;
         processor.getAudioCodeFormatInfo(i, finfo);
         auto name = finfo.name;
-        if (finfo.codec == SonobusAudioProcessor::AudioCodecFormatCodec::CodecOpus && finfo.bitrate < 96000) {
+        if (finfo.codec == CommsbusAudioProcessor::AudioCodecFormatCodec::CodecOpus && finfo.bitrate < 96000) {
             name += String(" (*)");
         }
         mOptionsFormatChoiceDefaultChoice->addItem(name, i+1);
@@ -188,11 +189,11 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
 
     //mOptionsHearLatencyButton = std::make_unique<ToggleButton>(TRANS("Make Latency Test Audible"));
     //mOptionsHearLatencyButton->addListener(this);
-    //mHearLatencyTestAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (p.getValueTreeState(), SonobusAudioProcessor::paramHearLatencyTest, *mOptionsHearLatencyButton);
+    //mHearLatencyTestAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (p.getValueTreeState(), CommsbusAudioProcessor::paramHearLatencyTest, *mOptionsHearLatencyButton);
 
     mOptionsMetRecordedButton = std::make_unique<ToggleButton>(TRANS("Metronome output recorded in full mix"));
     mOptionsMetRecordedButton->addListener(this);
-    mMetRecordedAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramMetIsRecorded, *mOptionsMetRecordedButton);
+    mMetRecordedAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramMetIsRecorded, *mOptionsMetRecordedButton);
 
     mOptionsRecFinishOpenButton = std::make_unique<ToggleButton>(TRANS("Open finished recording for playback"));
     mOptionsRecFinishOpenButton->addListener(this);
@@ -223,9 +224,9 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
 
     mRecFormatChoice = std::make_unique<SonoChoiceButton>();
     mRecFormatChoice->addChoiceListener(this);
-    mRecFormatChoice->addItem(TRANS("FLAC"), SonobusAudioProcessor::FileFormatFLAC);
-    mRecFormatChoice->addItem(TRANS("WAV"), SonobusAudioProcessor::FileFormatWAV);
-    mRecFormatChoice->addItem(TRANS("OGG"), SonobusAudioProcessor::FileFormatOGG);
+    mRecFormatChoice->addItem(TRANS("FLAC"), CommsbusAudioProcessor::FileFormatFLAC);
+    mRecFormatChoice->addItem(TRANS("WAV"), CommsbusAudioProcessor::FileFormatWAV);
+    mRecFormatChoice->addItem(TRANS("OGG"), CommsbusAudioProcessor::FileFormatOGG);
 
     mRecBitsChoice = std::make_unique<SonoChoiceButton>();
     mRecBitsChoice->addChoiceListener(this);
@@ -254,10 +255,18 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     mOptionsUseSpecificUdpPortButton->addListener(this);
 
     mOptionsDynamicResamplingButton = std::make_unique<ToggleButton>(TRANS("Use Drift Correction (NOT RECOMMENDED)"));
-    mDynamicResamplingAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramDynamicResampling, *mOptionsDynamicResamplingButton);
+    mDynamicResamplingAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramDynamicResampling, *mOptionsDynamicResamplingButton);
 
     mOptionsAutoReconnectButton = std::make_unique<ToggleButton>(TRANS("Auto-Reconnect to Last Group"));
-    mAutoReconnectAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramAutoReconnectLast, *mOptionsAutoReconnectButton);
+    mAutoReconnectAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramAutoReconnectLast, *mOptionsAutoReconnectButton);
+
+    mOptionsAutoConnectDirectButton = std::make_unique<ToggleButton>(TRANS("Auto-Connect to Direct Peers on Launch"));
+    mOptionsAutoConnectDirectButton->setTooltip(TRANS("Reconnect to every saved direct peer when Commsbus starts, and keep retrying if one goes away."));
+    mOptionsAutoConnectDirectButton->addListener(this);
+
+    mOptionsStartAtLoginButton = std::make_unique<ToggleButton>(TRANS("Start Commsbus at Login"));
+    mOptionsStartAtLoginButton->setTooltip(TRANS("Launch Commsbus automatically after a reboot, and relaunch it if it exits unexpectedly."));
+    mOptionsStartAtLoginButton->addListener(this);
 
     mOptionsOverrideSamplerateButton = std::make_unique<ToggleButton>(TRANS("Override Device Sample Rate"));
     mOptionsOverrideSamplerateButton->addListener(this);
@@ -306,7 +315,7 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     //mOptionsDefaultLevelSlider->setSliderStyle(Slider::SliderStyle::LinearBar);
     mOptionsDefaultLevelSlider->setWantsKeyboardFocus(true);
 
-    mDefaultLevelAttachment =  std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramDefaultPeerLevel, *mOptionsDefaultLevelSlider);
+    mDefaultLevelAttachment =  std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramDefaultPeerLevel, *mOptionsDefaultLevelSlider);
 
 
     mOptionsDefaultLevelSliderLabel = std::make_unique<Label>("", TRANS("Default User Level"));
@@ -342,15 +351,7 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     configLabel(mOptionsAutoDropThreshLabel.get(), false);
     mOptionsAutoDropThreshLabel->setJustificationType(Justification::centredLeft);
 
-    mOptionsSavePluginDefaultButton = std::make_unique<TextButton>("saveopt");
-    mOptionsSavePluginDefaultButton->setButtonText(TRANS("Save as default plugin options"));
-    mOptionsSavePluginDefaultButton->setLookAndFeel(&smallLNF);
-    mOptionsSavePluginDefaultButton->addListener(this);
 
-    mOptionsResetPluginDefaultButton = std::make_unique<TextButton>("resetopt");
-    mOptionsResetPluginDefaultButton->setButtonText(TRANS("Reset default plugin options"));
-    mOptionsResetPluginDefaultButton->setLookAndFeel(&smallLNF);
-    mOptionsResetPluginDefaultButton->addListener(this);
 
     
 
@@ -370,6 +371,10 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     mOptionsComponent->addAndMakeVisible(mOptionsUseSpecificUdpPortButton.get());
     mOptionsComponent->addAndMakeVisible(mOptionsDynamicResamplingButton.get());
     mOptionsComponent->addAndMakeVisible(mOptionsAutoReconnectButton.get());
+    mOptionsComponent->addAndMakeVisible(mOptionsAutoConnectDirectButton.get());
+    if (CommsbusAutoStart::isSupported()) {
+        mOptionsComponent->addAndMakeVisible(mOptionsStartAtLoginButton.get());
+    }
     mOptionsComponent->addAndMakeVisible(mOptionsInputLimiterButton.get());
     mOptionsComponent->addAndMakeVisible(mOptionsDefaultLevelSlider.get());
     mOptionsComponent->addAndMakeVisible(mOptionsDefaultLevelSliderLabel.get());
@@ -380,11 +385,6 @@ OptionsView::OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceM
     mOptionsComponent->addAndMakeVisible(mOptionsLanguageLabel.get());
     mOptionsComponent->addAndMakeVisible(mOptionsAutoDropThreshSlider.get());
     mOptionsComponent->addAndMakeVisible(mOptionsAutoDropThreshLabel.get());
-
-    if (!JUCEApplication::isStandaloneApp()) {
-        mOptionsComponent->addAndMakeVisible(mOptionsSavePluginDefaultButton.get());
-        mOptionsComponent->addAndMakeVisible(mOptionsResetPluginDefaultButton.get());
-    }
 
     //mOptionsComponent->addAndMakeVisible(mTitleImage.get());
 
@@ -619,6 +619,8 @@ void OptionsView::updateState(bool ignorecheck)
     }
 
 
+    mOptionsAutoConnectDirectButton->setToggleState(processor.getAutoConnectManager().getAutoConnectOnLaunch(), dontSendNotification);
+
     if (JUCEApplication::isStandaloneApp()) {
         if (getShouldOverrideSampleRateValue) {
             Value * val = getShouldOverrideSampleRateValue();
@@ -634,6 +636,12 @@ void OptionsView::updateState(bool ignorecheck)
             mOptionsAllowBluetoothInput->setToggleState((bool)val->getValue(), dontSendNotification);
         }
 
+        // Read the launch agent back off disk rather than caching it: the operator
+        // may have removed it outside Commsbus.
+        if (CommsbusAutoStart::isSupported()) {
+            mOptionsStartAtLoginButton->setToggleState(CommsbusAutoStart::isEnabled(), dontSendNotification);
+        }
+
     }
 
     mOptionsUnivFontButton->setToggleState(processor.getUseUniversalFont(), dontSendNotification);
@@ -643,10 +651,10 @@ void OptionsView::updateState(bool ignorecheck)
 
     uint32 recmask = processor.getDefaultRecordingOptions();
 
-    mOptionsRecOthersButton->setToggleState((recmask & SonobusAudioProcessor::RecordIndividualUsers) != 0, dontSendNotification);
-    mOptionsRecMixButton->setToggleState((recmask & SonobusAudioProcessor::RecordMix) != 0, dontSendNotification);
-    mOptionsRecMixMinusButton->setToggleState((recmask & SonobusAudioProcessor::RecordMixMinusSelf) != 0, dontSendNotification);
-    mOptionsRecSelfButton->setToggleState((recmask & SonobusAudioProcessor::RecordSelf) != 0, dontSendNotification);
+    mOptionsRecOthersButton->setToggleState((recmask & CommsbusAudioProcessor::RecordIndividualUsers) != 0, dontSendNotification);
+    mOptionsRecMixButton->setToggleState((recmask & CommsbusAudioProcessor::RecordMix) != 0, dontSendNotification);
+    mOptionsRecMixMinusButton->setToggleState((recmask & CommsbusAudioProcessor::RecordMixMinusSelf) != 0, dontSendNotification);
+    mOptionsRecSelfButton->setToggleState((recmask & CommsbusAudioProcessor::RecordSelf) != 0, dontSendNotification);
 
     mOptionsRecSelfPostFxButton->setToggleState(!processor.getSelfRecordingPreFX(), dontSendNotification);
     mOptionsRecSelfSilenceMutedButton->setToggleState(processor.getSelfRecordingSilenceWhenMuted(), dontSendNotification);
@@ -765,6 +773,16 @@ void OptionsView::updateLayout()
     optionsAutoReconnectBox.items.add(FlexItem(10, 12).withFlex(0));
     optionsAutoReconnectBox.items.add(FlexItem(180, minpassheight, *mOptionsAutoReconnectButton).withMargin(0).withFlex(1));
 
+    optionsAutoConnectDirectBox.items.clear();
+    optionsAutoConnectDirectBox.flexDirection = FlexBox::Direction::row;
+    optionsAutoConnectDirectBox.items.add(FlexItem(10, 12).withFlex(0));
+    optionsAutoConnectDirectBox.items.add(FlexItem(180, minpassheight, *mOptionsAutoConnectDirectButton).withMargin(0).withFlex(1));
+
+    optionsStartAtLoginBox.items.clear();
+    optionsStartAtLoginBox.flexDirection = FlexBox::Direction::row;
+    optionsStartAtLoginBox.items.add(FlexItem(10, 12).withFlex(0));
+    optionsStartAtLoginBox.items.add(FlexItem(180, minpassheight, *mOptionsStartAtLoginButton).withMargin(0).withFlex(1));
+
     optionsOverrideSamplerateBox.items.clear();
     optionsOverrideSamplerateBox.flexDirection = FlexBox::Direction::row;
     optionsOverrideSamplerateBox.items.add(FlexItem(10, 12).withFlex(0));
@@ -803,14 +821,7 @@ void OptionsView::updateLayout()
         optionsAllowBluetoothBox.items.add(FlexItem(180, minpassheight, *mOptionsAllowBluetoothInput).withMargin(0).withFlex(1));
     }
 
-    optionsPluginDefaultBox.items.clear();
-    optionsPluginDefaultBox.flexDirection = FlexBox::Direction::row;
-    optionsPluginDefaultBox.items.add(FlexItem(10, 12).withFlex(0));
-    optionsPluginDefaultBox.items.add(FlexItem(80, minpassheight, *mOptionsSavePluginDefaultButton).withMargin(0).withFlex(1));
-    optionsPluginDefaultBox.items.add(FlexItem(6, 12).withFlex(0));
-    optionsPluginDefaultBox.items.add(FlexItem(80, minpassheight, *mOptionsResetPluginDefaultButton).withMargin(0).withFlex(1));
 
-    
     optionsBox.items.clear();
     optionsBox.flexDirection = FlexBox::Direction::column;
     optionsBox.items.add(FlexItem(4, 6));
@@ -831,6 +842,10 @@ void OptionsView::updateLayout()
     //optionsBox.items.add(FlexItem(100, minpassheight, optionsHearlatBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minpassheight, optionsSnapToMouseBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minpassheight, optionsAutoReconnectBox).withMargin(2).withFlex(0));
+    optionsBox.items.add(FlexItem(100, minpassheight, optionsAutoConnectDirectBox).withMargin(2).withFlex(0));
+    if (CommsbusAutoStart::isSupported()) {
+        optionsBox.items.add(FlexItem(100, minpassheight, optionsStartAtLoginBox).withMargin(2).withFlex(0));
+    }
     optionsBox.items.add(FlexItem(100, minitemheight, optionsUdpBox).withMargin(2).withFlex(0));
     if (JUCEApplicationBase::isStandaloneApp()) {
         optionsBox.items.add(FlexItem(100, minpassheight, optionsOverrideSamplerateBox).withMargin(2).withFlex(0));
@@ -842,10 +857,6 @@ void OptionsView::updateLayout()
     optionsBox.items.add(FlexItem(100, minpassheight, optionsDisableShortcutsBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minpassheight, optionsDynResampleBox).withMargin(2).withFlex(0));
 
-    if ( ! JUCEApplicationBase::isStandaloneApp()) {
-        optionsBox.items.add(FlexItem(100, minitemheight, optionsPluginDefaultBox).withMargin(2).withFlex(0));
-    }
-    
     minOptionsHeight = 0;
     for (auto & item : optionsBox.items) {
         minOptionsHeight += item.minHeight + item.margin.top + item.margin.bottom;
@@ -1051,6 +1062,32 @@ void OptionsView::changeUdpPort(int port)
 
 void OptionsView::buttonClicked (Button* buttonThatWasClicked)
 {
+    if (buttonThatWasClicked == mOptionsAutoConnectDirectButton.get()) {
+        const bool newval = mOptionsAutoConnectDirectButton->getToggleState();
+        processor.getAutoConnectManager().setAutoConnectOnLaunch(newval);
+
+        if (newval) {
+            processor.startAutoConnect();
+        } else {
+            processor.getAutoConnectManager().stop();
+        }
+        return;
+    }
+    else if (buttonThatWasClicked == mOptionsStartAtLoginButton.get()) {
+        const bool newval = mOptionsStartAtLoginButton->getToggleState();
+        String errorMessage;
+
+        if (! CommsbusAutoStart::setEnabled(newval, errorMessage)) {
+            // Put the toggle back where it was: the on-disk state is the truth.
+            mOptionsStartAtLoginButton->setToggleState(CommsbusAutoStart::isEnabled(), dontSendNotification);
+
+            AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon,
+                                             TRANS("Could not change startup setting"),
+                                             errorMessage);
+        }
+        return;
+    }
+
     if (buttonThatWasClicked == mRecLocationButton.get()) {
         // browse folder chooser
         SafePointer<OptionsView> safeThis (this);
@@ -1087,14 +1124,14 @@ void OptionsView::buttonClicked (Button* buttonThatWasClicked)
              || buttonThatWasClicked == mOptionsRecMixMinusButton.get()
              ) {
         uint32 recmask = 0;
-        recmask |= (mOptionsRecMixButton->getToggleState() ? SonobusAudioProcessor::RecordMix : 0);
-        recmask |= (mOptionsRecOthersButton->getToggleState() ? SonobusAudioProcessor::RecordIndividualUsers : 0);
-        recmask |= (mOptionsRecSelfButton->getToggleState() ? SonobusAudioProcessor::RecordSelf : 0);
-        recmask |= (mOptionsRecMixMinusButton->getToggleState() ? SonobusAudioProcessor::RecordMixMinusSelf : 0);
+        recmask |= (mOptionsRecMixButton->getToggleState() ? CommsbusAudioProcessor::RecordMix : 0);
+        recmask |= (mOptionsRecOthersButton->getToggleState() ? CommsbusAudioProcessor::RecordIndividualUsers : 0);
+        recmask |= (mOptionsRecSelfButton->getToggleState() ? CommsbusAudioProcessor::RecordSelf : 0);
+        recmask |= (mOptionsRecMixMinusButton->getToggleState() ? CommsbusAudioProcessor::RecordMixMinusSelf : 0);
 
         // ensure at least one is selected
         if (recmask == 0) {
-            recmask = SonobusAudioProcessor::RecordMix;
+            recmask = CommsbusAudioProcessor::RecordMix;
             mOptionsRecMixButton->setToggleState(true, dontSendNotification);
         }
 
@@ -1168,13 +1205,6 @@ void OptionsView::buttonClicked (Button* buttonThatWasClicked)
             updateKeybindings();
         }
     }
-    else if (buttonThatWasClicked == mOptionsSavePluginDefaultButton.get()) {
-        processor.saveCurrentAsDefaultPluginSettings();
-    }
-    else if (buttonThatWasClicked == mOptionsResetPluginDefaultButton.get()) {
-        processor.resetDefaultPluginSettings();
-    }
-
     else if (buttonThatWasClicked == mOptionsUnivFontButton.get()) {
         bool newval = mOptionsUnivFontButton->getToggleState();
         String message;
@@ -1224,10 +1254,10 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
         processor.setDefaultAudioCodecFormat(index);
     }
     else if (comp == mOptionsAutosizeDefaultChoice.get()) {
-        processor.setDefaultAutoresizeBufferMode((SonobusAudioProcessor::AutoNetBufferMode) ident);
+        processor.setDefaultAutoresizeBufferMode((CommsbusAudioProcessor::AutoNetBufferMode) ident);
     }
     else if (comp == mRecFormatChoice.get()) {
-        processor.setDefaultRecordingFormat((SonobusAudioProcessor::RecordFileFormat) ident);
+        processor.setDefaultRecordingFormat((CommsbusAudioProcessor::RecordFileFormat) ident);
     }
     else if (comp == mRecBitsChoice.get()) {
         processor.setDefaultRecordingBitsPerSample(ident);

@@ -12,7 +12,7 @@
 #include "EffectParams.h"
 #include "SonoChoiceButton.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 
 //==============================================================================
 /*
@@ -24,7 +24,7 @@ class MonitorDelayView    : public EffectsBaseView,
    public EffectsBaseView::HeaderListener
 {
 public:
-    MonitorDelayView(SonobusAudioProcessor & processor_)  : processor(processor_)
+    MonitorDelayView(CommsbusAudioProcessor & processor_)  : processor(processor_)
     {
         timeSlider.setTitle(TRANS("Delay Time"));
         timeSlider.setName("time");
@@ -255,7 +255,7 @@ private:
 
     ListenerList<Listener> listeners;
 
-    SonobusAudioProcessor & processor;
+    CommsbusAudioProcessor & processor;
 
     Slider       timeSlider;
     TextButton   autoButton;

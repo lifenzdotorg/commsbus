@@ -6,7 +6,7 @@
 
 #include "JuceHeader.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
@@ -22,7 +22,7 @@ public TextEditor::Listener,
 public MultiTimer
 {
 public:
-    OptionsView(SonobusAudioProcessor& proc, std::function<AudioDeviceManager*()> getaudiodevicemanager);
+    OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDeviceManager*()> getaudiodevicemanager);
     virtual ~OptionsView();
 
 
@@ -91,7 +91,7 @@ protected:
     void chooseRecDirBrowser();
 
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     SonoBigTextLookAndFeel smallLNF;
     SonoBigTextLookAndFeel sonoSliderLNF;
@@ -133,11 +133,11 @@ protected:
     std::unique_ptr<ToggleButton> mOptionsOverrideSamplerateButton;
     std::unique_ptr<ToggleButton> mOptionsShouldCheckForUpdateButton;
     std::unique_ptr<ToggleButton> mOptionsAutoReconnectButton;
+    std::unique_ptr<ToggleButton> mOptionsAutoConnectDirectButton;
+    std::unique_ptr<ToggleButton> mOptionsStartAtLoginButton;
     std::unique_ptr<ToggleButton> mOptionsSliderSnapToMouseButton;
     std::unique_ptr<ToggleButton> mOptionsAllowBluetoothInput;
     std::unique_ptr<ToggleButton> mOptionsDisableShortcutButton;
-    std::unique_ptr<TextButton> mOptionsSavePluginDefaultButton;
-    std::unique_ptr<TextButton> mOptionsResetPluginDefaultButton;
 
     std::unique_ptr<ToggleButton> mOptionsInputLimiterButton;
     std::unique_ptr<Label> mOptionsDefaultLevelSliderLabel;
@@ -179,13 +179,14 @@ protected:
     FlexBox optionsChangeAllQualBox;
     FlexBox optionsInputLimitBox;
     FlexBox optionsAutoReconnectBox;
+    FlexBox optionsAutoConnectDirectBox;
+    FlexBox optionsStartAtLoginBox;
     FlexBox optionsSnapToMouseBox;
     FlexBox optionsDisableShortcutsBox;
     FlexBox optionsDefaultLevelBox;
     FlexBox optionsLanguageBox;
     FlexBox optionsAllowBluetoothBox;
     FlexBox optionsAutoDropThreshBox;
-    FlexBox optionsPluginDefaultBox;
 
     FlexBox recOptionsBox;
     FlexBox optionsRecordFormatBox;

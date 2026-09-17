@@ -6,7 +6,7 @@
 #include "SuggestNewGroupView.h"
 #include "GenericItemChooser.h"
 
-SuggestNewGroupView::SuggestNewGroupView(SonobusAudioProcessor& proc) :  smallLNF(14), processor(proc)
+SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallLNF(14), processor(proc)
 {
     smallLNF.textJustification = Justification::centred;
 

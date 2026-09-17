@@ -6,7 +6,7 @@
 
 #include <JuceHeader.h>
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoDrawableButton.h"
 #include <map>
 
@@ -24,7 +24,7 @@ public:
 class ChatView : public Component
 {
 public:
-    ChatView(SonobusAudioProcessor& proc, AooServerConnectionInfo & connectinfo);
+    ChatView(CommsbusAudioProcessor& proc, AooServerConnectionInfo & connectinfo);
     ~ChatView();
 
     void paint (Graphics&) override;
@@ -81,7 +81,7 @@ protected:
     void chatTextGainedFocus(FocusChangeType ctype);
     void chatTextLostFocus();
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
     AooServerConnectionInfo & currConnectionInfo;
 
     double mLastChatMessageStamp = 0.0;

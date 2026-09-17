@@ -6,46 +6,26 @@ if [ -n "$1" ] ; then
   PREFIX="$1"
 fi
 
-echo "Installing SonoBus to ${PREFIX} ... (specify destination as command line argument if you want it elsewhere)"
+echo "Installing Commsbus to ${PREFIX} ... (specify destination as command line argument if you want it elsewhere)"
 
-BUILDDIR=../build/SonoBus_artefacts/Release
-INSTBUILDDIR=../build/SonoBusInst_artefacts/Release
+BUILDDIR=../build/Commsbus_artefacts/Release
 
 mkdir -p ${PREFIX}/bin
-if ! cp ${BUILDDIR}/Standalone/sonobus  ${PREFIX}/bin/sonobus ; then
+if ! cp ${BUILDDIR}/Standalone/commsbus  ${PREFIX}/bin/commsbus ; then
   echo
   echo "Looks like you need to run this as 'sudo $0'"
   exit 2
 fi
 
 mkdir -p ${PREFIX}/share/applications
-cp sonobus.desktop ${PREFIX}/share/applications/sonobus.desktop
-chmod +x ${PREFIX}/share/applications/sonobus.desktop
+cp commsbus.desktop ${PREFIX}/share/applications/commsbus.desktop
+chmod +x ${PREFIX}/share/applications/commsbus.desktop
 
 mkdir -p ${PREFIX}/share/pixmaps
-cp ../images/sonobus_logo@2x.png ${PREFIX}/share/pixmaps/sonobus.png
+cp ../images/commsbus_logo@2x.png ${PREFIX}/share/pixmaps/commsbus.png
 
-if [ -d ${BUILDDIR}/VST3/SonoBus.vst3 ] ; then
-  mkdir -p ${PREFIX}/lib/vst3
-  cp -a ${BUILDDIR}/VST3/SonoBus.vst3 ${PREFIX}/lib/vst3/
+# Commsbus installs the standalone application only -- the VST3/LV2 plugin
+# targets were removed.
 
-  echo "SonoBus VST3 plugin installed"
-fi
-
-if [ -d ${INSTBUILDDIR}/VST3/SonoBusInstrument.vst3 ] ; then
-  mkdir -p ${PREFIX}/lib/vst3
-  cp -a ${INSTBUILDDIR}/VST3/SonoBusInstrument.vst3 ${PREFIX}/lib/vst3/
-
-  echo "SonoBus VST3i plugin installed"
-fi
-
-if [ -d ${BUILDDIR}/LV2/SonoBus.lv2 ] ; then
-  mkdir -p ${PREFIX}/lib/lv2
-  cp -a ${BUILDDIR}/LV2/SonoBus.lv2 ${PREFIX}/lib/lv2/
-
-  echo "SonoBus LV2 plugin installed"
-fi
-
-
-echo "SonoBus application installed"
+echo "Commsbus application installed"
 

@@ -201,7 +201,7 @@ void PendingPeerViewInfo::resized()
 }
 
 
-PeersContainerView::PeersContainerView(SonobusAudioProcessor& proc)
+PeersContainerView::PeersContainerView(CommsbusAudioProcessor& proc)
  : Component("pcv"),  processor(proc)
 {
     mutedTextColor = Colour::fromFloatRGBA(0.8, 0.5, 0.2, 1.0);
@@ -217,7 +217,7 @@ PeersContainerView::PeersContainerView(SonobusAudioProcessor& proc)
     outlineColor = Colour::fromFloatRGBA(0.25, 0.25, 0.25, 1.0);
     bgColor = Colours::black;
 
-    peerModeFull = processor.getPeerDisplayMode() == SonobusAudioProcessor::PeerDisplayModeFull;
+    peerModeFull = processor.getPeerDisplayMode() == CommsbusAudioProcessor::PeerDisplayModeFull;
 
     //setFocusContainerType(FocusContainerType::focusContainer);
 
@@ -486,10 +486,10 @@ PeerViewInfo * PeersContainerView::createPeerViewInfo()
 
     pvf->autosizeButton = std::make_unique<SonoChoiceButton>();
     pvf->autosizeButton->addChoiceListener(this);
-    pvf->autosizeButton->addItem(TRANS("Manual"), SonobusAudioProcessor::AutoNetBufferModeOff);
-    pvf->autosizeButton->addItem(TRANS("Auto Up"), SonobusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly);
-    pvf->autosizeButton->addItem(TRANS("Auto"), SonobusAudioProcessor::AutoNetBufferModeAutoFull);
-    pvf->autosizeButton->addItem(TRANS("Initial Auto"), SonobusAudioProcessor::AutoNetBufferModeInitAuto);    
+    pvf->autosizeButton->addItem(TRANS("Manual"), CommsbusAudioProcessor::AutoNetBufferModeOff);
+    pvf->autosizeButton->addItem(TRANS("Auto Up"), CommsbusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly);
+    pvf->autosizeButton->addItem(TRANS("Auto"), CommsbusAudioProcessor::AutoNetBufferModeAutoFull);
+    pvf->autosizeButton->addItem(TRANS("Initial Auto"), CommsbusAudioProcessor::AutoNetBufferModeInitAuto);    
     pvf->autosizeButton->addListener(this);
     
     pvf->bufferMinButton = std::make_unique<SonoDrawableButton>("", DrawableButton::ButtonStyle::ImageFitted);
@@ -547,10 +547,10 @@ PeerViewInfo * PeersContainerView::createPeerViewInfo()
     pvf->formatChoiceButton->addChoiceListener(this);
     int numformats = processor.getNumberAudioCodecFormats();
     for (int i=0; i < numformats; ++i) {
-        SonobusAudioProcessor::AudioCodecFormatInfo finfo;
+        CommsbusAudioProcessor::AudioCodecFormatInfo finfo;
         processor.getAudioCodeFormatInfo(i, finfo);
         auto name = finfo.name;
-        if (finfo.codec == SonobusAudioProcessor::AudioCodecFormatCodec::CodecOpus && finfo.bitrate < 96000) {
+        if (finfo.codec == CommsbusAudioProcessor::AudioCodecFormatCodec::CodecOpus && finfo.bitrate < 96000) {
             name += String(" (*)");
         }
         pvf->formatChoiceButton->addItem(name, i);
@@ -801,16 +801,16 @@ void PeersContainerView::peerLeftGroup(String & group, String & user)
 }
 
 
-void PeersContainerView::setPeerDisplayMode(SonobusAudioProcessor::PeerDisplayMode mode)
+void PeersContainerView::setPeerDisplayMode(CommsbusAudioProcessor::PeerDisplayMode mode)
 {
     // set full mode for all
     for (int i=0; i < mPeerViews.size(); ++i) {
         PeerViewInfo * pvf = mPeerViews.getUnchecked(i);
 
-        pvf->fullMode = (mode == SonobusAudioProcessor::PeerDisplayModeFull);
+        pvf->fullMode = (mode == CommsbusAudioProcessor::PeerDisplayModeFull);
     }
 
-    peerModeFull = (mode == SonobusAudioProcessor::PeerDisplayModeFull);
+    peerModeFull = (mode == CommsbusAudioProcessor::PeerDisplayModeFull);
 
     rebuildPeerViews();
     listeners.call (&PeersContainerView::Listener::internalSizesChanged, this);
@@ -1707,7 +1707,7 @@ void PeersContainerView::updatePeerViews(int specific)
         }
         
         String recvtext;
-        SonobusAudioProcessor::AudioCodecFormatInfo recvfinfo;
+        CommsbusAudioProcessor::AudioCodecFormatInfo recvfinfo;
         processor.getRemotePeerReceiveAudioCodecFormat(i, recvfinfo);
 
         if (recvactive) {
@@ -1757,7 +1757,7 @@ void PeersContainerView::updatePeerViews(int specific)
         pvf->sendActualBitrateLabel->setText(sendtext, dontSendNotification);
         pvf->recvActualBitrateLabel->setText(recvtext, dontSendNotification);
 
-        SonobusAudioProcessor::LatencyInfo latinfo;
+        CommsbusAudioProcessor::LatencyInfo latinfo;
         processor.getRemotePeerLatencyInfo(i, latinfo);
         
         //pvf->pingLabel->setText(String::formatted("%d ms", (int)latinfo.pingMs ), dontSendNotification);
@@ -1789,14 +1789,14 @@ void PeersContainerView::updatePeerViews(int specific)
         float buftimeMs = processor.getRemotePeerBufferTime(i);
         
         pvf->autosizeButton->setSelectedId(autobufmode, dontSendNotification);
-        String buflab = (autobufmode == SonobusAudioProcessor::AutoNetBufferModeOff ? "" :
-                         autobufmode == SonobusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly ? " (Auto+)" :
-                         autobufmode == SonobusAudioProcessor::AutoNetBufferModeInitAuto ? ( initCompleted ? " (IA-Man)" : " (IA-Auto)"  ) :
+        String buflab = (autobufmode == CommsbusAudioProcessor::AutoNetBufferModeOff ? "" :
+                         autobufmode == CommsbusAudioProcessor::AutoNetBufferModeAutoIncreaseOnly ? " (Auto+)" :
+                         autobufmode == CommsbusAudioProcessor::AutoNetBufferModeInitAuto ? ( initCompleted ? " (IA-Man)" : " (IA-Auto)"  ) :
                          " (Auto)");
         pvf->bufferLabel->setText(String::formatted("%d ms", (int) lrintf(buftimeMs)) + buflab, dontSendNotification);
 
-        pvf->bufferMinButton->setEnabled(autobufmode != SonobusAudioProcessor::AutoNetBufferModeOff);
-        pvf->bufferMinFrontButton->setEnabled(autobufmode != SonobusAudioProcessor::AutoNetBufferModeOff);
+        pvf->bufferMinButton->setEnabled(autobufmode != CommsbusAudioProcessor::AutoNetBufferModeOff);
+        pvf->bufferMinFrontButton->setEnabled(autobufmode != CommsbusAudioProcessor::AutoNetBufferModeOff);
 
 
         if (!pvf->bufferTimeSlider->isMouseButtonDown()) {
@@ -1860,7 +1860,7 @@ void PeersContainerView::updatePeerViews(int specific)
             }
             else {
 
-                ppvf->messageLabel->setText(TRANS("Could not connect with user, one or both of you may need to configure your internal firewall or network router to allow SonoBus to work between you. See the help documentation to enable port forwarding on your router."), dontSendNotification);
+                ppvf->messageLabel->setText(TRANS("Could not connect with user, one or both of you may need to configure your internal firewall or network router to allow Commsbus to work between you. See the help documentation to enable port forwarding on your router."), dontSendNotification);
                 ppvf->removeButton->setVisible(true);
             }
         }
@@ -1909,7 +1909,7 @@ void PeersContainerView::stopLatencyTest(int di)
     
     pvf->stopLatencyTestTimestampMs = 0;
     
-    SonobusAudioProcessor::LatencyInfo latinfo;
+    CommsbusAudioProcessor::LatencyInfo latinfo;
     processor.getRemotePeerLatencyInfo(i, latinfo);
         
     if (latinfo.legacy && !latinfo.isreal) {
@@ -1921,7 +1921,7 @@ void PeersContainerView::stopLatencyTest(int di)
     }
 }
 
-String PeersContainerView::generateLatencyMessage(const SonobusAudioProcessor::LatencyInfo &latinfo)
+String PeersContainerView::generateLatencyMessage(const CommsbusAudioProcessor::LatencyInfo &latinfo)
 {
     String messagestr = TRANS("Estimated Round-trip Latency:") + String::formatted(" %d ms", (int) lrintf(latinfo.totalRoundtripMs));
     messagestr += "\n" + TRANS("Round-trip Network Ping:") + String::formatted(" %.1f ms", (latinfo.pingMs));
@@ -1984,7 +1984,7 @@ void PeersContainerView::choiceButtonSelected(SonoChoiceButton *comp, int index,
             break;
         }        
         else if (pvf->autosizeButton.get() == comp) {
-            processor.setRemotePeerAutoresizeBufferMode(i, (SonobusAudioProcessor::AutoNetBufferMode) ident);
+            processor.setRemotePeerAutoresizeBufferMode(i, (CommsbusAudioProcessor::AutoNetBufferMode) ident);
             break;
         }        
     }
@@ -2049,7 +2049,7 @@ void PeersContainerView::buttonClicked (Button* buttonThatWasClicked)
                 }
                     
                 // disable solo for main monitor too
-                processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
+                processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
                 
                 updatePeerViews();
             } else {
@@ -2060,7 +2060,7 @@ void PeersContainerView::buttonClicked (Button* buttonThatWasClicked)
         }
 
         else if (pvf->latActiveButton.get() == buttonThatWasClicked) {
-            SonobusAudioProcessor::LatencyInfo latinfo;
+            CommsbusAudioProcessor::LatencyInfo latinfo;
             processor.getRemotePeerLatencyInfo(i, latinfo);
 
             if (latinfo.legacy) {
@@ -2139,7 +2139,7 @@ void PeersContainerView::buttonClicked (Button* buttonThatWasClicked)
                 for (int dj=0; dj < mPeerViews.size(); ++dj) {
                     int j = mPeerUpdateOrdering[dj];
 
-                    if (processor.getRemotePeerAutoresizeBufferMode(j, initCompleted) != SonobusAudioProcessor::AutoNetBufferModeOff) {
+                    if (processor.getRemotePeerAutoresizeBufferMode(j, initCompleted) != CommsbusAudioProcessor::AutoNetBufferModeOff) {
                         float buftime = 0.0;
                         processor.setRemotePeerBufferTime(j, buftime);
                         if (i==j) {

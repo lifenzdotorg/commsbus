@@ -4,7 +4,7 @@
 #pragma once
 
 
-class SonobusCommands
+class CommsbusCommands
 {
 public:
     

@@ -6,7 +6,7 @@
 
 #include "JuceHeader.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
@@ -193,7 +193,7 @@ public ChannelGroupsView::Listener,
 public MultiTimer
 {
 public:
-    PeersContainerView(SonobusAudioProcessor&);
+    PeersContainerView(CommsbusAudioProcessor&);
 
     class Listener {
     public:
@@ -254,7 +254,7 @@ public:
 
     std::function<AudioDeviceManager*()> getAudioDeviceManager; // = []() { return 0; };
 
-    void setPeerDisplayMode(SonobusAudioProcessor::PeerDisplayMode mode);
+    void setPeerDisplayMode(CommsbusAudioProcessor::PeerDisplayMode mode);
 
 
 protected:
@@ -266,7 +266,7 @@ protected:
     void configLabel(Label *label, int ltype);
     void configKnobSlider(Slider * slider);    
     
-    String generateLatencyMessage(const SonobusAudioProcessor::LatencyInfo &latinfo);
+    String generateLatencyMessage(const CommsbusAudioProcessor::LatencyInfo &latinfo);
 
     
     PeerViewInfo * createPeerViewInfo();
@@ -285,7 +285,7 @@ protected:
     ListenerList<Listener> listeners;
 
     OwnedArray<PeerViewInfo> mPeerViews;
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     // key is username, value is priority (lower is first)
     std::map<String, int> mPeerPriorityOrdering;

@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Install prerequisite packages for SonoBus build on Debian based distros
+# Install prerequisite packages for Commsbus build on Debian based distros
 
-GITREPO="https://github.com/essej/sonobus.git"
+GITREPO="https://github.com/essej/commsbus.git"
 
 PREREQS="libjack-jackd2-dev \
     libopus0 \

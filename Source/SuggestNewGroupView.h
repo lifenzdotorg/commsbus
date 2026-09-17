@@ -6,17 +6,17 @@
 
 #include <JuceHeader.h>
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoDrawableButton.h"
 #include "SonoLookAndFeel.h"
-#include "SonobusPluginEditor.h"
+#include "CommsbusAudioProcessorEditor.h"
 
 #include <set>
 
 class SuggestNewGroupView : public Component, public MultiTimer
 {
 public:
-    SuggestNewGroupView(SonobusAudioProcessor& proc);
+    SuggestNewGroupView(CommsbusAudioProcessor& proc);
     ~SuggestNewGroupView();
 
     void paint (Graphics&) override;
@@ -38,7 +38,7 @@ protected:
     ToggleButton * createPeerToggle();
     Label * createPeerLabel();
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
 
     std::unique_ptr<Viewport> mViewport;

@@ -1,46 +1,64 @@
+# Commsbus
 
-# SonoBus
+Commsbus is a stripped-down, always-on fork of
+[SonoBus](https://github.com/sonosaurus/sonobus) for streaming high-quality,
+low-latency peer-to-peer audio between machines over a local network or the
+internet.
 
-SonoBus is an easy to use application for streaming high-quality, low-latency peer-to-peer audio between devices over the internet or a local network.
+Where SonoBus is a general-purpose tool that also ships as a DAW plugin,
+Commsbus is built to be one thing and be reliable at it: a fixed set of machines
+that find each other directly, come up on their own after a reboot, and stay
+connected without anyone driving the UI.
 
-Simply choose a unique group name (with optional password), and instantly connect multiple people together to make music, remote sessions, podcasts, etc. Easily record the audio from everyone, as well as playback any audio content to the whole group.
+## How it differs from SonoBus
 
-Connects multiple users together to send and receive audio among all in a group, with fine-grained control over latency, quality and overall mix. Includes optional input compression, noise gate, and EQ effects, along with a master reverb. All settings are dynamic, network statistics are clearly visible.
+| | SonoBus | Commsbus |
+|---|---|---|
+| Formats | Standalone + VST3 / AU / AAX / LV2 / VSTi | Standalone application only |
+| Default connection | Private group via a rendezvous server | **Direct**, peer-to-peer by address |
+| Default input layout | One group spanning every input channel | **4 independent mono channel groups** |
+| After a reboot | Launched by hand | Starts automatically (macOS launch agent) |
+| After a dropout | Reconnected by hand | Reconnected automatically, with backoff |
+| Auto-update | On, pointed at SonoBus releases | Off, pointed at Commsbus releases |
 
-Works as a standalone application on macOS, Windows, iOS, and Linux, and as an audio plugin (AU, VST) on macOS and Windows. Use it on your desktop or in your DAW, or on your mobile device.
+Group-based connection through a rendezvous server is still present as a
+fallback for peers that cannot reach each other by address. It is simply no
+longer the default.
 
-Easy to setup and use, yet still provides all the details that audio nerds want to see. Audio quality can be instantly adjusted from full uncompressed PCM (16, 24, or 32 bit) or with various compressed bitrates (16-256 kbps per channel) using the low-latency Opus codec, and you can do this independently for any of the users you are connected with in a group.
+**Direct peers** are configured on the DIRECT tab and stored with the rest of
+the application state. Commsbus polls them and reconnects any that are missing,
+so a peer that reboots, changes address, or drops off the network rejoins by
+itself.
 
+**Only one copy runs at a time.** A second launch activates the running window
+and exits, so a copy started at login and a copy started by hand cannot fight
+over the audio device. Pass `--allow-multiple` if you really do want two.
 
-<img src="https://sonobus.net/assets/images/sonobus_screenshot.png" width="871" />
+**Start at login** is a toggle in Options. On macOS it installs a per-user
+launchd agent at `~/Library/LaunchAgents/org.lifenz.commsbus.plist` with
+`RunAtLoad` and `KeepAlive`, so Commsbus comes back after a reboot and is
+relaunched if it exits abnormally -- but not if you quit it deliberately. This is
+macOS-only for now; the toggle is hidden on other platforms.
 
 **IMPORTANT TIPS**
 
-SonoBus does not use any echo cancellation, or automatic noise
+Commsbus does not use any echo cancellation, or automatic noise
 reduction in order to maintain the highest audio quality. As a result, if you have a live microphone signal you will need to also use headphones to prevent echos and/or feedback.
 
 For best results, and to achieve the lowest latencies, connect your computer with wired ethernet to your router if you can. Although it will work with WiFi, the added network jitter and packet loss will require you to use a bigger safety buffer to maintain a quality audio signal, which results in higher latencies.
 
-SonoBus does NOT currently use any encryption for the data
+Commsbus does NOT currently use any encryption for the data
 communication, so while it is unlikely that it will be
 intercepted, please keep that in mind. All audio is sent directly between users peer-to-peer, the connection server is only used so that the users in a group can find each other.
 
 
-
 # Installing
 
-## Windows and Mac
-There are binary releases for macOS and Windows available at [sonobus.net](https://sonobus.net) or in the releases of this repository on GitHub.
-
-## Linux
-
-There are packages available for Debian-based Linux distributions as well as a Snap package. See installation instructions at [sonobus.net/linux.html](https://sonobus.net/linux.html).
-
-Or if you prefer, you can build it yourself following the [build instructions](#on-linux) below.
+Commsbus has no binary releases yet -- build it from source as below.
 
 # Building
 
-The original GitHub repository for this project is at
+Commsbus is a fork of
 [github.com/sonosaurus/sonobus](https://github.com/sonosaurus/sonobus).
 
 To build from source on macOS and Windows, all of the dependencies are a part of this GIT repository, including prebuilt Opus libraries. 
@@ -54,10 +72,10 @@ Make sure you have [CMake](https://cmake.org) >= 3.15 and XCode. Then run:
 ./setupcmake.sh
 ./buildcmake.sh
 ``` 
-The resulting application and plugins will end up under `build/SonoBus_artefacts/Release`
+The resulting application will end up under `build/Commsbus_artefacts/Release/Standalone`
 when the build completes. If you would rather have an Xcode project to look
 at, use `./setupcmakexcode.sh` instead and use the Xcode project that gets
-produced at `buildXcode/SonoBus.xcodeproj`.
+produced at `buildXcode/Commsbus.xcodeproj`.
 
 ### On Windows
 
@@ -69,9 +87,9 @@ below, but you can also use CMake in other ways if you prefer.
 ./setupcmakewin.sh
 ./buildcmake.sh
 ``` 
-The resulting application and plugins will end up under `build/SonoBus_artefacts/Release`
+The resulting application will end up under `build/Commsbus_artefacts/Release/Standalone`
 when the build completes. The MSVC project/solution can be found in
-build/SonoBus_artefacts as well after the cmake setup step.
+build/Commsbus_artefacts as well after the cmake setup step.
 
 
 ### On Linux
@@ -86,7 +104,7 @@ further instructions.
 
 # License and 3rd Party Software
 
-SonoBus was written by Jesse Chappell, and it is licensed under the GPLv3, the full license text is in the LICENSE file. Some of the dependencies have their own more permissive licenses.
+Commsbus was written by Jesse Chappell, and it is licensed under the GPLv3, the full license text is in the LICENSE file. Some of the dependencies have their own more permissive licenses.
 
 It is built using JUCE 6 (slightly modified on a public fork), and AOO (Audio over OSC), which also uses the Opus codec. I'm using the very handy tool `git-subrepo` to include the source code for my forks of those software libraries in this repository.
 
@@ -103,7 +121,7 @@ one at aoo.sonobus.net, you can build the headless aooserver code at
 
 > https://github.com/essej/aooserver
 
-The standalone SonoBus application also provides a connection server internally,
+The standalone Commsbus application also provides a connection server internally,
 which you can connect to on port 10999, or port forward TCP/UDP 10999 from your internet
 router to the machine you are running it on.
 

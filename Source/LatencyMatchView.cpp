@@ -6,7 +6,7 @@
 #include "LatencyMatchView.h"
 #include "GenericItemChooser.h"
 
-LatencyMatchView::LatencyMatchView(SonobusAudioProcessor& proc) :  sonoSliderLNF(12), processor(proc)
+LatencyMatchView::LatencyMatchView(CommsbusAudioProcessor& proc) :  sonoSliderLNF(12), processor(proc)
 {
     sonoSliderLNF.textJustification = Justification::centredRight;
 
@@ -198,7 +198,7 @@ void LatencyMatchView::updatePeerSliders()
     peerSlidersBox.flexDirection = FlexBox::Direction::column;
 
 
-    Array<SonobusAudioProcessor::LatInfo> latlist;
+    Array<CommsbusAudioProcessor::LatInfo> latlist;
 
     processor.getLatencyInfoList(latlist);
 

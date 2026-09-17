@@ -21,6 +21,7 @@
 #include "zitaRev.h"
 
 #include "SoundboardChannelProcessor.h"
+#include "AutoConnectManager.h"
 
 typedef MVerb<float> MVerbFloat;
 
@@ -31,6 +32,10 @@ class Metronome;
 
 #define MAX_PEERS 32
 #define MAX_CHANGROUPS 64
+
+// Commsbus defaults to this many independent mono input channel groups, clamped
+// to the number of inputs the audio device actually has.
+#define DEFAULT_MONO_CHANNEL_GROUPS 4
 #define DEFAULT_SERVER_PORT 10998
 #define DEFAULT_SERVER_HOST "aoo.sonobus.net"
 
@@ -113,12 +118,12 @@ inline bool operator<(const AooServerConnectionInfo& lhs, const AooServerConnect
 //==============================================================================
 /**
 */
-class SonobusAudioProcessor  : public AudioProcessor, public AudioProcessorValueTreeState::Listener, public ChangeListener
+class CommsbusAudioProcessor  : public AudioProcessor, public AudioProcessorValueTreeState::Listener, public ChangeListener
 {
 public:
     //==============================================================================
-    SonobusAudioProcessor();
-    ~SonobusAudioProcessor();
+    CommsbusAudioProcessor();
+    ~CommsbusAudioProcessor();
 
     enum AutoNetBufferMode {
         AutoNetBufferModeOff = 0,
@@ -573,6 +578,15 @@ public:
 
     bool getAutoReconnectToLast() const { return mAutoReconnectLast.get(); }
 
+    /**
+     * Direct (address-based) peers that Commsbus keeps itself connected to,
+     * independently of any group/rendezvous server. See AutoConnectManager.
+     */
+    AutoConnectManager & getAutoConnectManager() { return mAutoConnectManager; }
+
+    /** Connects to configured direct peers now, and keeps them connected. */
+    void startAutoConnect();
+
     bool getSyncMetToHost() const { return mSyncMetToHost.get(); }
 
     // misc settings
@@ -661,24 +675,24 @@ public:
     class ClientListener {
     public:
         virtual ~ClientListener() {}
-        virtual void aooClientConnected(SonobusAudioProcessor *comp, bool success, const String & errmesg="") {}
-        virtual void aooClientDisconnected(SonobusAudioProcessor *comp, bool success, const String & errmesg="") {}
-        virtual void aooClientLoginResult(SonobusAudioProcessor *comp, bool success, const String & errmesg="") {}
-        virtual void aooClientGroupJoined(SonobusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") {}
-        virtual void aooClientGroupLeft(SonobusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") {}
-        virtual void aooClientPublicGroupModified(SonobusAudioProcessor *comp, const String & group, int count, const String & errmesg="") {}
-        virtual void aooClientPublicGroupDeleted(SonobusAudioProcessor *comp, const String & group,  const String & errmesg="") {}
-        virtual void aooClientPeerPendingJoin(SonobusAudioProcessor *comp, const String & group, const String & user) {}
-        virtual void aooClientPeerJoined(SonobusAudioProcessor *comp, const String & group, const String & user) {}
-        virtual void aooClientPeerJoinFailed(SonobusAudioProcessor *comp, const String & group, const String & user) {}
-        virtual void aooClientPeerJoinBlocked(SonobusAudioProcessor *comp, const String & group, const String & user, const String & address, int port) {}
-        virtual void aooClientPeerLeft(SonobusAudioProcessor *comp, const String & group, const String & user) {}
-        virtual void aooClientError(SonobusAudioProcessor *comp, const String & errmesg) {}
-        virtual void aooClientPeerChangedState(SonobusAudioProcessor *comp, const String & mesg) {}
-        virtual void sbChatEventReceived(SonobusAudioProcessor *comp, const SBChatEvent & chatevent) {}
-        virtual void peerRequestedLatencyMatch(SonobusAudioProcessor *comp, const String & username, float latency) {}
-        virtual void peerBlockedInfoChanged(SonobusAudioProcessor *comp, const String & username, bool blocked) {}
-        virtual void peerSuggestedNewGroup(SonobusAudioProcessor *comp, const String & username, const String & newgroup, const String & grouppass, bool isPublic, const StringArray & others) {}
+        virtual void aooClientConnected(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") {}
+        virtual void aooClientDisconnected(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") {}
+        virtual void aooClientLoginResult(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") {}
+        virtual void aooClientGroupJoined(CommsbusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") {}
+        virtual void aooClientGroupLeft(CommsbusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") {}
+        virtual void aooClientPublicGroupModified(CommsbusAudioProcessor *comp, const String & group, int count, const String & errmesg="") {}
+        virtual void aooClientPublicGroupDeleted(CommsbusAudioProcessor *comp, const String & group,  const String & errmesg="") {}
+        virtual void aooClientPeerPendingJoin(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
+        virtual void aooClientPeerJoined(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
+        virtual void aooClientPeerJoinFailed(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
+        virtual void aooClientPeerJoinBlocked(CommsbusAudioProcessor *comp, const String & group, const String & user, const String & address, int port) {}
+        virtual void aooClientPeerLeft(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
+        virtual void aooClientError(CommsbusAudioProcessor *comp, const String & errmesg) {}
+        virtual void aooClientPeerChangedState(CommsbusAudioProcessor *comp, const String & mesg) {}
+        virtual void sbChatEventReceived(CommsbusAudioProcessor *comp, const SBChatEvent & chatevent) {}
+        virtual void peerRequestedLatencyMatch(CommsbusAudioProcessor *comp, const String & username, float latency) {}
+        virtual void peerBlockedInfoChanged(CommsbusAudioProcessor *comp, const String & username, bool blocked) {}
+        virtual void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & grouppass, bool isPublic, const StringArray & others) {}
     };
     
     void addClientListener(ClientListener * l) {
@@ -830,7 +844,7 @@ public:
 
 private:
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SonobusAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CommsbusAudioProcessor)
     
     struct PeerStateCache
     {
@@ -989,7 +1003,7 @@ private:
     Atomic<float>   mMainReverbPreDelay  { 20.0f }; // ms
     Atomic<int>   mMainReverbModel  { ReverbModelMVerb };
     Atomic<bool>   mDynamicResampling  { false };
-    Atomic<bool>   mAutoReconnectLast  { false };
+    Atomic<bool>   mAutoReconnectLast  { true }; // Commsbus: on by default
     Atomic<float>   mDefUserLevel    { 1.0f };
     Atomic<bool>   mSyncMetToHost  { false };
     Atomic<bool>   mSyncMetStartToPlayback  { false };
@@ -1120,6 +1134,8 @@ private:
     OwnedArray<RemotePeer> mRemotePeers;
 
 
+    AutoConnectManager mAutoConnectManager { *this };
+
     Array<AooServerConnectionInfo> mRecentConnectionInfos;
     CriticalSection  mRecentsLock;
     
@@ -1130,12 +1146,12 @@ private:
     class ServerReconnectTimer : public Timer
     {
     public:
-        ServerReconnectTimer(SonobusAudioProcessor & proc) : processor(proc) {
+        ServerReconnectTimer(CommsbusAudioProcessor & proc) : processor(proc) {
         }
         
         void timerCallback() override;
         
-        SonobusAudioProcessor & processor;
+        CommsbusAudioProcessor & processor;
     };
 
     ServerReconnectTimer mReconnectTimer;
@@ -1271,16 +1287,16 @@ private:
 };
 
 
-inline bool operator==(const SonobusAudioProcessor::LatInfo& lhs, const SonobusAudioProcessor::LatInfo& rhs) {
+inline bool operator==(const CommsbusAudioProcessor::LatInfo& lhs, const CommsbusAudioProcessor::LatInfo& rhs) {
     // compare all except timestamp
      return (lhs.sourceName == rhs.sourceName
              && lhs.destName == rhs.destName
              );
 }
 
-inline bool operator!=(const SonobusAudioProcessor::LatInfo& lhs, const SonobusAudioProcessor::LatInfo& rhs){ return !(lhs == rhs); }
+inline bool operator!=(const CommsbusAudioProcessor::LatInfo& lhs, const CommsbusAudioProcessor::LatInfo& rhs){ return !(lhs == rhs); }
 
-inline bool operator<(const SonobusAudioProcessor::LatInfo& lhs, const SonobusAudioProcessor::LatInfo& rhs)
+inline bool operator<(const CommsbusAudioProcessor::LatInfo& lhs, const CommsbusAudioProcessor::LatInfo& rhs)
 {
     // default sorting alpha
     return (lhs.sourceName.compareIgnoreCase(rhs.sourceName) < 0);

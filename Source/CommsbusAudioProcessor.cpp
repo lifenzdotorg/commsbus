@@ -3,8 +3,8 @@
 
 
 
-#include "SonobusPluginProcessor.h"
-#include "SonobusPluginEditor.h"
+#include "CommsbusAudioProcessor.h"
+#include "CommsbusAudioProcessorEditor.h"
 
 #include "RunCumulantor.h"
 
@@ -41,44 +41,44 @@ typedef int socklen_t;
 #define SENDBUFSIZE_SCALAR 2.0f
 #define PEER_PING_INTERVAL_MS 2000.0
 
-String SonobusAudioProcessor::paramInGain     ("ingain");
-String SonobusAudioProcessor::paramDry     ("dry");
-String SonobusAudioProcessor::paramInMonitorMonoPan     ("inmonmonopan");
-String SonobusAudioProcessor::paramInMonitorPan1     ("inmonpan1");
-String SonobusAudioProcessor::paramInMonitorPan2     ("inmonpan2");
-String SonobusAudioProcessor::paramWet     ("wet");
-String SonobusAudioProcessor::paramBufferTime  ("buffertime");
-String SonobusAudioProcessor::paramDefaultNetbufMs ("defnetbuf");
-String SonobusAudioProcessor::paramDefaultAutoNetbuf ("defnetauto");
-String SonobusAudioProcessor::paramDefaultSendQual ("defsendqual");
-String SonobusAudioProcessor::paramMainSendMute ("mastsendmute");
-String SonobusAudioProcessor::paramMainRecvMute ("mastrecvmute");
-String SonobusAudioProcessor::paramMainInMute ("mastinmute");
-String SonobusAudioProcessor::paramMainMonitorSolo ("mastmonsolo");
-String SonobusAudioProcessor::paramMetEnabled ("metenabled");
-String SonobusAudioProcessor::paramMetGain     ("metgain");
-String SonobusAudioProcessor::paramMetTempo     ("mettempo");
-String SonobusAudioProcessor::paramSendChannels    ("sendchannels");
-String SonobusAudioProcessor::paramSendMetAudio    ("sendmetaudio");
-String SonobusAudioProcessor::paramSendFileAudio    ("sendfileaudio");
-String SonobusAudioProcessor::paramSendSoundboardAudio    ("sendsoundboardaudio");
-String SonobusAudioProcessor::paramHearLatencyTest   ("hearlatencytest");
-String SonobusAudioProcessor::paramMetIsRecorded   ("metisrecorded");
-String SonobusAudioProcessor::paramMainReverbEnabled  ("mainreverbenabled");
-String SonobusAudioProcessor::paramMainReverbLevel  ("nmainreverblevel");
-String SonobusAudioProcessor::paramMainReverbSize  ("mainreverbsize");
-String SonobusAudioProcessor::paramMainReverbDamping  ("mainreverbdamp");
-String SonobusAudioProcessor::paramMainReverbPreDelay  ("mainreverbpredelay");
-String SonobusAudioProcessor::paramMainReverbModel  ("mainreverbmodel");
-String SonobusAudioProcessor::paramDynamicResampling  ("dynamicresampling");
-String SonobusAudioProcessor::paramAutoReconnectLast  ("reconnectlast");
-String SonobusAudioProcessor::paramDefaultPeerLevel  ("defPeerLevel");
-String SonobusAudioProcessor::paramSyncMetToHost  ("syncMetHost");
-String SonobusAudioProcessor::paramSyncMetToFilePlayback  ("syncMetFile");
-String SonobusAudioProcessor::paramInputReverbLevel  ("inreverblevel");
-String SonobusAudioProcessor::paramInputReverbSize  ("inreverbsize");
-String SonobusAudioProcessor::paramInputReverbDamping  ("inreverbdamp");
-String SonobusAudioProcessor::paramInputReverbPreDelay  ("inreverbpredelay");
+String CommsbusAudioProcessor::paramInGain     ("ingain");
+String CommsbusAudioProcessor::paramDry     ("dry");
+String CommsbusAudioProcessor::paramInMonitorMonoPan     ("inmonmonopan");
+String CommsbusAudioProcessor::paramInMonitorPan1     ("inmonpan1");
+String CommsbusAudioProcessor::paramInMonitorPan2     ("inmonpan2");
+String CommsbusAudioProcessor::paramWet     ("wet");
+String CommsbusAudioProcessor::paramBufferTime  ("buffertime");
+String CommsbusAudioProcessor::paramDefaultNetbufMs ("defnetbuf");
+String CommsbusAudioProcessor::paramDefaultAutoNetbuf ("defnetauto");
+String CommsbusAudioProcessor::paramDefaultSendQual ("defsendqual");
+String CommsbusAudioProcessor::paramMainSendMute ("mastsendmute");
+String CommsbusAudioProcessor::paramMainRecvMute ("mastrecvmute");
+String CommsbusAudioProcessor::paramMainInMute ("mastinmute");
+String CommsbusAudioProcessor::paramMainMonitorSolo ("mastmonsolo");
+String CommsbusAudioProcessor::paramMetEnabled ("metenabled");
+String CommsbusAudioProcessor::paramMetGain     ("metgain");
+String CommsbusAudioProcessor::paramMetTempo     ("mettempo");
+String CommsbusAudioProcessor::paramSendChannels    ("sendchannels");
+String CommsbusAudioProcessor::paramSendMetAudio    ("sendmetaudio");
+String CommsbusAudioProcessor::paramSendFileAudio    ("sendfileaudio");
+String CommsbusAudioProcessor::paramSendSoundboardAudio    ("sendsoundboardaudio");
+String CommsbusAudioProcessor::paramHearLatencyTest   ("hearlatencytest");
+String CommsbusAudioProcessor::paramMetIsRecorded   ("metisrecorded");
+String CommsbusAudioProcessor::paramMainReverbEnabled  ("mainreverbenabled");
+String CommsbusAudioProcessor::paramMainReverbLevel  ("nmainreverblevel");
+String CommsbusAudioProcessor::paramMainReverbSize  ("mainreverbsize");
+String CommsbusAudioProcessor::paramMainReverbDamping  ("mainreverbdamp");
+String CommsbusAudioProcessor::paramMainReverbPreDelay  ("mainreverbpredelay");
+String CommsbusAudioProcessor::paramMainReverbModel  ("mainreverbmodel");
+String CommsbusAudioProcessor::paramDynamicResampling  ("dynamicresampling");
+String CommsbusAudioProcessor::paramAutoReconnectLast  ("reconnectlast");
+String CommsbusAudioProcessor::paramDefaultPeerLevel  ("defPeerLevel");
+String CommsbusAudioProcessor::paramSyncMetToHost  ("syncMetHost");
+String CommsbusAudioProcessor::paramSyncMetToFilePlayback  ("syncMetFile");
+String CommsbusAudioProcessor::paramInputReverbLevel  ("inreverblevel");
+String CommsbusAudioProcessor::paramInputReverbSize  ("inreverbsize");
+String CommsbusAudioProcessor::paramInputReverbDamping  ("inreverbdamp");
+String CommsbusAudioProcessor::paramInputReverbPreDelay  ("inreverbpredelay");
 
 static String recentsCollectionKey("RecentConnections");
 static String recentsItemKey("ServerConnectionInfo");
@@ -193,7 +193,7 @@ static addrinfo* getAddressInfo (bool isDatagram, const String& hostName, int po
     return nullptr;
 }
 
-struct SonobusAudioProcessor::EndpointState {
+struct CommsbusAudioProcessor::EndpointState {
     EndpointState(String ipaddr_="", int port_=0) : ipaddr(ipaddr_), port(port_) {
         rawaddr.sa_family = AF_UNSPEC;
     }
@@ -243,7 +243,7 @@ enum {
 };
 
 
-struct SonobusAudioProcessor::RemotePeer {
+struct CommsbusAudioProcessor::RemotePeer {
     RemotePeer(EndpointState * ep = 0, int id_=0, aoo::isink::pointer oursink_ = 0, aoo::isource::pointer oursource_ = 0) : endpoint(ep), 
         ourId(id_), 
         oursink(std::move(oursink_)), oursource(std::move(oursource_))
@@ -373,7 +373,7 @@ struct SonobusAudioProcessor::RemotePeer {
 
 static int32_t endpoint_send(void *e, const char *data, int32_t size)
 {
-    SonobusAudioProcessor::EndpointState * endpoint = static_cast<SonobusAudioProcessor::EndpointState*>(e);
+    CommsbusAudioProcessor::EndpointState * endpoint = static_cast<CommsbusAudioProcessor::EndpointState*>(e);
     int result = -1;
     if (endpoint->peer) {
         result = endpoint->owner->write(*(endpoint->peer), data, size);
@@ -393,7 +393,7 @@ static int32_t endpoint_send(void *e, const char *data, int32_t size)
 
 static int32_t client_send(void *e, const char *data, int32_t size, void *raddr)
 {
-    SonobusAudioProcessor::EndpointState * endpoint = static_cast<SonobusAudioProcessor::EndpointState*>(e);
+    CommsbusAudioProcessor::EndpointState * endpoint = static_cast<CommsbusAudioProcessor::EndpointState*>(e);
     int result = -1;
 
     const struct sockaddr *addr = (struct sockaddr *)raddr;
@@ -411,10 +411,10 @@ static int32_t client_send(void *e, const char *data, int32_t size, void *raddr)
 
 
 
-class SonobusAudioProcessor::SendThread : public juce::Thread
+class CommsbusAudioProcessor::SendThread : public juce::Thread
 {
 public:
-    SendThread(SonobusAudioProcessor & processor) : Thread("SonoBusSendThread") , _processor(processor) 
+    SendThread(CommsbusAudioProcessor & processor) : Thread("CommsbusSendThread") , _processor(processor) 
     {}
     
     void run() override {
@@ -441,14 +441,14 @@ public:
         DBG("Send thread finishing");
     }
     
-    SonobusAudioProcessor & _processor;
+    CommsbusAudioProcessor & _processor;
     
 };
 
-class SonobusAudioProcessor::RecvThread : public juce::Thread
+class CommsbusAudioProcessor::RecvThread : public juce::Thread
 {
 public:
-    RecvThread(SonobusAudioProcessor & processor) : Thread("SonoBusRecvThread") , _processor(processor) 
+    RecvThread(CommsbusAudioProcessor & processor) : Thread("CommsbusRecvThread") , _processor(processor) 
     {}
     
     void run() override {
@@ -465,14 +465,14 @@ public:
         DBG("Recv thread finishing");        
     }
     
-    SonobusAudioProcessor & _processor;
+    CommsbusAudioProcessor & _processor;
     
 };
 
-class SonobusAudioProcessor::EventThread : public juce::Thread
+class CommsbusAudioProcessor::EventThread : public juce::Thread
 {
 public:
-    EventThread(SonobusAudioProcessor & processor) : Thread("SonoBusEventThread") , _processor(processor) 
+    EventThread(CommsbusAudioProcessor & processor) : Thread("CommsbusEventThread") , _processor(processor) 
     {}
     
     void run() override {
@@ -487,14 +487,14 @@ public:
         DBG("Event thread finishing");
     }
     
-    SonobusAudioProcessor & _processor;
+    CommsbusAudioProcessor & _processor;
     
 };
 
-class SonobusAudioProcessor::ServerThread : public juce::Thread
+class CommsbusAudioProcessor::ServerThread : public juce::Thread
 {
 public:
-    ServerThread(SonobusAudioProcessor & processor) : Thread("SonoBusServerThread") , _processor(processor) 
+    ServerThread(CommsbusAudioProcessor & processor) : Thread("CommsbusServerThread") , _processor(processor) 
     {}
     
     void run() override {
@@ -506,14 +506,14 @@ public:
         DBG("Server thread finishing");        
     }
     
-    SonobusAudioProcessor & _processor;
+    CommsbusAudioProcessor & _processor;
     
 };
 
-class SonobusAudioProcessor::ClientThread : public juce::Thread
+class CommsbusAudioProcessor::ClientThread : public juce::Thread
 {
 public:
-    ClientThread(SonobusAudioProcessor & processor) : Thread("SonoBusClientThread") , _processor(processor) 
+    ClientThread(CommsbusAudioProcessor & processor) : Thread("CommsbusClientThread") , _processor(processor) 
     {}
     
     void run() override {
@@ -525,7 +525,7 @@ public:
         DBG("Client thread finishing");        
     }
     
-    SonobusAudioProcessor & _processor;
+    CommsbusAudioProcessor & _processor;
     
 };
 
@@ -544,9 +544,9 @@ enum {
 #endif
 
 
-SonobusAudioProcessor::BusesProperties SonobusAudioProcessor::getDefaultLayout()
+CommsbusAudioProcessor::BusesProperties CommsbusAudioProcessor::getDefaultLayout()
 {
-    auto props = SonobusAudioProcessor::BusesProperties();
+    auto props = CommsbusAudioProcessor::BusesProperties();
     auto plugtype = PluginHostType::getPluginLoadedAs();
 
     // common to all
@@ -595,12 +595,12 @@ SonobusAudioProcessor::BusesProperties SonobusAudioProcessor::getDefaultLayout()
 
 
 //==============================================================================
-SonobusAudioProcessor::SonobusAudioProcessor()
+CommsbusAudioProcessor::CommsbusAudioProcessor()
 : AudioProcessor ( getDefaultLayout() ),
 mReconnectTimer(*this),
 soundboardChannelProcessor(std::make_unique<SoundboardChannelProcessor>()),
-mGlobalState("SonobusGlobalState"),
-mState (*this, &mUndoManager, "SonoBusAoO",
+mGlobalState("CommsbusGlobalState"),
+mState (*this, &mUndoManager, "CommsbusAoO",
 {
            std::make_unique<AudioParameterFloat>(ParameterID(paramInGain, 1),     TRANS ("In Gain"),    NormalisableRange<float>(0.0, 4.0, 0.0, 0.33), mInGain.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); }, 
@@ -618,7 +618,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
                                           [](float v, int maxlen) -> String { if (fabs(v) < 0.01) return TRANS("C"); return String((int)rint(abs(v*100.0f))) + ((v > 0 ? "% R" : "% L")) ; },
                                           [](const String& s) -> float { return s.getFloatValue()*1e-2f; }),
 
-    std::make_unique<AudioParameterFloat>(ParameterID(paramDry, 1),     TRANS ("Dry Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), JUCEApplicationBase::isStandaloneApp() ? mDry.get() : 1.0f, "", AudioProcessorParameter::genericParameter,
+    std::make_unique<AudioParameterFloat>(ParameterID(paramDry, 1),     TRANS ("Dry Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), mDry.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); }, 
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
 
@@ -629,7 +629,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
     std::make_unique<AudioParameterFloat>(ParameterID(paramDefaultNetbufMs, 1),     TRANS ("Default Jitter Buffer Time"),    NormalisableRange<float>(0.0, mMaxBufferTime.get(), 0.001, 0.5), mBufferTime.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return String(v*1000.0) + " ms"; }, 
                                           [](const String& s) -> float { return s.getFloatValue()*1e-3f; }),
-    std::make_unique<AudioParameterChoice>(ParameterID(paramSendChannels, 1), TRANS ("Send Channels"), StringArray({ "Match # Inputs", "Send Mono", "Send Stereo"}), JUCEApplicationBase::isStandaloneApp() ? mSendChannels.get() : 0),
+    std::make_unique<AudioParameterChoice>(ParameterID(paramSendChannels, 1), TRANS ("Send Channels"), StringArray({ "Match # Inputs", "Send Mono", "Send Stereo"}), mSendChannels.get()),
 
     std::make_unique<AudioParameterBool>(ParameterID(paramMetEnabled, 1), TRANS ("Metronome Enabled"), mMetEnabled.get()),
     std::make_unique<AudioParameterBool>(ParameterID(paramSendMetAudio, 1), TRANS ("Send Metronome Audio"), mSendMet.get()),
@@ -674,7 +674,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
     std::make_unique<AudioParameterFloat>(ParameterID(paramDefaultPeerLevel, 1),     TRANS ("Default User Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), mDefUserLevel.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); },
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
-    std::make_unique<AudioParameterBool>(ParameterID(paramSyncMetToHost, 1), TRANS ("Sync to Host"), JUCEApplicationBase::isStandaloneApp() ? false : true),
+    std::make_unique<AudioParameterBool>(ParameterID(paramSyncMetToHost, 1), TRANS ("Sync to Host"), false),
     std::make_unique<AudioParameterFloat>(ParameterID(paramInputReverbLevel, 1),     TRANS ("Input Reverb Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.4), mInputReverbLevel.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); },
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
@@ -739,11 +739,11 @@ mState (*this, &mUndoManager, "SonoBusAoO",
     
     // use this to match our main app support dir
     PropertiesFile::Options options;
-    options.applicationName     = "SonoBus";
+    options.applicationName     = "Commsbus";
     options.filenameSuffix      = ".xml";
-    options.osxLibrarySubFolder = "Application Support/SonoBus";
+    options.osxLibrarySubFolder = "Application Support/Commsbus";
    #if JUCE_LINUX
-    options.folderName          = "~/.config/sonobus";
+    options.folderName          = "~/.config/commsbus";
    #else
     options.folderName          = "";
    #endif
@@ -766,7 +766,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
     // LEAVE EMPTY by default
 #else
     auto parentDir = File::getSpecialLocation (File::userMusicDirectory);
-    parentDir = parentDir.getChildFile("SonoBus");
+    parentDir = parentDir.getChildFile("Commsbus");
     mDefaultRecordDir = URL(parentDir);
     mLastBrowseDir = mDefaultRecordDir.getLocalFile().getFullPathName();
 #endif
@@ -777,7 +777,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
     mDefaultAutoNetbufModeParam = mState.getParameter(paramDefaultAutoNetbuf);
     mDefaultAudioFormatParam = mState.getParameter(paramDefaultSendQual);
 
-    const bool isplugin = !JUCEApplicationBase::isStandaloneApp();
+    const bool isplugin = false; // Commsbus is a standalone application only
     if (isplugin) {
         // default dry to 1.0 if plugin
         mDry = 1.0;
@@ -851,7 +851,7 @@ mState (*this, &mUndoManager, "SonoBusAoO",
 
 
 
-SonobusAudioProcessor::~SonobusAudioProcessor()
+CommsbusAudioProcessor::~CommsbusAudioProcessor()
 {
     mTransportSource.setSource(nullptr);
     mTransportSource.removeChangeListener(this);
@@ -859,15 +859,15 @@ SonobusAudioProcessor::~SonobusAudioProcessor()
     cleanupAoo();
 }
 
-void SonobusAudioProcessor::moveOldMisplacedFiles()
+void CommsbusAudioProcessor::moveOldMisplacedFiles()
 {
     // old dummy mistake location
     PropertiesFile::Options dummyoptions;
     dummyoptions.applicationName     = "dummy";
     dummyoptions.filenameSuffix      = ".xml";
-    dummyoptions.osxLibrarySubFolder = "Application Support/SonoBus";
+    dummyoptions.osxLibrarySubFolder = "Application Support/Commsbus";
    #if JUCE_LINUX
-    dummyoptions.folderName          = "~/.config/sonobus";
+    dummyoptions.folderName          = "~/.config/commsbus";
    #else
     dummyoptions.folderName          = "";
    #endif
@@ -890,7 +890,7 @@ void SonobusAudioProcessor::moveOldMisplacedFiles()
 }
 
 
-void SonobusAudioProcessor::setUseSpecificUdpPort(int port)
+void CommsbusAudioProcessor::setUseSpecificUdpPort(int port)
 {
     mUseSpecificUdpPort = port;
     
@@ -902,7 +902,7 @@ void SonobusAudioProcessor::setUseSpecificUdpPort(int port)
     }
 }
 
-void SonobusAudioProcessor::initializeAoo(int udpPort)
+void CommsbusAudioProcessor::initializeAoo(int udpPort)
 {
     int udpport = udpPort; // defaults to letting system choose it  // DEFAULT_UDP_PORT;
     
@@ -1047,7 +1047,7 @@ void SonobusAudioProcessor::initializeAoo(int udpPort)
     
 }
 
-void SonobusAudioProcessor::cleanupAoo()
+void CommsbusAudioProcessor::cleanupAoo()
 {
     disconnectFromServer();
     
@@ -1082,7 +1082,7 @@ void SonobusAudioProcessor::cleanupAoo()
     stopAooServer();    
 }
 
-void SonobusAudioProcessor::startAooServer()
+void CommsbusAudioProcessor::startAooServer()
 {
     stopAooServer();
     
@@ -1102,7 +1102,7 @@ void SonobusAudioProcessor::startAooServer()
     }
 }
     
-void SonobusAudioProcessor::stopAooServer()
+void CommsbusAudioProcessor::stopAooServer()
 {
     if (mAooServer) {
         DBG("waiting on recv thread to die");
@@ -1114,7 +1114,7 @@ void SonobusAudioProcessor::stopAooServer()
     }
 }
 
-bool SonobusAudioProcessor::setCurrentUsername(const String & name)
+bool CommsbusAudioProcessor::setCurrentUsername(const String & name)
 {
     if (mIsConnectedToServer) return false;
 
@@ -1123,7 +1123,7 @@ bool SonobusAudioProcessor::setCurrentUsername(const String & name)
 }
 
 
-bool SonobusAudioProcessor::connectToServer(const String & host, int port, const String & username, const String & passwd)
+bool CommsbusAudioProcessor::connectToServer(const String & host, int port, const String & username, const String & passwd)
 {
     if (!mAooClient) return false;
     
@@ -1148,14 +1148,14 @@ bool SonobusAudioProcessor::connectToServer(const String & host, int port, const
     return retval >= 0;
 }
 
-bool SonobusAudioProcessor::isConnectedToServer() const
+bool CommsbusAudioProcessor::isConnectedToServer() const
 {
     if (!mAooClient) return false;
 
     return mIsConnectedToServer;    
 }
 
-bool SonobusAudioProcessor::disconnectFromServer()
+bool CommsbusAudioProcessor::disconnectFromServer()
 {
     if (!mAooClient) return false;
  
@@ -1184,7 +1184,7 @@ bool SonobusAudioProcessor::disconnectFromServer()
     return true;
 }
 
-void SonobusAudioProcessor::addRecentServerConnectionInfo(const AooServerConnectionInfo & cinfo)
+void CommsbusAudioProcessor::addRecentServerConnectionInfo(const AooServerConnectionInfo & cinfo)
 {
     const ScopedLock sl (mRecentsLock);
 
@@ -1206,20 +1206,20 @@ void SonobusAudioProcessor::addRecentServerConnectionInfo(const AooServerConnect
     }
 }
 
-int SonobusAudioProcessor::getRecentServerConnectionInfos(Array<AooServerConnectionInfo> & retarray)
+int CommsbusAudioProcessor::getRecentServerConnectionInfos(Array<AooServerConnectionInfo> & retarray)
 {
     const ScopedLock sl (mRecentsLock);
     retarray = mRecentConnectionInfos;
     return retarray.size();
 }
 
-void SonobusAudioProcessor::clearRecentServerConnectionInfos()
+void CommsbusAudioProcessor::clearRecentServerConnectionInfos()
 {
     const ScopedLock sl (mRecentsLock);
     mRecentConnectionInfos.clear();
 }
 
-void SonobusAudioProcessor::removeRecentServerConnectionInfo(int index)
+void CommsbusAudioProcessor::removeRecentServerConnectionInfo(int index)
 {
     const ScopedLock sl (mRecentsLock);
     if (index < mRecentConnectionInfos.size()) {
@@ -1227,7 +1227,7 @@ void SonobusAudioProcessor::removeRecentServerConnectionInfo(int index)
     }
 }
 
-int SonobusAudioProcessor::getPublicGroupInfos(Array<AooPublicGroupInfo> & retarray)
+int CommsbusAudioProcessor::getPublicGroupInfos(Array<AooPublicGroupInfo> & retarray)
 {
     retarray.clearQuick();
 
@@ -1240,13 +1240,13 @@ int SonobusAudioProcessor::getPublicGroupInfos(Array<AooPublicGroupInfo> & retar
 
 
 
-void SonobusAudioProcessor::setAutoconnectToGroupPeers(bool flag)
+void CommsbusAudioProcessor::setAutoconnectToGroupPeers(bool flag)
 {
     mAutoconnectGroupPeers = flag;
 }
 
 
-bool SonobusAudioProcessor::setWatchPublicGroups(bool flag)
+bool CommsbusAudioProcessor::setWatchPublicGroups(bool flag)
 {
     if (!mAooClient) return false;
 
@@ -1268,7 +1268,7 @@ bool SonobusAudioProcessor::setWatchPublicGroups(bool flag)
 }
 
 
-bool SonobusAudioProcessor::joinServerGroup(const String & group, const String & groupsecret, bool isPublic)
+bool CommsbusAudioProcessor::joinServerGroup(const String & group, const String & groupsecret, bool isPublic)
 {
     if (!mAooClient) return false;
 
@@ -1281,7 +1281,7 @@ bool SonobusAudioProcessor::joinServerGroup(const String & group, const String &
     return retval >= 0;
 }
 
-bool SonobusAudioProcessor::leaveServerGroup(const String & group)
+bool CommsbusAudioProcessor::leaveServerGroup(const String & group)
 {
     if (!mAooClient) return false;
 
@@ -1300,14 +1300,14 @@ bool SonobusAudioProcessor::leaveServerGroup(const String & group)
     return retval >= 0;
 }
 
-String SonobusAudioProcessor::getCurrentJoinedGroup() const { 
+String CommsbusAudioProcessor::getCurrentJoinedGroup() const { 
     const ScopedLock sl (mClientLock);        
     return mCurrentJoinedGroup;     
 }
 
-void SonobusAudioProcessor::AudioCodecFormatInfo::computeName()
+void CommsbusAudioProcessor::AudioCodecFormatInfo::computeName()
 {
-    if (codec == SonobusAudioProcessor::CodecOpus) {
+    if (codec == CommsbusAudioProcessor::CodecOpus) {
         name = String::formatted("%d kbps/ch", bitrate/1000);
     }
     else {
@@ -1326,7 +1326,7 @@ void SonobusAudioProcessor::AudioCodecFormatInfo::computeName()
     }
 }
 
-void SonobusAudioProcessor::initFormats()
+void CommsbusAudioProcessor::initFormats()
 {
     mAudioFormats.clear();
     
@@ -1349,7 +1349,7 @@ void SonobusAudioProcessor::initFormats()
     mDefaultAudioFormatIndex = 4; // 96kpbs/ch Opus
 }
 
-int SonobusAudioProcessor::findFormatIndex(SonobusAudioProcessor::AudioCodecFormatCodec codec, int bitrate, int bitdepth)
+int CommsbusAudioProcessor::findFormatIndex(CommsbusAudioProcessor::AudioCodecFormatCodec codec, int bitrate, int bitdepth)
 {
     for (int i=0; i < mAudioFormats.size(); ++i) {
         const auto & format = mAudioFormats.getReference(i);
@@ -1369,7 +1369,7 @@ int SonobusAudioProcessor::findFormatIndex(SonobusAudioProcessor::AudioCodecForm
 }
 
 
-String SonobusAudioProcessor::getAudioCodeFormatName(int formatIndex) const
+String CommsbusAudioProcessor::getAudioCodeFormatName(int formatIndex) const
 {
     if (formatIndex >= mAudioFormats.size() || formatIndex < 0) return "";
     
@@ -1377,7 +1377,7 @@ String SonobusAudioProcessor::getAudioCodeFormatName(int formatIndex) const
     return info.name;    
 }
 
-bool SonobusAudioProcessor::getAudioCodeFormatInfo(int formatIndex, AudioCodecFormatInfo & retinfo) const
+bool CommsbusAudioProcessor::getAudioCodeFormatInfo(int formatIndex, AudioCodecFormatInfo & retinfo) const
 {
     if (formatIndex >= mAudioFormats.size() || formatIndex < 0) return false;
     retinfo = mAudioFormats.getReference(formatIndex);
@@ -1385,7 +1385,7 @@ bool SonobusAudioProcessor::getAudioCodeFormatInfo(int formatIndex, AudioCodecFo
 }
 
 
-void SonobusAudioProcessor::setDefaultAudioCodecFormat(int formatIndex)
+void CommsbusAudioProcessor::setDefaultAudioCodecFormat(int formatIndex)
 {
     if (formatIndex < mAudioFormats.size() && formatIndex >= 0) {
         mDefaultAudioFormatIndex = formatIndex;
@@ -1395,7 +1395,7 @@ void SonobusAudioProcessor::setDefaultAudioCodecFormat(int formatIndex)
 }
 
 
-void SonobusAudioProcessor::setDefaultAutoresizeBufferMode(AutoNetBufferMode flag)
+void CommsbusAudioProcessor::setDefaultAutoresizeBufferMode(AutoNetBufferMode flag)
 {
     defaultAutoNetbufMode = flag;
     mDefaultAutoNetbufModeParam->setValueNotifyingHost(mDefaultAutoNetbufModeParam->convertTo0to1(defaultAutoNetbufMode));
@@ -1403,7 +1403,7 @@ void SonobusAudioProcessor::setDefaultAutoresizeBufferMode(AutoNetBufferMode fla
 }
 
 
-void SonobusAudioProcessor::setRemotePeerAudioCodecFormat(int index, int formatIndex)
+void CommsbusAudioProcessor::setRemotePeerAudioCodecFormat(int index, int formatIndex)
 {
     if (formatIndex >= mAudioFormats.size() || index >= mRemotePeers.size()) return;
     
@@ -1428,7 +1428,7 @@ void SonobusAudioProcessor::setRemotePeerAudioCodecFormat(int index, int formatI
     }
 }
 
-int SonobusAudioProcessor::getRemotePeerAudioCodecFormat(int index) const
+int CommsbusAudioProcessor::getRemotePeerAudioCodecFormat(int index) const
 {
     if (index >= mRemotePeers.size()) return -1;
     
@@ -1437,7 +1437,7 @@ int SonobusAudioProcessor::getRemotePeerAudioCodecFormat(int index) const
     return remote->formatIndex;
 }
 
-bool SonobusAudioProcessor::getRemotePeerReceiveAudioCodecFormat(int index, AudioCodecFormatInfo & retinfo) const
+bool CommsbusAudioProcessor::getRemotePeerReceiveAudioCodecFormat(int index, AudioCodecFormatInfo & retinfo) const
 {
     if (index >= mRemotePeers.size()) return false;
     
@@ -1447,7 +1447,7 @@ bool SonobusAudioProcessor::getRemotePeerReceiveAudioCodecFormat(int index, Audi
     return true;
 }
 
-bool SonobusAudioProcessor::setRequestRemotePeerSendAudioCodecFormat(int index, int formatIndex)
+bool CommsbusAudioProcessor::setRequestRemotePeerSendAudioCodecFormat(int index, int formatIndex)
 {
     if (formatIndex >= mAudioFormats.size() || index >= mRemotePeers.size()) return false;
     
@@ -1476,7 +1476,7 @@ bool SonobusAudioProcessor::setRequestRemotePeerSendAudioCodecFormat(int index, 
     }
 }
 
-int SonobusAudioProcessor::getRequestRemotePeerSendAudioCodecFormat(int index) const
+int CommsbusAudioProcessor::getRequestRemotePeerSendAudioCodecFormat(int index) const
 {
     if (index >= mRemotePeers.size()) return -1;
     
@@ -1486,7 +1486,7 @@ int SonobusAudioProcessor::getRequestRemotePeerSendAudioCodecFormat(int index) c
     return remote->reqRemoteSendFormatIndex;    
 }
 
-int SonobusAudioProcessor::getRemotePeerOrderPriority(int index) const
+int CommsbusAudioProcessor::getRemotePeerOrderPriority(int index) const
 {
     if (index >= mRemotePeers.size()) return -1;
     const ScopedReadLock sl (mCoreLock);
@@ -1494,7 +1494,7 @@ int SonobusAudioProcessor::getRemotePeerOrderPriority(int index) const
     return remote->orderPriority;
 }
 
-void SonobusAudioProcessor::setRemotePeerOrderPriority(int index, int priority)
+void CommsbusAudioProcessor::setRemotePeerOrderPriority(int index, int priority)
 {
     if (index >= mRemotePeers.size()) return;
 
@@ -1505,7 +1505,7 @@ void SonobusAudioProcessor::setRemotePeerOrderPriority(int index, int priority)
 }
 
 
-int SonobusAudioProcessor::getRemotePeerSendPacketsize(int index) const
+int CommsbusAudioProcessor::getRemotePeerSendPacketsize(int index) const
 {
     if (index >= mRemotePeers.size()) return -1;
     const ScopedReadLock sl (mCoreLock);        
@@ -1513,7 +1513,7 @@ int SonobusAudioProcessor::getRemotePeerSendPacketsize(int index) const
     return remote->packetsize;
 }
 
-void SonobusAudioProcessor::setRemotePeerSendPacketsize(int index, int psize)
+void CommsbusAudioProcessor::setRemotePeerSendPacketsize(int index, int psize)
 {
     if (index >= mRemotePeers.size()) return;
     
@@ -1534,7 +1534,7 @@ void SonobusAudioProcessor::setRemotePeerSendPacketsize(int index, int psize)
     
 }
 
-void SonobusAudioProcessor::setRemotePeerCompressorParams(int index, int changroup, CompressorParams & params)
+void CommsbusAudioProcessor::setRemotePeerCompressorParams(int index, int changroup, CompressorParams & params)
 {
     if (index >= mRemotePeers.size()) return;
     
@@ -1555,7 +1555,7 @@ void SonobusAudioProcessor::setRemotePeerCompressorParams(int index, int changro
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerCompressorParams(int index, int changroup, CompressorParams & retparams)
+bool CommsbusAudioProcessor::getRemotePeerCompressorParams(int index, int changroup, CompressorParams & retparams)
 {
     if (index >= mRemotePeers.size()) return false;
     const ScopedReadLock sl (mCoreLock);        
@@ -1568,7 +1568,7 @@ bool SonobusAudioProcessor::getRemotePeerCompressorParams(int index, int changro
 
 }
 
-void SonobusAudioProcessor::setRemotePeerExpanderParams(int index, int changroup, SonoAudio::CompressorParams & params)
+void CommsbusAudioProcessor::setRemotePeerExpanderParams(int index, int changroup, SonoAudio::CompressorParams & params)
 {
     if (index >= mRemotePeers.size()) return;
 
@@ -1585,7 +1585,7 @@ void SonobusAudioProcessor::setRemotePeerExpanderParams(int index, int changroup
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerExpanderParams(int index, int changroup, SonoAudio::CompressorParams & retparams)\
+bool CommsbusAudioProcessor::getRemotePeerExpanderParams(int index, int changroup, SonoAudio::CompressorParams & retparams)\
 {
     if (index >= mRemotePeers.size()) return false;
     const ScopedReadLock sl (mCoreLock);
@@ -1597,7 +1597,7 @@ bool SonobusAudioProcessor::getRemotePeerExpanderParams(int index, int changroup
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerEqParams(int index, int changroup, SonoAudio::ParametricEqParams & params)
+void CommsbusAudioProcessor::setRemotePeerEqParams(int index, int changroup, SonoAudio::ParametricEqParams & params)
 {
     if (index >= mRemotePeers.size()) return;
 
@@ -1611,7 +1611,7 @@ void SonobusAudioProcessor::setRemotePeerEqParams(int index, int changroup, Sono
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerEqParams(int index, int changroup, SonoAudio::ParametricEqParams & retparams)
+bool CommsbusAudioProcessor::getRemotePeerEqParams(int index, int changroup, SonoAudio::ParametricEqParams & retparams)
 {
     if (index >= mRemotePeers.size()) return false;
     const ScopedReadLock sl (mCoreLock);
@@ -1623,7 +1623,7 @@ bool SonobusAudioProcessor::getRemotePeerEqParams(int index, int changroup, Sono
     return false;
 }
 
-bool SonobusAudioProcessor::getRemotePeerEffectsActive(int index, int changroup)
+bool CommsbusAudioProcessor::getRemotePeerEffectsActive(int index, int changroup)
 {
     if (index >= mRemotePeers.size()) return false;
     const ScopedReadLock sl (mCoreLock);
@@ -1637,7 +1637,7 @@ bool SonobusAudioProcessor::getRemotePeerEffectsActive(int index, int changroup)
 }
 
 
-void SonobusAudioProcessor::setMetronomeMonitorDelayParams(SonoAudio::DelayParams & params)
+void CommsbusAudioProcessor::setMetronomeMonitorDelayParams(SonoAudio::DelayParams & params)
 {
     mMetChannelGroup.params.monitorDelayParams = params;
     //mInputChannelGroups[changroup].monitorDelayParamsChanged = true;
@@ -1648,13 +1648,13 @@ void SonobusAudioProcessor::setMetronomeMonitorDelayParams(SonoAudio::DelayParam
     mRecMetChannelGroup.commitMonitorDelayParams();
 }
 
-bool SonobusAudioProcessor::getMetronomeMonitorDelayParams(SonoAudio::DelayParams & retparams)
+bool CommsbusAudioProcessor::getMetronomeMonitorDelayParams(SonoAudio::DelayParams & retparams)
 {
     retparams = mMetChannelGroup.params.monitorDelayParams;
     return true;
 }
 
-void SonobusAudioProcessor::setMetronomeChannelDestStartAndCount(int start, int count)
+void CommsbusAudioProcessor::setMetronomeChannelDestStartAndCount(int start, int count)
 {
     mMetChannelGroup.params.monDestStartIndex = start;
     mMetChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
@@ -1665,7 +1665,7 @@ void SonobusAudioProcessor::setMetronomeChannelDestStartAndCount(int start, int 
     mRecMetChannelGroup.commitMonitorDelayParams(); // need to do this too
 }
 
-bool SonobusAudioProcessor::getMetronomeChannelDestStartAndCount(int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getMetronomeChannelDestStartAndCount(int & retstart, int & retcount)
 {
     retstart = mMetChannelGroup.params.monDestStartIndex;
     retcount = mMetChannelGroup.params.monDestChannels;
@@ -1673,40 +1673,40 @@ bool SonobusAudioProcessor::getMetronomeChannelDestStartAndCount(int & retstart,
 }
 
 
-void SonobusAudioProcessor::setMetronomePan(float pan)
+void CommsbusAudioProcessor::setMetronomePan(float pan)
 {
     mMetChannelGroup.params.pan[0] = pan;
     mRecMetChannelGroup.params.pan[0] = pan;
 }
 
-float SonobusAudioProcessor::getMetronomePan() const
+float CommsbusAudioProcessor::getMetronomePan() const
 {
     return mMetChannelGroup.params.pan[0];
 }
 
-void SonobusAudioProcessor::setMetronomeGain(float gain)
+void CommsbusAudioProcessor::setMetronomeGain(float gain)
 {
     mState.getParameter(paramMetGain)->setValueNotifyingHost(mState.getParameter(paramMetGain)->convertTo0to1(gain));
 }
 
-float SonobusAudioProcessor::getMetronomeGain() const
+float CommsbusAudioProcessor::getMetronomeGain() const
 {
     return mMetGain.get();
 }
 
-void SonobusAudioProcessor::setMetronomeMonitor(float mgain)
+void CommsbusAudioProcessor::setMetronomeMonitor(float mgain)
 {
     mMetChannelGroup.params.monitor = mgain;
 }
 
-float SonobusAudioProcessor::getMetronomeMonitor() const
+float CommsbusAudioProcessor::getMetronomeMonitor() const
 {
     return mMetChannelGroup.params.monitor;
 }
 
 
 
-void SonobusAudioProcessor::setFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & params)
+void CommsbusAudioProcessor::setFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & params)
 {
     mFilePlaybackChannelGroup.params.monitorDelayParams = params;
     //mInputChannelGroups[changroup].monitorDelayParamsChanged = true;
@@ -1718,13 +1718,13 @@ void SonobusAudioProcessor::setFilePlaybackMonitorDelayParams(SonoAudio::DelayPa
 
 }
 
-bool SonobusAudioProcessor::getFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & retparams)
+bool CommsbusAudioProcessor::getFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & retparams)
 {
     retparams = mFilePlaybackChannelGroup.params.monitorDelayParams;
     return true;
 }
 
-void SonobusAudioProcessor::setFilePlaybackDestStartAndCount(int start, int count)
+void CommsbusAudioProcessor::setFilePlaybackDestStartAndCount(int start, int count)
 {
     mFilePlaybackChannelGroup.params.monDestStartIndex = start;
     mFilePlaybackChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
@@ -1735,39 +1735,39 @@ void SonobusAudioProcessor::setFilePlaybackDestStartAndCount(int start, int coun
     mRecFilePlaybackChannelGroup.commitMonitorDelayParams(); // need to do this too
 }
 
-bool SonobusAudioProcessor::getFilePlaybackDestStartAndCount(int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getFilePlaybackDestStartAndCount(int & retstart, int & retcount)
 {
     retstart = mFilePlaybackChannelGroup.params.monDestStartIndex;
     retcount = mFilePlaybackChannelGroup.params.monDestChannels;
     return true;
 }
 
-void SonobusAudioProcessor::setFilePlaybackGain(float gain)
+void CommsbusAudioProcessor::setFilePlaybackGain(float gain)
 {
     mFilePlaybackChannelGroup.params.gain = gain;
     mRecFilePlaybackChannelGroup.params.gain = gain;
     //mTransportSource.setGain(gain);
 }
 
-float SonobusAudioProcessor::getFilePlaybackGain() const
+float CommsbusAudioProcessor::getFilePlaybackGain() const
 {
     return mFilePlaybackChannelGroup.params.gain;
     //return mTransportSource.getGain();
 }
 
-void SonobusAudioProcessor::setFilePlaybackMonitor(float mgain)
+void CommsbusAudioProcessor::setFilePlaybackMonitor(float mgain)
 {
     mFilePlaybackChannelGroup.params.monitor = mgain;
     mRecFilePlaybackChannelGroup.params.monitor = mgain;
 }
 
-float SonobusAudioProcessor::getFilePlaybackMonitor() const
+float CommsbusAudioProcessor::getFilePlaybackMonitor() const
 {
     return mFilePlaybackChannelGroup.params.monitor;
 }
 
 
-void SonobusAudioProcessor::setInputCompressorParams(int changroup, CompressorParams & params)
+void CommsbusAudioProcessor::setInputCompressorParams(int changroup, CompressorParams & params)
 {
     // sanity check and compute automakeupgain if necessary    
     params.ratio = jlimit(1.0f, 120.0f, params.ratio);
@@ -1782,7 +1782,7 @@ void SonobusAudioProcessor::setInputCompressorParams(int changroup, CompressorPa
     }
 }
 
-bool SonobusAudioProcessor::getInputCompressorParams(int changroup, CompressorParams & retparams)
+bool CommsbusAudioProcessor::getInputCompressorParams(int changroup, CompressorParams & retparams)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retparams = mInputChannelGroups[changroup].params.compressorParams;
@@ -1791,7 +1791,7 @@ bool SonobusAudioProcessor::getInputCompressorParams(int changroup, CompressorPa
     return false;
 }
 
-void SonobusAudioProcessor::setInputLimiterParams(int changroup, CompressorParams & params)
+void CommsbusAudioProcessor::setInputLimiterParams(int changroup, CompressorParams & params)
 {
     // sanity check and compute automakeupgain if necessary    
     params.ratio = jlimit(1.0f, 120.0f, params.ratio);
@@ -1802,7 +1802,7 @@ void SonobusAudioProcessor::setInputLimiterParams(int changroup, CompressorParam
     }
 }
 
-bool SonobusAudioProcessor::getInputLimiterParams(int changroup, CompressorParams & retparams)
+bool CommsbusAudioProcessor::getInputLimiterParams(int changroup, CompressorParams & retparams)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retparams = mInputChannelGroups[changroup].params.limiterParams;
@@ -1811,7 +1811,7 @@ bool SonobusAudioProcessor::getInputLimiterParams(int changroup, CompressorParam
     return false;
 }
 
-void SonobusAudioProcessor::setInputMonitorDelayParams(int changroup, SonoAudio::DelayParams & params)
+void CommsbusAudioProcessor::setInputMonitorDelayParams(int changroup, SonoAudio::DelayParams & params)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.monitorDelayParams = params;
@@ -1821,7 +1821,7 @@ void SonobusAudioProcessor::setInputMonitorDelayParams(int changroup, SonoAudio:
     }
 }
 
-bool SonobusAudioProcessor::getInputMonitorDelayParams(int changroup, SonoAudio::DelayParams & retparams)
+bool CommsbusAudioProcessor::getInputMonitorDelayParams(int changroup, SonoAudio::DelayParams & retparams)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retparams = mInputChannelGroups[changroup].params.monitorDelayParams;
@@ -1831,7 +1831,7 @@ bool SonobusAudioProcessor::getInputMonitorDelayParams(int changroup, SonoAudio:
 }
 
 
-void SonobusAudioProcessor::setInputExpanderParams(int changroup, CompressorParams & params)
+void CommsbusAudioProcessor::setInputExpanderParams(int changroup, CompressorParams & params)
 {
     // sanity check and compute automakeupgain if necessary    
     params.ratio = jlimit(1.0f, 120.0f, params.ratio);
@@ -1842,7 +1842,7 @@ void SonobusAudioProcessor::setInputExpanderParams(int changroup, CompressorPara
     }
 }
 
-bool SonobusAudioProcessor::getInputExpanderParams(int changroup, CompressorParams & retparams)
+bool CommsbusAudioProcessor::getInputExpanderParams(int changroup, CompressorParams & retparams)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retparams = mInputChannelGroups[changroup].params.expanderParams;
@@ -1851,7 +1851,7 @@ bool SonobusAudioProcessor::getInputExpanderParams(int changroup, CompressorPara
     return false;
 }
 
-void SonobusAudioProcessor::setInputEqParams(int changroup, ParametricEqParams & params)
+void CommsbusAudioProcessor::setInputEqParams(int changroup, ParametricEqParams & params)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.eqParams = params;
@@ -1859,7 +1859,7 @@ void SonobusAudioProcessor::setInputEqParams(int changroup, ParametricEqParams &
     }
 }
 
-bool SonobusAudioProcessor::getInputEqParams(int changroup, ParametricEqParams & retparams)
+bool CommsbusAudioProcessor::getInputEqParams(int changroup, ParametricEqParams & retparams)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retparams = mInputChannelGroups[changroup].params.eqParams;
@@ -1869,14 +1869,14 @@ bool SonobusAudioProcessor::getInputEqParams(int changroup, ParametricEqParams &
 }
 
 
-void SonobusAudioProcessor::setInputGroupCount(int count)
+void CommsbusAudioProcessor::setInputGroupCount(int count)
 {
     int newcnt = std::max(0, std::min(count, MAX_CHANGROUPS-1));
 
     mInputChannelGroupCount = newcnt;
 }
 
-void SonobusAudioProcessor::setInputGroupChannelStartAndCount(int changroup, int start, int count)
+void CommsbusAudioProcessor::setInputGroupChannelStartAndCount(int changroup, int start, int count)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.chanStartIndex = start;
@@ -1885,7 +1885,7 @@ void SonobusAudioProcessor::setInputGroupChannelStartAndCount(int changroup, int
     }
 }
 
-bool SonobusAudioProcessor::getInputGroupChannelStartAndCount(int changroup, int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getInputGroupChannelStartAndCount(int changroup, int & retstart, int & retcount)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retstart = mInputChannelGroups[changroup].params.chanStartIndex;
@@ -1895,7 +1895,7 @@ bool SonobusAudioProcessor::getInputGroupChannelStartAndCount(int changroup, int
     return false;
 }
 
-void SonobusAudioProcessor::setInputGroupChannelDestStartAndCount(int changroup, int start, int count)
+void CommsbusAudioProcessor::setInputGroupChannelDestStartAndCount(int changroup, int start, int count)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.monDestStartIndex = start;
@@ -1903,7 +1903,7 @@ void SonobusAudioProcessor::setInputGroupChannelDestStartAndCount(int changroup,
     }
 }
 
-bool SonobusAudioProcessor::getInputGroupChannelDestStartAndCount(int changroup, int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getInputGroupChannelDestStartAndCount(int changroup, int & retstart, int & retcount)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         retstart = mInputChannelGroups[changroup].params.monDestStartIndex;
@@ -1914,7 +1914,7 @@ bool SonobusAudioProcessor::getInputGroupChannelDestStartAndCount(int changroup,
 }
 
 
-bool SonobusAudioProcessor::insertInputChannelGroup(int atgroup, int chstart, int chcount)
+bool CommsbusAudioProcessor::insertInputChannelGroup(int atgroup, int chstart, int chcount)
 {
     if (atgroup >= 0 && atgroup < MAX_CHANGROUPS) {
         // push any existing ones down
@@ -1937,7 +1937,7 @@ bool SonobusAudioProcessor::insertInputChannelGroup(int atgroup, int chstart, in
     return false;
 }
 
-bool SonobusAudioProcessor::removeInputChannelGroup(int atgroup)
+bool CommsbusAudioProcessor::removeInputChannelGroup(int atgroup)
 {
     if (atgroup >= 0 && atgroup < MAX_CHANGROUPS) {
         // move any existing ones after up
@@ -1952,7 +1952,7 @@ bool SonobusAudioProcessor::removeInputChannelGroup(int atgroup)
     return false;
 }
 
-bool SonobusAudioProcessor::moveInputChannelGroupTo(int atgroup, int togroup)
+bool CommsbusAudioProcessor::moveInputChannelGroupTo(int atgroup, int togroup)
 {
     if (atgroup == togroup || atgroup < 0 || atgroup >= MAX_CHANGROUPS || togroup < 0 || togroup >= MAX_CHANGROUPS) {
         return false;
@@ -1972,14 +1972,14 @@ bool SonobusAudioProcessor::moveInputChannelGroupTo(int atgroup, int togroup)
 
 
 
-void SonobusAudioProcessor::setInputGroupName(int changroup, const String & name)
+void CommsbusAudioProcessor::setInputGroupName(int changroup, const String & name)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.name = name;
     }
 }
 
-String SonobusAudioProcessor::getInputGroupName(int changroup)
+String CommsbusAudioProcessor::getInputGroupName(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.name;
@@ -1987,7 +1987,7 @@ String SonobusAudioProcessor::getInputGroupName(int changroup)
     return "";
 }
 
-void SonobusAudioProcessor::setInputChannelPan(int changroup, int chan, float pan)
+void CommsbusAudioProcessor::setInputChannelPan(int changroup, int chan, float pan)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         if (chan >= 0 && chan < MAX_CHANNELS) {
@@ -2000,7 +2000,7 @@ void SonobusAudioProcessor::setInputChannelPan(int changroup, int chan, float pa
     }
 }
 
-float SonobusAudioProcessor::getInputChannelPan(int changroup, int chan)
+float CommsbusAudioProcessor::getInputChannelPan(int changroup, int chan)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         if (chan >= 0 && chan < MAX_CHANNELS) {
@@ -2015,14 +2015,14 @@ float SonobusAudioProcessor::getInputChannelPan(int changroup, int chan)
     return 0.0f;
 }
 
-void SonobusAudioProcessor::setInputGroupGain(int changroup, float gain)
+void CommsbusAudioProcessor::setInputGroupGain(int changroup, float gain)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.gain = gain;
     }
 }
 
-float SonobusAudioProcessor::getInputGroupGain(int changroup)
+float CommsbusAudioProcessor::getInputGroupGain(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.gain;
@@ -2030,14 +2030,14 @@ float SonobusAudioProcessor::getInputGroupGain(int changroup)
     return 0.0f;
 }
 
-void SonobusAudioProcessor::setInputMonitor(int changroup, float mgain)
+void CommsbusAudioProcessor::setInputMonitor(int changroup, float mgain)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.monitor = mgain;
     }
 }
 
-float SonobusAudioProcessor::getInputMonitor(int changroup)
+float CommsbusAudioProcessor::getInputMonitor(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.monitor;
@@ -2045,14 +2045,14 @@ float SonobusAudioProcessor::getInputMonitor(int changroup)
     return 0.0f;
 }
 
-void SonobusAudioProcessor::setInputGroupMuted(int changroup, bool muted)
+void CommsbusAudioProcessor::setInputGroupMuted(int changroup, bool muted)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.muted = muted;
     }
 }
 
-bool SonobusAudioProcessor::getInputGroupMuted(int changroup)
+bool CommsbusAudioProcessor::getInputGroupMuted(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.muted;
@@ -2060,14 +2060,14 @@ bool SonobusAudioProcessor::getInputGroupMuted(int changroup)
     return false;
 }
 
-void SonobusAudioProcessor::setInputGroupSoloed(int changroup, bool soloed)
+void CommsbusAudioProcessor::setInputGroupSoloed(int changroup, bool soloed)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.soloed = soloed;
     }
 }
 
-bool SonobusAudioProcessor::getInputGroupSoloed(int changroup)
+bool CommsbusAudioProcessor::getInputGroupSoloed(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.soloed;
@@ -2077,7 +2077,7 @@ bool SonobusAudioProcessor::getInputGroupSoloed(int changroup)
 
 
 
-void SonobusAudioProcessor::setInputReverbSend(int changroup, float rgain, bool input)
+void CommsbusAudioProcessor::setInputReverbSend(int changroup, float rgain, bool input)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         if (input) {
@@ -2088,7 +2088,7 @@ void SonobusAudioProcessor::setInputReverbSend(int changroup, float rgain, bool 
     }
 }
 
-float SonobusAudioProcessor::getInputReverbSend(int changroup, bool input)
+float CommsbusAudioProcessor::getInputReverbSend(int changroup, bool input)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         if (input) {
@@ -2100,14 +2100,14 @@ float SonobusAudioProcessor::getInputReverbSend(int changroup, bool input)
     return 0.0f;
 }
 
-void SonobusAudioProcessor::setInputPolarityInvert(int changroup, bool invert)
+void CommsbusAudioProcessor::setInputPolarityInvert(int changroup, bool invert)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].params.invertPolarity = invert;
     }
 }
 
-bool SonobusAudioProcessor::getInputPolarityInvert(int changroup)
+bool CommsbusAudioProcessor::getInputPolarityInvert(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         return mInputChannelGroups[changroup].params.invertPolarity;
@@ -2117,21 +2117,21 @@ bool SonobusAudioProcessor::getInputPolarityInvert(int changroup)
 
 
 
-void SonobusAudioProcessor::commitCompressorParams(RemotePeer * peer, int changroup)
+void CommsbusAudioProcessor::commitCompressorParams(RemotePeer * peer, int changroup)
 {   
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         peer->chanGroups[changroup].commitCompressorParams();
     }
 }
 
-void SonobusAudioProcessor::commitInputCompressorParams(int changroup)
+void CommsbusAudioProcessor::commitInputCompressorParams(int changroup)
 {   
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].commitCompressorParams();
     }
 }
 
-void SonobusAudioProcessor::commitInputExpanderParams(int changroup)
+void CommsbusAudioProcessor::commitInputExpanderParams(int changroup)
 {
    
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
@@ -2141,7 +2141,7 @@ void SonobusAudioProcessor::commitInputExpanderParams(int changroup)
 
 }
 
-void SonobusAudioProcessor::commitInputLimiterParams(int changroup)
+void CommsbusAudioProcessor::commitInputLimiterParams(int changroup)
 {   
     //mInputLimiterControl.setParamValue("/limiter/Bypass", mInputLimiterParams.enabled ? 0.0f : 1.0f);
     //mInputLimiterControl.setParamValue("/limiter/threshold", mInputLimiterParams.thresholdDb);
@@ -2156,14 +2156,14 @@ void SonobusAudioProcessor::commitInputLimiterParams(int changroup)
 }
 
 
-void SonobusAudioProcessor::commitInputEqParams(int changroup)
+void CommsbusAudioProcessor::commitInputEqParams(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].commitEqParams();
     }
 }
 
-void SonobusAudioProcessor::commitInputMonitoringParams(int changroup)
+void CommsbusAudioProcessor::commitInputMonitoringParams(int changroup)
 {
     if (changroup >= 0 && changroup < MAX_CHANGROUPS) {
         mInputChannelGroups[changroup].commitMonitorDelayParams();
@@ -2173,7 +2173,7 @@ void SonobusAudioProcessor::commitInputMonitoringParams(int changroup)
 
 
 // should use shared pointer
-foleys::LevelMeterSource * SonobusAudioProcessor::getRemotePeerRecvMeterSource(int index)
+foleys::LevelMeterSource * CommsbusAudioProcessor::getRemotePeerRecvMeterSource(int index)
 {
     if (index >= mRemotePeers.size()) return nullptr;
     const ScopedReadLock sl (mCoreLock);        
@@ -2181,7 +2181,7 @@ foleys::LevelMeterSource * SonobusAudioProcessor::getRemotePeerRecvMeterSource(i
     return &(remote->recvMeterSource);
 }
 
-foleys::LevelMeterSource * SonobusAudioProcessor::getRemotePeerSendMeterSource(int index)
+foleys::LevelMeterSource * CommsbusAudioProcessor::getRemotePeerSendMeterSource(int index)
 {
     if (index >= mRemotePeers.size()) return nullptr;
     const ScopedReadLock sl (mCoreLock);        
@@ -2192,7 +2192,7 @@ foleys::LevelMeterSource * SonobusAudioProcessor::getRemotePeerSendMeterSource(i
 
 
 
-SonobusAudioProcessor::EndpointState * SonobusAudioProcessor::findOrAddRawEndpoint(void * rawaddr)
+CommsbusAudioProcessor::EndpointState * CommsbusAudioProcessor::findOrAddRawEndpoint(void * rawaddr)
 {
     String ipaddr;
     int port = 0 ;
@@ -2208,7 +2208,7 @@ SonobusAudioProcessor::EndpointState * SonobusAudioProcessor::findOrAddRawEndpoi
     }    
 }
 
-SonobusAudioProcessor::EndpointState * SonobusAudioProcessor::findOrAddEndpoint(const String & host, int port)
+CommsbusAudioProcessor::EndpointState * CommsbusAudioProcessor::findOrAddEndpoint(const String & host, int port)
 {
     const ScopedLock sl (mEndpointsLock);        
     
@@ -2231,7 +2231,7 @@ SonobusAudioProcessor::EndpointState * SonobusAudioProcessor::findOrAddEndpoint(
     return endpoint;
 }
 
-void SonobusAudioProcessor::updateSafetyMuting(RemotePeer * peer)
+void CommsbusAudioProcessor::updateSafetyMuting(RemotePeer * peer)
 {
     // assumed corelock already held
     //const float droprate =  (peer->dataPacketsDropped) / ((nowtime - peer->resetDroptime)*1e-3);
@@ -2262,7 +2262,7 @@ void SonobusAudioProcessor::updateSafetyMuting(RemotePeer * peer)
 
 }
 
-void SonobusAudioProcessor::doReceiveData()
+void CommsbusAudioProcessor::doReceiveData()
 {
     // receive from udp port, and parse packet
     char buf[AOO_MAXPACKETSIZE];
@@ -2394,7 +2394,7 @@ void SonobusAudioProcessor::doReceiveData()
                 }
                 
             } else {
-                DBG("SonoBus bug: unknown aoo type: " << type);
+                DBG("Commsbus bug: unknown aoo type: " << type);
             }
         }
 
@@ -2407,7 +2407,7 @@ void SonobusAudioProcessor::doReceiveData()
     }
     else {
         // not a valid AoO OSC message
-        DBG("SonoBus: not a valid AOO message!");
+        DBG("Commsbus: not a valid AOO message!");
     }
         
 }
@@ -2415,140 +2415,140 @@ void SonobusAudioProcessor::doReceiveData()
 // XXX
 // all of this should be refactored into its own class
 
-#define SONOBUS_MSG_DOMAIN "/sb"
-#define SONOBUS_MSG_DOMAIN_LEN 3
+#define COMMSBUS_MSG_DOMAIN "/sb"
+#define COMMSBUS_MSG_DOMAIN_LEN 3
 
-#define SONOBUS_MSG_PEERINFO "/pinfo"
-#define SONOBUS_MSG_PEERINFO_LEN 6
-#define SONOBUS_FULLMSG_PEERINFO SONOBUS_MSG_DOMAIN SONOBUS_MSG_PEERINFO
+#define COMMSBUS_MSG_PEERINFO "/pinfo"
+#define COMMSBUS_MSG_PEERINFO_LEN 6
+#define COMMSBUS_FULLMSG_PEERINFO COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_PEERINFO
 
-#define SONOBUS_MSG_LAYOUTINFO "/clayinfo"
-#define SONOBUS_MSG_LAYOUTINFO_LEN 9
-#define SONOBUS_FULLMSG_LAYOUTINFO SONOBUS_MSG_DOMAIN SONOBUS_MSG_LAYOUTINFO
+#define COMMSBUS_MSG_LAYOUTINFO "/clayinfo"
+#define COMMSBUS_MSG_LAYOUTINFO_LEN 9
+#define COMMSBUS_FULLMSG_LAYOUTINFO COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_LAYOUTINFO
 
-#define SONOBUS_MSG_CHAT "/chat"
-#define SONOBUS_MSG_CHAT_LEN 5
-#define SONOBUS_FULLMSG_CHAT SONOBUS_MSG_DOMAIN SONOBUS_MSG_CHAT
+#define COMMSBUS_MSG_CHAT "/chat"
+#define COMMSBUS_MSG_CHAT_LEN 5
+#define COMMSBUS_FULLMSG_CHAT COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_CHAT
 
-#define SONOBUS_MSG_PING "/ping"
-#define SONOBUS_MSG_PING_LEN 5
-#define SONOBUS_FULLMSG_PING SONOBUS_MSG_DOMAIN SONOBUS_MSG_PING
+#define COMMSBUS_MSG_PING "/ping"
+#define COMMSBUS_MSG_PING_LEN 5
+#define COMMSBUS_FULLMSG_PING COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_PING
 
-#define SONOBUS_MSG_PINGACK "/pngack"
-#define SONOBUS_MSG_PINGACK_LEN 7
-#define SONOBUS_FULLMSG_PINGACK SONOBUS_MSG_DOMAIN SONOBUS_MSG_PINGACK
+#define COMMSBUS_MSG_PINGACK "/pngack"
+#define COMMSBUS_MSG_PINGACK_LEN 7
+#define COMMSBUS_FULLMSG_PINGACK COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_PINGACK
 
-#define SONOBUS_MSG_REQLATINFO "/reqlatinfo"
-#define SONOBUS_MSG_REQLATINFO_LEN 12
-#define SONOBUS_FULLMSG_REQLATINFO SONOBUS_MSG_DOMAIN SONOBUS_MSG_REQLATINFO
+#define COMMSBUS_MSG_REQLATINFO "/reqlatinfo"
+#define COMMSBUS_MSG_REQLATINFO_LEN 12
+#define COMMSBUS_FULLMSG_REQLATINFO COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_REQLATINFO
 
-#define SONOBUS_MSG_LATINFO "/latinfo"
-#define SONOBUS_MSG_LATINFO_LEN 8
-#define SONOBUS_FULLMSG_LATINFO SONOBUS_MSG_DOMAIN SONOBUS_MSG_LATINFO
+#define COMMSBUS_MSG_LATINFO "/latinfo"
+#define COMMSBUS_MSG_LATINFO_LEN 8
+#define COMMSBUS_FULLMSG_LATINFO COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_LATINFO
 
-#define SONOBUS_MSG_SUGGESTLAT "/suggestlat"
-#define SONOBUS_MSG_SUGGESTLAT_LEN 11
-#define SONOBUS_FULLMSG_SUGGESTLAT SONOBUS_MSG_DOMAIN SONOBUS_MSG_SUGGESTLAT
+#define COMMSBUS_MSG_SUGGESTLAT "/suggestlat"
+#define COMMSBUS_MSG_SUGGESTLAT_LEN 11
+#define COMMSBUS_FULLMSG_SUGGESTLAT COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_SUGGESTLAT
 
-#define SONOBUS_MSG_BLOCKEDINFO "/blockedinfo"
-#define SONOBUS_MSG_BLOCKEDINFO_LEN 13
-#define SONOBUS_FULLMSG_BLOCKEDINFO SONOBUS_MSG_DOMAIN SONOBUS_MSG_BLOCKEDINFO
+#define COMMSBUS_MSG_BLOCKEDINFO "/blockedinfo"
+#define COMMSBUS_MSG_BLOCKEDINFO_LEN 13
+#define COMMSBUS_FULLMSG_BLOCKEDINFO COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_BLOCKEDINFO
 
-#define SONOBUS_MSG_SUGGEST_GROUP "/suggestgroup"
-#define SONOBUS_MSG_SUGGEST_GROUP_LEN 14
-#define SONOBUS_FULLMSG_SUGGEST_GROUP SONOBUS_MSG_DOMAIN SONOBUS_MSG_SUGGEST_GROUP
+#define COMMSBUS_MSG_SUGGEST_GROUP "/suggestgroup"
+#define COMMSBUS_MSG_SUGGEST_GROUP_LEN 14
+#define COMMSBUS_FULLMSG_SUGGEST_GROUP COMMSBUS_MSG_DOMAIN COMMSBUS_MSG_SUGGEST_GROUP
 
 
 enum {
-    SONOBUS_MSGTYPE_UNKNOWN = 0,
-    SONOBUS_MSGTYPE_PEERINFO,
-    SONOBUS_MSGTYPE_LAYOUTINFO,
-    SONOBUS_MSGTYPE_CHAT,
-    SONOBUS_MSGTYPE_PING,
-    SONOBUS_MSGTYPE_PINGACK,
-    SONOBUS_MSGTYPE_REQLATINFO,
-    SONOBUS_MSGTYPE_LATINFO,
-    SONOBUS_MSGTYPE_SUGGESTLAT,
-    SONOBUS_MSGTYPE_BLOCKEDINFO,
-    SONOBUS_MSGTYPE_SUGGESTGROUP
+    COMMSBUS_MSGTYPE_UNKNOWN = 0,
+    COMMSBUS_MSGTYPE_PEERINFO,
+    COMMSBUS_MSGTYPE_LAYOUTINFO,
+    COMMSBUS_MSGTYPE_CHAT,
+    COMMSBUS_MSGTYPE_PING,
+    COMMSBUS_MSGTYPE_PINGACK,
+    COMMSBUS_MSGTYPE_REQLATINFO,
+    COMMSBUS_MSGTYPE_LATINFO,
+    COMMSBUS_MSGTYPE_SUGGESTLAT,
+    COMMSBUS_MSGTYPE_BLOCKEDINFO,
+    COMMSBUS_MSGTYPE_SUGGESTGROUP
 };
 
-static int32_t sonobusOscParsePattern(const char *msg, int32_t n, int32_t & rettype)
+static int32_t commsbusOscParsePattern(const char *msg, int32_t n, int32_t & rettype)
 {
     int32_t offset = 0;
-    if (n >= SONOBUS_MSG_DOMAIN_LEN
-        && !memcmp(msg, SONOBUS_MSG_DOMAIN, SONOBUS_MSG_DOMAIN_LEN))
+    if (n >= COMMSBUS_MSG_DOMAIN_LEN
+        && !memcmp(msg, COMMSBUS_MSG_DOMAIN, COMMSBUS_MSG_DOMAIN_LEN))
     {
-        offset += SONOBUS_MSG_DOMAIN_LEN;
+        offset += COMMSBUS_MSG_DOMAIN_LEN;
 
-        if (n >= (offset + SONOBUS_MSG_PING_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_PING, SONOBUS_MSG_PING_LEN))
+        if (n >= (offset + COMMSBUS_MSG_PING_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_PING, COMMSBUS_MSG_PING_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_PING;
-            offset += SONOBUS_MSG_PING_LEN;
+            rettype = COMMSBUS_MSGTYPE_PING;
+            offset += COMMSBUS_MSG_PING_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_PINGACK_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_PINGACK, SONOBUS_MSG_PINGACK_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_PINGACK_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_PINGACK, COMMSBUS_MSG_PINGACK_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_PINGACK;
-            offset += SONOBUS_MSG_PINGACK_LEN;
+            rettype = COMMSBUS_MSGTYPE_PINGACK;
+            offset += COMMSBUS_MSG_PINGACK_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_PEERINFO_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_PEERINFO, SONOBUS_MSG_PEERINFO_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_PEERINFO_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_PEERINFO, COMMSBUS_MSG_PEERINFO_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_PEERINFO;
-            offset += SONOBUS_MSG_PEERINFO_LEN;
+            rettype = COMMSBUS_MSGTYPE_PEERINFO;
+            offset += COMMSBUS_MSG_PEERINFO_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_LAYOUTINFO_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_LAYOUTINFO, SONOBUS_MSG_LAYOUTINFO_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_LAYOUTINFO_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_LAYOUTINFO, COMMSBUS_MSG_LAYOUTINFO_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_LAYOUTINFO;
-            offset += SONOBUS_MSG_LAYOUTINFO_LEN;
+            rettype = COMMSBUS_MSGTYPE_LAYOUTINFO;
+            offset += COMMSBUS_MSG_LAYOUTINFO_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_CHAT_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_CHAT, SONOBUS_MSG_CHAT_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_CHAT_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_CHAT, COMMSBUS_MSG_CHAT_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_CHAT;
-            offset += SONOBUS_MSG_CHAT_LEN;
+            rettype = COMMSBUS_MSGTYPE_CHAT;
+            offset += COMMSBUS_MSG_CHAT_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_REQLATINFO_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_REQLATINFO, SONOBUS_MSG_REQLATINFO_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_REQLATINFO_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_REQLATINFO, COMMSBUS_MSG_REQLATINFO_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_REQLATINFO;
-            offset += SONOBUS_MSG_REQLATINFO_LEN;
+            rettype = COMMSBUS_MSGTYPE_REQLATINFO;
+            offset += COMMSBUS_MSG_REQLATINFO_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_LATINFO_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_LATINFO, SONOBUS_MSG_LATINFO_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_LATINFO_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_LATINFO, COMMSBUS_MSG_LATINFO_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_LATINFO;
-            offset += SONOBUS_MSG_LATINFO_LEN;
+            rettype = COMMSBUS_MSGTYPE_LATINFO;
+            offset += COMMSBUS_MSG_LATINFO_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_SUGGESTLAT_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_SUGGESTLAT, SONOBUS_MSG_SUGGESTLAT_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_SUGGESTLAT_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_SUGGESTLAT, COMMSBUS_MSG_SUGGESTLAT_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_SUGGESTLAT;
-            offset += SONOBUS_MSG_SUGGESTLAT_LEN;
+            rettype = COMMSBUS_MSGTYPE_SUGGESTLAT;
+            offset += COMMSBUS_MSG_SUGGESTLAT_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_BLOCKEDINFO_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_BLOCKEDINFO, SONOBUS_MSG_BLOCKEDINFO_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_BLOCKEDINFO_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_BLOCKEDINFO, COMMSBUS_MSG_BLOCKEDINFO_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_BLOCKEDINFO;
-            offset += SONOBUS_MSG_BLOCKEDINFO_LEN;
+            rettype = COMMSBUS_MSGTYPE_BLOCKEDINFO;
+            offset += COMMSBUS_MSG_BLOCKEDINFO_LEN;
             return offset;
         }
-        else if (n >= (offset + SONOBUS_MSG_SUGGEST_GROUP_LEN)
-            && !memcmp(msg + offset, SONOBUS_MSG_SUGGEST_GROUP, SONOBUS_MSG_SUGGEST_GROUP_LEN))
+        else if (n >= (offset + COMMSBUS_MSG_SUGGEST_GROUP_LEN)
+            && !memcmp(msg + offset, COMMSBUS_MSG_SUGGEST_GROUP, COMMSBUS_MSG_SUGGEST_GROUP_LEN))
         {
-            rettype = SONOBUS_MSGTYPE_SUGGESTGROUP;
-            offset += SONOBUS_MSG_SUGGEST_GROUP_LEN;
+            rettype = COMMSBUS_MSGTYPE_SUGGESTGROUP;
+            offset += COMMSBUS_MSG_SUGGEST_GROUP_LEN;
             return offset;
         }
         else {
@@ -2558,13 +2558,13 @@ static int32_t sonobusOscParsePattern(const char *msg, int32_t n, int32_t & rett
     return 0;
 }
 
-bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const char *msg, int32_t n)
+bool CommsbusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const char *msg, int32_t n)
 {
     // try to parse it as an OSC /sb  message
-    int32_t type = SONOBUS_MSGTYPE_UNKNOWN;
+    int32_t type = COMMSBUS_MSGTYPE_UNKNOWN;
     int32_t onset = 0;
 
-    if (! (onset = sonobusOscParsePattern(msg, n, type))) {
+    if (! (onset = commsbusOscParsePattern(msg, n, type))) {
         return false;
     }
 
@@ -2572,7 +2572,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
         osc::ReceivedPacket packet(msg, n);
         osc::ReceivedMessage message(packet);
 
-        if (type == SONOBUS_MSGTYPE_PING) {
+        if (type == COMMSBUS_MSGTYPE_PING) {
             // received from the other side
             // args: t:origtime
 
@@ -2586,7 +2586,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             osc::OutboundPacketStream outmsg(buf, sizeof(buf));
 
             try {
-                outmsg << osc::BeginMessage(SONOBUS_FULLMSG_PINGACK)
+                outmsg << osc::BeginMessage(COMMSBUS_FULLMSG_PINGACK)
                 << osc::TimeTag(tt) << osc::TimeTag(tt2)
                 << osc::EndMessage;
             }
@@ -2600,7 +2600,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             DBG("Received ping from " << endpoint->ipaddr << ":" << endpoint->port << "  stamp: " << tt);
 
         }
-        else if (type == SONOBUS_MSGTYPE_PINGACK) {
+        else if (type == COMMSBUS_MSGTYPE_PINGACK) {
             // received from the other side
             // args: t:origtime t:theirtime
 
@@ -2612,7 +2612,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             handlePingEvent(endpoint, tt, tt2, tt3); // jlc
 
         }
-        else if (type == SONOBUS_MSGTYPE_PEERINFO) {
+        else if (type == COMMSBUS_MSGTYPE_PEERINFO) {
             // peerinfo message arguments:
             // blob containing JSON
             auto it = message.ArgumentsBegin();
@@ -2645,7 +2645,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             }
 
         }
-        else if (type == SONOBUS_MSGTYPE_LAYOUTINFO) {
+        else if (type == COMMSBUS_MSGTYPE_LAYOUTINFO) {
             // layout info message arguments:
             // i:sourceid  b:<blob containing valuetree in binary form>
             auto it = message.ArgumentsBegin();
@@ -2685,12 +2685,12 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             }
 
             if (changed) {
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "format");
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "format");
             }
 
 
         }
-        else if (type == SONOBUS_MSGTYPE_CHAT) {
+        else if (type == COMMSBUS_MSGTYPE_CHAT) {
             // layout info message arguments:
             // s:groupname s:from s:targets s:tags s:message
             auto it = message.ArgumentsBegin();
@@ -2706,11 +2706,11 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             if (!isAddressBlocked(endpoint->ipaddr)) {
                 
                 mAllChatEvents.add(chatevent);
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::sbChatEventReceived, this, chatevent);
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::sbChatEventReceived, this, chatevent);
             }
 
         }
-        else if (type == SONOBUS_MSGTYPE_REQLATINFO) {
+        else if (type == COMMSBUS_MSGTYPE_REQLATINFO) {
             // received from the other side
             // args: none
 
@@ -2731,7 +2731,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
                 
                 
                 try {
-                    outmsg << osc::BeginMessage(SONOBUS_FULLMSG_LATINFO)
+                    outmsg << osc::BeginMessage(COMMSBUS_FULLMSG_LATINFO)
                     << osc::Blob(jsonstr.toRawUTF8(), (int) jsonstr.getNumBytesAsUTF8())
                     << osc::EndMessage;
                 }
@@ -2746,7 +2746,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             }
 
         }
-        else if (type == SONOBUS_MSGTYPE_LATINFO) {
+        else if (type == COMMSBUS_MSGTYPE_LATINFO) {
             // peerinfo message arguments:
             // blob containing JSON
             auto it = message.ArgumentsBegin();
@@ -2768,7 +2768,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             handleLatInfo(infodata);
 
         }
-        else if (type == SONOBUS_MSGTYPE_SUGGESTLAT) {
+        else if (type == COMMSBUS_MSGTYPE_SUGGESTLAT) {
             // received from the other side
             // args: s:username  f:latency
 
@@ -2777,10 +2777,10 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
             auto latency = (it++)->AsFloat();
 
             if (!isAddressBlocked(endpoint->ipaddr)) {
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::peerRequestedLatencyMatch, this, username, latency);
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::peerRequestedLatencyMatch, this, username, latency);
             }
         }
-        else if (type == SONOBUS_MSGTYPE_SUGGESTGROUP) {
+        else if (type == COMMSBUS_MSGTYPE_SUGGESTGROUP) {
             // received from the other side
             // args: s:username  s:newgroup s:ispublic
 
@@ -2809,11 +2809,11 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
                         }
                     }
 
-                    clientListeners.call(&SonobusAudioProcessor::ClientListener::peerSuggestedNewGroup, this, username, newgroup, grouppass, ispublic, otherpeers);
+                    clientListeners.call(&CommsbusAudioProcessor::ClientListener::peerSuggestedNewGroup, this, username, newgroup, grouppass, ispublic, otherpeers);
                 }
             }
         }
-        else if (type == SONOBUS_MSGTYPE_BLOCKEDINFO) {
+        else if (type == COMMSBUS_MSGTYPE_BLOCKEDINFO) {
             // received from the other side when they have blocked/unblocked us
             // args: s:username  b:blocked
 
@@ -2849,7 +2849,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
                 }
             }
             
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::peerBlockedInfoChanged, this, username, blocked);
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::peerBlockedInfoChanged, this, username, blocked);
         }
         return true;
     } catch (const osc::Exception& e){
@@ -2859,7 +2859,7 @@ bool SonobusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const c
 }
 
 
-bool SonobusAudioProcessor::sendChatEvent(const SBChatEvent & event)
+bool CommsbusAudioProcessor::sendChatEvent(const SBChatEvent & event)
 {
     // /sb/chat s:groupname s:from s:targets s:tags s:message
 
@@ -2869,7 +2869,7 @@ bool SonobusAudioProcessor::sendChatEvent(const SBChatEvent & event)
 
     try {
 
-        msg << osc::BeginMessage(SONOBUS_FULLMSG_CHAT)
+        msg << osc::BeginMessage(COMMSBUS_FULLMSG_CHAT)
         << event.group.toRawUTF8()
         << event.from.toRawUTF8()
         << event.targets.toRawUTF8()
@@ -2901,7 +2901,7 @@ bool SonobusAudioProcessor::sendChatEvent(const SBChatEvent & event)
     return true;
 }
 
-void SonobusAudioProcessor::handleLatInfo(const juce::var & infolist)
+void CommsbusAudioProcessor::handleLatInfo(const juce::var & infolist)
 {
     const ScopedLock sl (mLatInfoLock);
 
@@ -2926,7 +2926,7 @@ void SonobusAudioProcessor::handleLatInfo(const juce::var & infolist)
     }
 }
 
-juce::var SonobusAudioProcessor::getAllLatInfo()
+juce::var CommsbusAudioProcessor::getAllLatInfo()
 {
     juce::var infolist;
 
@@ -2949,14 +2949,14 @@ juce::var SonobusAudioProcessor::getAllLatInfo()
     return infolist;
 }
 
-void SonobusAudioProcessor::sendBlockedInfoMessage(EndpointState *endpoint, bool blocked)
+void CommsbusAudioProcessor::sendBlockedInfoMessage(EndpointState *endpoint, bool blocked)
 {
     char buf[AOO_MAXPACKETSIZE];
     osc::OutboundPacketStream outmsg(buf, sizeof(buf));
 
     try {
 
-        outmsg << osc::BeginMessage(SONOBUS_FULLMSG_BLOCKEDINFO)
+        outmsg << osc::BeginMessage(COMMSBUS_FULLMSG_BLOCKEDINFO)
         << mCurrentUsername.toRawUTF8()
         << blocked
         << osc::EndMessage;
@@ -2971,14 +2971,14 @@ void SonobusAudioProcessor::sendBlockedInfoMessage(EndpointState *endpoint, bool
 }
 
 
-void SonobusAudioProcessor::sendReqLatInfoToAll()
+void CommsbusAudioProcessor::sendReqLatInfoToAll()
 {
     char buf[AOO_MAXPACKETSIZE];
     osc::OutboundPacketStream msg(buf, sizeof(buf));
 
     try {
 
-        msg << osc::BeginMessage(SONOBUS_FULLMSG_REQLATINFO)
+        msg << osc::BeginMessage(COMMSBUS_FULLMSG_REQLATINFO)
         << osc::EndMessage;
 
     }
@@ -2996,7 +2996,7 @@ void SonobusAudioProcessor::sendReqLatInfoToAll()
     }
 }
 
-void SonobusAudioProcessor::sendLatencyMatchToAll(float latency)
+void CommsbusAudioProcessor::sendLatencyMatchToAll(float latency)
 {
     // suggest to all that they should adjust all receiving latencies to be this value
 
@@ -3005,7 +3005,7 @@ void SonobusAudioProcessor::sendLatencyMatchToAll(float latency)
 
     try {
 
-        msg << osc::BeginMessage(SONOBUS_FULLMSG_SUGGESTLAT)
+        msg << osc::BeginMessage(COMMSBUS_FULLMSG_SUGGESTLAT)
         << mCurrentUsername.toRawUTF8()
         << latency
         << osc::EndMessage;
@@ -3027,7 +3027,7 @@ void SonobusAudioProcessor::sendLatencyMatchToAll(float latency)
 }
 
 
-void SonobusAudioProcessor::beginLatencyMatchProcedure()
+void CommsbusAudioProcessor::beginLatencyMatchProcedure()
 {
     {
         const ScopedLock sl (mLatInfoLock);
@@ -3040,7 +3040,7 @@ void SonobusAudioProcessor::beginLatencyMatchProcedure()
     sendReqLatInfoToAll();
 }
 
-bool SonobusAudioProcessor::isLatencyMatchProcedureReady()
+bool CommsbusAudioProcessor::isLatencyMatchProcedureReady()
 {
     // we expect an entry for every directional path in the mesh
     const ScopedLock sl (mLatInfoLock);
@@ -3050,13 +3050,13 @@ bool SonobusAudioProcessor::isLatencyMatchProcedureReady()
     return mLatInfoList.size() >= predictedSize;
 }
 
-void SonobusAudioProcessor::getLatencyInfoList(Array<LatInfo> & retlist)
+void CommsbusAudioProcessor::getLatencyInfoList(Array<LatInfo> & retlist)
 {
     const ScopedLock sl (mLatInfoLock);
     retlist.addArray(mLatInfoList);
 }
 
-void SonobusAudioProcessor::commitLatencyMatch(float latency)
+void CommsbusAudioProcessor::commitLatencyMatch(float latency)
 {
     // Adjust the jitter buffer for each peer with extra values to pad up to the requested latency
 
@@ -3086,7 +3086,7 @@ void SonobusAudioProcessor::commitLatencyMatch(float latency)
 }
 
 
-void SonobusAudioProcessor::suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames, bool ispublic)
+void CommsbusAudioProcessor::suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames, bool ispublic)
 {
     // suggest to other peers to join a new group
 
@@ -3112,7 +3112,7 @@ void SonobusAudioProcessor::suggestNewGroupToPeers(const String & group, const S
     }
 
     try {
-        msg << osc::BeginMessage(SONOBUS_FULLMSG_SUGGEST_GROUP)
+        msg << osc::BeginMessage(COMMSBUS_FULLMSG_SUGGEST_GROUP)
         << osc::Blob(jsonstr.toRawUTF8(), (int) jsonstr.getNumBytesAsUTF8())
         << osc::EndMessage;
     }
@@ -3133,7 +3133,7 @@ void SonobusAudioProcessor::suggestNewGroupToPeers(const String & group, const S
 }
 
 
-void SonobusAudioProcessor::handleRemotePeerInfoUpdate(RemotePeer * peer, const juce::var & infodata)
+void CommsbusAudioProcessor::handleRemotePeerInfoUpdate(RemotePeer * peer, const juce::var & infodata)
 {
     // core read lock already held
 
@@ -3171,7 +3171,7 @@ void SonobusAudioProcessor::handleRemotePeerInfoUpdate(RemotePeer * peer, const 
 
 }
 
-void SonobusAudioProcessor::sendRemotePeerInfoUpdate(int index, RemotePeer * topeer)
+void CommsbusAudioProcessor::sendRemotePeerInfoUpdate(int index, RemotePeer * topeer)
 {
     // send our info to this remote peer
     DynamicObject::Ptr info = new DynamicObject(); // this will delete itself
@@ -3204,7 +3204,7 @@ void SonobusAudioProcessor::sendRemotePeerInfoUpdate(int index, RemotePeer * top
         }
 
         try {
-            msg << osc::BeginMessage(SONOBUS_FULLMSG_PEERINFO)
+            msg << osc::BeginMessage(COMMSBUS_FULLMSG_PEERINFO)
             << osc::Blob(jsonstr.toRawUTF8(), (int) jsonstr.getNumBytesAsUTF8())
             << osc::EndMessage;
         }
@@ -3222,13 +3222,13 @@ void SonobusAudioProcessor::sendRemotePeerInfoUpdate(int index, RemotePeer * top
 }
 
 
-int32_t SonobusAudioProcessor::sendPeerMessage(RemotePeer * peer, const char *msg, int32_t n)
+int32_t CommsbusAudioProcessor::sendPeerMessage(RemotePeer * peer, const char *msg, int32_t n)
 {
     return endpoint_send(peer->endpoint, msg, n);
 }
 
 
-void SonobusAudioProcessor::doSendData()
+void CommsbusAudioProcessor::doSendData()
 {
     // just try to send for everybody
     const ScopedReadLock sl (mCoreLock);        
@@ -3308,8 +3308,8 @@ void SonobusAudioProcessor::doSendData()
 
 struct ProcessorIdPair
 {
-    ProcessorIdPair(SonobusAudioProcessor *proc, int32_t id_) : processor(proc), id(id_) {}
-    SonobusAudioProcessor * processor;
+    ProcessorIdPair(CommsbusAudioProcessor *proc, int32_t id_) : processor(proc), id(id_) {}
+    CommsbusAudioProcessor * processor;
     int32_t id;
 };
 
@@ -3338,7 +3338,7 @@ static int32_t gHandleClientEvents(void * user, const aoo_event ** events, int32
 }
 
 
-void SonobusAudioProcessor::handleEvents()
+void CommsbusAudioProcessor::handleEvents()
 {
     const ScopedReadLock sl (mCoreLock);        
     int32_t dummy = 0;
@@ -3399,7 +3399,7 @@ void SonobusAudioProcessor::handleEvents()
 
 }
 
-void SonobusAudioProcessor::sendPingEvent(RemotePeer * peer)
+void CommsbusAudioProcessor::sendPingEvent(RemotePeer * peer)
 {
 
     auto tt = aoo_osctime_get();
@@ -3408,7 +3408,7 @@ void SonobusAudioProcessor::sendPingEvent(RemotePeer * peer)
     osc::OutboundPacketStream outmsg(buf, sizeof(buf));
 
     try {
-        outmsg << osc::BeginMessage(SONOBUS_FULLMSG_PING)
+        outmsg << osc::BeginMessage(COMMSBUS_FULLMSG_PING)
         << osc::TimeTag(tt)
         << osc::EndMessage;
     }
@@ -3423,7 +3423,7 @@ void SonobusAudioProcessor::sendPingEvent(RemotePeer * peer)
 }
 
 
-void SonobusAudioProcessor::handlePingEvent(EndpointState * endpoint, uint64_t tt1, uint64_t tt2, uint64_t tt3)
+void CommsbusAudioProcessor::handlePingEvent(EndpointState * endpoint, uint64_t tt1, uint64_t tt2, uint64_t tt3)
 {
     double diff1 = aoo_osctime_duration(tt1, tt2) * 1000.0;
     double diff2 = aoo_osctime_duration(tt2, tt3) * 1000.0;
@@ -3452,7 +3452,7 @@ void SonobusAudioProcessor::handlePingEvent(EndpointState * endpoint, uint64_t t
 }
 
 
-int32_t SonobusAudioProcessor::handleSourceEvents(const aoo_event ** events, int32_t n, int32_t sourceId)
+int32_t CommsbusAudioProcessor::handleSourceEvents(const aoo_event ** events, int32_t n, int32_t sourceId)
 {
     for (int i = 0; i < n; ++i){
         switch (events[i]->type){
@@ -3700,7 +3700,7 @@ int32_t SonobusAudioProcessor::handleSourceEvents(const aoo_event ** events, int
 
 }
 
-int32_t SonobusAudioProcessor::handleSinkEvents(const aoo_event ** events, int32_t n, int32_t sinkId)
+int32_t CommsbusAudioProcessor::handleSinkEvents(const aoo_event ** events, int32_t n, int32_t sinkId)
 {
     for (int i = 0; i < n; ++i){
         switch (events[i]->type){
@@ -3854,7 +3854,7 @@ int32_t SonobusAudioProcessor::handleSinkEvents(const aoo_event ** events, int32
                         //peer->recvFormatIndex = findFormatIndex(codec, 0, fmt->bitdepth);
                     }
                     
-                    clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "format");
+                    clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "format");
                 }                
             }
             else { 
@@ -3883,7 +3883,7 @@ int32_t SonobusAudioProcessor::handleSinkEvents(const aoo_event ** events, int32
                 }
             }
             
-            //clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "state");
+            //clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerChangedState, this, "state");
             
             break;
         }
@@ -4107,7 +4107,7 @@ int32_t SonobusAudioProcessor::handleSinkEvents(const aoo_event ** events, int32
     return 1;
 }
 
-int32_t SonobusAudioProcessor::handleServerEvents(const aoo_event ** events, int32_t n)
+int32_t CommsbusAudioProcessor::handleServerEvents(const aoo_event ** events, int32_t n)
 {
     for (int i = 0; i < n; ++i){
         switch (events[i]->type){
@@ -4160,7 +4160,7 @@ int32_t SonobusAudioProcessor::handleServerEvents(const aoo_event ** events, int
     return 1;
 }
 
-int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int32_t n)
+int32_t CommsbusAudioProcessor::handleClientEvents(const aoo_event ** events, int32_t n)
 {
     for (int i = 0; i < n; ++i){
         switch (events[i]->type){
@@ -4197,7 +4197,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                 mRecoveringFromServerLoss = false;
             }
             
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientConnected, this, e->result > 0, String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientConnected, this, e->result > 0, String::fromUTF8(e->errormsg));
             
             break;
         }
@@ -4222,7 +4222,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
             mIsConnectedToServer = false;
             mSessionConnectionStamp = 0.0;
             
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientDisconnected, this, e->result > 0, String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientDisconnected, this, e->result > 0, String::fromUTF8(e->errormsg));
 
             break;
         }
@@ -4240,7 +4240,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
             } else {
                 DBG("Couldn't join group " << e->name << " - " << String::fromUTF8(e->errormsg));
             }
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientGroupJoined, this, e->result > 0, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientGroupJoined, this, e->result > 0, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
             break;
         }
         case AOONET_CLIENT_GROUP_LEAVE_EVENT:
@@ -4263,7 +4263,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                 DBG("Couldn't leave group " << e->name << " - " << String::fromUTF8(e->errormsg));
             }
 
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientGroupLeft, this, e->result > 0, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientGroupLeft, this, e->result > 0, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
 
             break;
         }
@@ -4280,7 +4280,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                 ginfo.timestamp = Time::getCurrentTime().toMilliseconds();
             }
 
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPublicGroupModified, this, CharPointer_UTF8 (e->name), e->result,  String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPublicGroupModified, this, CharPointer_UTF8 (e->name), e->result,  String::fromUTF8(e->errormsg));
             break;
         }
         case AOONET_CLIENT_GROUP_PUBLIC_DEL_EVENT:
@@ -4293,7 +4293,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                 mPublicGroupInfos.erase(group);
             }
 
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPublicGroupDeleted, this, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPublicGroupDeleted, this, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
             break;
         }
 
@@ -4304,7 +4304,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
             if (e->result > 0){
                 DBG("Peer attempting to join group " <<  e->group << " - user " << e->user);
                 
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerPendingJoin, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerPendingJoin, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
                 
             } else {
                 DBG("bug bad result on join event");
@@ -4325,7 +4325,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                     // check if blocked
                     if (isAddressBlocked(endpoint->ipaddr)) {
                         
-                        clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerJoinBlocked, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user), endpoint->ipaddr, endpoint->port);
+                        clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerJoinBlocked, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user), endpoint->ipaddr, endpoint->port);
 
                         // after a short delay
                         Timer::callAfterDelay(400, [this, endpoint] {
@@ -4340,7 +4340,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                         //aoo_node_add_peer(x->x_node, gensym(e->group), gensym(e->user),
                         //                  (const struct sockaddr *)e->address, e->length);
                         
-                        clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerJoined, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
+                        clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerJoined, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
                     }
                 }
                 
@@ -4358,7 +4358,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
             if (e->result > 0){
                 DBG("Peer failed to join group " <<  e->group << " - user " << e->user);
                 
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerJoinFailed, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerJoinFailed, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
                 
             } else {
                 DBG("bug bad result on join event");
@@ -4381,7 +4381,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
                 }
                 
                 //aoo_node_remove_peer(x->x_node, gensym(e->group), gensym(e->user));
-                clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientPeerLeft, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
+                clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPeerLeft, this, CharPointer_UTF8 (e->group), CharPointer_UTF8 (e->user));
 
             } else {
                 DBG("bug bad result on leave event");
@@ -4392,7 +4392,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
         {
             aoonet_client_event *e = (aoonet_client_event *)events[i];
             DBG("client error: " << String::fromUTF8(e->errormsg));
-            clientListeners.call(&SonobusAudioProcessor::ClientListener::aooClientError, this, String::fromUTF8(e->errormsg));
+            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientError, this, String::fromUTF8(e->errormsg));
             break;
         }
         default:
@@ -4404,7 +4404,7 @@ int32_t SonobusAudioProcessor::handleClientEvents(const aoo_event ** events, int
 }
 
 
-int SonobusAudioProcessor::connectRemotePeerRaw(void * sockaddr, const String & username, const String & groupname, bool reciprocate)
+int CommsbusAudioProcessor::connectRemotePeerRaw(void * sockaddr, const String & username, const String & groupname, bool reciprocate)
 {
     EndpointState * endpoint = findOrAddRawEndpoint(sockaddr);
     
@@ -4444,7 +4444,7 @@ int SonobusAudioProcessor::connectRemotePeerRaw(void * sockaddr, const String & 
     return ret;    
 }
 
-int SonobusAudioProcessor::connectRemotePeer(const String & host, int port, const String & username, const String & groupname, bool reciprocate)
+int CommsbusAudioProcessor::connectRemotePeer(const String & host, int port, const String & username, const String & groupname, bool reciprocate)
 {
     EndpointState * endpoint = findOrAddEndpoint(host, port);
 
@@ -4476,7 +4476,7 @@ int SonobusAudioProcessor::connectRemotePeer(const String & host, int port, cons
     return ret;
 }
 
-bool SonobusAudioProcessor::disconnectRemotePeer(const String & host, int port, int32_t ourId)
+bool CommsbusAudioProcessor::disconnectRemotePeer(const String & host, int port, int32_t ourId)
 {
     EndpointState * endpoint = findOrAddEndpoint(host, port);
     bool ret = false;
@@ -4518,7 +4518,7 @@ bool SonobusAudioProcessor::disconnectRemotePeer(const String & host, int port, 
     return ret;
 }
 
-bool SonobusAudioProcessor::disconnectRemotePeer(int index)
+bool CommsbusAudioProcessor::disconnectRemotePeer(int index)
 {
     RemotePeer * remote = 0;
     bool ret = false;
@@ -4550,7 +4550,7 @@ bool SonobusAudioProcessor::disconnectRemotePeer(int index)
     return ret;
 }
 
-bool SonobusAudioProcessor::getPatchMatrixValue(int srcindex, int destindex) const
+bool CommsbusAudioProcessor::getPatchMatrixValue(int srcindex, int destindex) const
 {
     if (srcindex < MAX_PEERS && destindex < MAX_PEERS) {
         return mRemoteSendMatrix[srcindex][destindex];
@@ -4558,7 +4558,7 @@ bool SonobusAudioProcessor::getPatchMatrixValue(int srcindex, int destindex) con
     return false;
 }
 
-void SonobusAudioProcessor::setPatchMatrixValue(int srcindex, int destindex, bool value)
+void CommsbusAudioProcessor::setPatchMatrixValue(int srcindex, int destindex, bool value)
 {
 
     if (srcindex < MAX_PEERS && destindex < MAX_PEERS) {
@@ -4575,7 +4575,7 @@ void SonobusAudioProcessor::setPatchMatrixValue(int srcindex, int destindex, boo
 }
 
 
-void SonobusAudioProcessor::adjustRemoteSendMatrix(int index, bool removed)
+void CommsbusAudioProcessor::adjustRemoteSendMatrix(int index, bool removed)
 {
     if (removed) {
         // adjust mRemoteSendMatrix
@@ -4619,7 +4619,7 @@ void SonobusAudioProcessor::adjustRemoteSendMatrix(int index, bool removed)
     }
 }
 
-bool SonobusAudioProcessor::removeAllRemotePeers()
+bool CommsbusAudioProcessor::removeAllRemotePeers()
 {
     const ScopedReadLock sl (mCoreLock);
 
@@ -4656,7 +4656,7 @@ bool SonobusAudioProcessor::removeAllRemotePeers()
 }
 
 
-bool SonobusAudioProcessor::removeRemotePeer(int index, bool sendblock)
+bool CommsbusAudioProcessor::removeRemotePeer(int index, bool sendblock)
 {
     RemotePeer * remote = 0;
     bool ret = false;
@@ -4692,12 +4692,12 @@ bool SonobusAudioProcessor::removeRemotePeer(int index, bool sendblock)
 }
 
 
-int SonobusAudioProcessor::getNumberRemotePeers() const
+int CommsbusAudioProcessor::getNumberRemotePeers() const
 {
     return mRemotePeers.size();
 }
 
-void SonobusAudioProcessor::setRemotePeerLevelGain(int index, float levelgain)
+void CommsbusAudioProcessor::setRemotePeerLevelGain(int index, float levelgain)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -4706,7 +4706,7 @@ void SonobusAudioProcessor::setRemotePeerLevelGain(int index, float levelgain)
     }
 }
 
-float SonobusAudioProcessor::getRemotePeerLevelGain(int index) const
+float CommsbusAudioProcessor::getRemotePeerLevelGain(int index) const
 {
     float levelgain = 0.0f;
 
@@ -4719,7 +4719,7 @@ float SonobusAudioProcessor::getRemotePeerLevelGain(int index) const
 }
 
 
-void SonobusAudioProcessor::setRemotePeerChannelGain(int index, int changroup, float levelgain)
+void CommsbusAudioProcessor::setRemotePeerChannelGain(int index, int changroup, float levelgain)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4728,7 +4728,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGain(int index, int changroup, f
     }
 }
 
-float SonobusAudioProcessor::getRemotePeerChannelGain(int index, int changroup) const
+float CommsbusAudioProcessor::getRemotePeerChannelGain(int index, int changroup) const
 {
     float levelgain = 0.0f;
     
@@ -4740,7 +4740,7 @@ float SonobusAudioProcessor::getRemotePeerChannelGain(int index, int changroup) 
     return levelgain;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelReverbSend(int index, int changroup, float rgain)
+void CommsbusAudioProcessor::setRemotePeerChannelReverbSend(int index, int changroup, float rgain)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4749,7 +4749,7 @@ void SonobusAudioProcessor::setRemotePeerChannelReverbSend(int index, int changr
     }
 }
 
-float SonobusAudioProcessor::getRemotePeerChannelReverbSend(int index, int changroup)
+float CommsbusAudioProcessor::getRemotePeerChannelReverbSend(int index, int changroup)
 {
     float revsend = 0.0f;
 
@@ -4761,7 +4761,7 @@ float SonobusAudioProcessor::getRemotePeerChannelReverbSend(int index, int chang
     return revsend;
 }
 
-void SonobusAudioProcessor::setRemotePeerPolarityInvert(int index, int changroup, bool invert)
+void CommsbusAudioProcessor::setRemotePeerPolarityInvert(int index, int changroup, bool invert)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4770,7 +4770,7 @@ void SonobusAudioProcessor::setRemotePeerPolarityInvert(int index, int changroup
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerPolarityInvert(int index, int changroup)
+bool CommsbusAudioProcessor::getRemotePeerPolarityInvert(int index, int changroup)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4780,7 +4780,7 @@ bool SonobusAudioProcessor::getRemotePeerPolarityInvert(int index, int changroup
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelMuted(int index, int changroup, bool muted)
+void CommsbusAudioProcessor::setRemotePeerChannelMuted(int index, int changroup, bool muted)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4789,7 +4789,7 @@ void SonobusAudioProcessor::setRemotePeerChannelMuted(int index, int changroup, 
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerChannelMuted(int index, int changroup) const
+bool CommsbusAudioProcessor::getRemotePeerChannelMuted(int index, int changroup) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4799,7 +4799,7 @@ bool SonobusAudioProcessor::getRemotePeerChannelMuted(int index, int changroup) 
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelSoloed(int index, int changroup, bool soloed)
+void CommsbusAudioProcessor::setRemotePeerChannelSoloed(int index, int changroup, bool soloed)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4808,7 +4808,7 @@ void SonobusAudioProcessor::setRemotePeerChannelSoloed(int index, int changroup,
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerChannelSoloed(int index, int changroup) const
+bool CommsbusAudioProcessor::getRemotePeerChannelSoloed(int index, int changroup) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index >= 0 && index < mRemotePeers.size()) {
@@ -4832,7 +4832,7 @@ bool SonobusAudioProcessor::getRemotePeerChannelSoloed(int index, int changroup)
 }
 
 
-String SonobusAudioProcessor::getRemotePeerChannelGroupName(int index, int changroup) const
+String CommsbusAudioProcessor::getRemotePeerChannelGroupName(int index, int changroup) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4842,7 +4842,7 @@ String SonobusAudioProcessor::getRemotePeerChannelGroupName(int index, int chang
     return "";
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelGroupName(int index, int changroup, const String & name)
+void CommsbusAudioProcessor::setRemotePeerChannelGroupName(int index, int changroup, const String & name)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4853,7 +4853,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGroupName(int index, int changro
     }
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelGroupCount(int index, int count)
+void CommsbusAudioProcessor::setRemotePeerChannelGroupCount(int index, int count)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -4866,7 +4866,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGroupCount(int index, int count)
 }
 
 
-void SonobusAudioProcessor::setRemotePeerUserName(int index, const String & name)
+void CommsbusAudioProcessor::setRemotePeerUserName(int index, const String & name)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -4875,7 +4875,7 @@ void SonobusAudioProcessor::setRemotePeerUserName(int index, const String & name
     }
 }
 
-String SonobusAudioProcessor::getRemotePeerUserName(int index) const
+String CommsbusAudioProcessor::getRemotePeerUserName(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -4885,7 +4885,7 @@ String SonobusAudioProcessor::getRemotePeerUserName(int index) const
     return "";
 }
 
-bool SonobusAudioProcessor::isRemotePeerUserInGroup(const String & name) const
+bool CommsbusAudioProcessor::isRemotePeerUserInGroup(const String & name) const
 {
     const ScopedReadLock sl (mCoreLock);
     for (int index = 0; index < mRemotePeers.size(); ++index) {
@@ -4897,7 +4897,7 @@ bool SonobusAudioProcessor::isRemotePeerUserInGroup(const String & name) const
 }
 
 
-void SonobusAudioProcessor::setRemotePeerChannelPan(int index, int changroup, int chan, float pan)
+void CommsbusAudioProcessor::setRemotePeerChannelPan(int index, int changroup, int chan, float pan)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -4915,7 +4915,7 @@ void SonobusAudioProcessor::setRemotePeerChannelPan(int index, int changroup, in
     }
 }
 
-float SonobusAudioProcessor::getRemotePeerChannelPan(int index, int changroup, int chan) const
+float CommsbusAudioProcessor::getRemotePeerChannelPan(int index, int changroup, int chan) const
 {
     float pan = 0.0f;
     
@@ -4934,7 +4934,7 @@ float SonobusAudioProcessor::getRemotePeerChannelPan(int index, int changroup, i
     return pan;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelGroupStartAndCount(int index, int changroup, int start, int count)
+void CommsbusAudioProcessor::setRemotePeerChannelGroupStartAndCount(int index, int changroup, int start, int count)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4946,7 +4946,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGroupStartAndCount(int index, in
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerChannelGroupStartAndCount(int index, int changroup, int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getRemotePeerChannelGroupStartAndCount(int index, int changroup, int & retstart, int & retcount)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4959,7 +4959,7 @@ bool SonobusAudioProcessor::getRemotePeerChannelGroupStartAndCount(int index, in
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelGroupDestStartAndCount(int index, int changroup, int start, int count)
+void CommsbusAudioProcessor::setRemotePeerChannelGroupDestStartAndCount(int index, int changroup, int start, int count)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4971,7 +4971,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGroupDestStartAndCount(int index
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerChannelGroupDestStartAndCount(int index, int changroup, int & retstart, int & retcount)
+bool CommsbusAudioProcessor::getRemotePeerChannelGroupDestStartAndCount(int index, int changroup, int & retstart, int & retcount)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4984,7 +4984,7 @@ bool SonobusAudioProcessor::getRemotePeerChannelGroupDestStartAndCount(int index
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerChannelGroupSendMainMix(int index, int changroup, bool mainmix)
+void CommsbusAudioProcessor::setRemotePeerChannelGroupSendMainMix(int index, int changroup, bool mainmix)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -4993,7 +4993,7 @@ void SonobusAudioProcessor::setRemotePeerChannelGroupSendMainMix(int index, int 
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerChannelGroupSendMainMix(int index, int changroup)
+bool CommsbusAudioProcessor::getRemotePeerChannelGroupSendMainMix(int index, int changroup)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && changroup < MAX_CHANGROUPS) {
@@ -5005,7 +5005,7 @@ bool SonobusAudioProcessor::getRemotePeerChannelGroupSendMainMix(int index, int 
 }
 
 
-bool SonobusAudioProcessor::insertRemotePeerChannelGroup(int index, int atgroup, int chstart, int chcount)
+bool CommsbusAudioProcessor::insertRemotePeerChannelGroup(int index, int atgroup, int chstart, int chcount)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && atgroup >= 0 && atgroup < MAX_CHANGROUPS) {
@@ -5030,7 +5030,7 @@ bool SonobusAudioProcessor::insertRemotePeerChannelGroup(int index, int atgroup,
     return false;
 }
 
-bool SonobusAudioProcessor::removeRemotePeerChannelGroup(int index, int atgroup)
+bool CommsbusAudioProcessor::removeRemotePeerChannelGroup(int index, int atgroup)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && atgroup >= 0 && atgroup < MAX_CHANGROUPS) {
@@ -5049,7 +5049,7 @@ bool SonobusAudioProcessor::removeRemotePeerChannelGroup(int index, int atgroup)
     return false;
 }
 
-bool SonobusAudioProcessor::copyRemotePeerChannelGroup(int index, int fromgroup, int togroup)
+bool CommsbusAudioProcessor::copyRemotePeerChannelGroup(int index, int fromgroup, int togroup)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size() && fromgroup < MAX_CHANGROUPS && togroup < MAX_CHANGROUPS) {
@@ -5063,7 +5063,7 @@ bool SonobusAudioProcessor::copyRemotePeerChannelGroup(int index, int fromgroup,
 }
 
 
-int SonobusAudioProcessor::getRemotePeerRecvChannelCount(int index) const
+int CommsbusAudioProcessor::getRemotePeerRecvChannelCount(int index) const
 {
     int ret = 0;
     const ScopedReadLock sl (mCoreLock);        
@@ -5074,7 +5074,7 @@ int SonobusAudioProcessor::getRemotePeerRecvChannelCount(int index) const
     return ret;
 }
 
-int SonobusAudioProcessor::getRemotePeerChannelGroupCount(int index) const
+int CommsbusAudioProcessor::getRemotePeerChannelGroupCount(int index) const
 {
     int ret = 0;
     const ScopedReadLock sl (mCoreLock);
@@ -5085,7 +5085,7 @@ int SonobusAudioProcessor::getRemotePeerChannelGroupCount(int index) const
     return ret;
 }
 
-bool SonobusAudioProcessor::getRemotePeerViewExpanded(int index) const
+bool CommsbusAudioProcessor::getRemotePeerViewExpanded(int index) const
 {
     bool ret = false;
     const ScopedReadLock sl (mCoreLock);
@@ -5096,7 +5096,7 @@ bool SonobusAudioProcessor::getRemotePeerViewExpanded(int index) const
     return ret;
 }
 
-void SonobusAudioProcessor::setRemotePeerViewExpanded(int index, bool expanded)
+void CommsbusAudioProcessor::setRemotePeerViewExpanded(int index, bool expanded)
 {
     const ScopedReadLock sl (mCoreLock);
     // could be -1 as index meaning all remote peers
@@ -5108,7 +5108,7 @@ void SonobusAudioProcessor::setRemotePeerViewExpanded(int index, bool expanded)
     }
 }
 
-bool SonobusAudioProcessor::getLayoutFormatChangedForRemotePeer(int index) const
+bool CommsbusAudioProcessor::getLayoutFormatChangedForRemotePeer(int index) const
 {
     bool ret = false;
     const ScopedReadLock sl (mCoreLock);
@@ -5119,7 +5119,7 @@ bool SonobusAudioProcessor::getLayoutFormatChangedForRemotePeer(int index) const
     return ret;
 }
 
-void SonobusAudioProcessor::restoreLayoutFormatForRemotePeer(int index)
+void CommsbusAudioProcessor::restoreLayoutFormatForRemotePeer(int index)
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -5129,7 +5129,7 @@ void SonobusAudioProcessor::restoreLayoutFormatForRemotePeer(int index)
 }
 
 
-int SonobusAudioProcessor::getRemotePeerNominalSendChannelCount(int index) const
+int CommsbusAudioProcessor::getRemotePeerNominalSendChannelCount(int index) const
 {
     int ret = 0;
     const ScopedReadLock sl (mCoreLock);        
@@ -5140,7 +5140,7 @@ int SonobusAudioProcessor::getRemotePeerNominalSendChannelCount(int index) const
     return ret;    
 }
 
-void SonobusAudioProcessor::setRemotePeerNominalSendChannelCount(int index, int numchans)
+void CommsbusAudioProcessor::setRemotePeerNominalSendChannelCount(int index, int numchans)
 {
     const ScopedReadLock sl (mCoreLock);        
     // could be -1 as index meaning all remote peers
@@ -5153,7 +5153,7 @@ void SonobusAudioProcessor::setRemotePeerNominalSendChannelCount(int index, int 
     }
 }
 
-int SonobusAudioProcessor::getRemotePeerActualSendChannelCount(int index) const
+int CommsbusAudioProcessor::getRemotePeerActualSendChannelCount(int index) const
 {
     int ret = 0;
     const ScopedReadLock sl (mCoreLock);
@@ -5165,7 +5165,7 @@ int SonobusAudioProcessor::getRemotePeerActualSendChannelCount(int index) const
 }
 
 
-void SonobusAudioProcessor::updateDynamicResampling()
+void CommsbusAudioProcessor::updateDynamicResampling()
 {
     const ScopedReadLock sl (mCoreLock);
     bool newval = mDynamicResampling.get();
@@ -5179,7 +5179,7 @@ void SonobusAudioProcessor::updateDynamicResampling()
 
 
 
-int SonobusAudioProcessor::getRemotePeerOverrideSendChannelCount(int index) const
+int CommsbusAudioProcessor::getRemotePeerOverrideSendChannelCount(int index) const
 {
     int ret = 0;
     const ScopedReadLock sl (mCoreLock);        
@@ -5192,7 +5192,7 @@ int SonobusAudioProcessor::getRemotePeerOverrideSendChannelCount(int index) cons
 
 
 
-void SonobusAudioProcessor::setRemotePeerOverrideSendChannelCount(int index, int numchans)
+void CommsbusAudioProcessor::setRemotePeerOverrideSendChannelCount(int index, int numchans)
 {
     const ScopedReadLock sl (mCoreLock);        
     // could be -1 as index meaning all remote peers
@@ -5207,7 +5207,7 @@ void SonobusAudioProcessor::setRemotePeerOverrideSendChannelCount(int index, int
     }
 }
 
-void SonobusAudioProcessor::updateRemotePeerSendChannels(int index, RemotePeer * remote) {
+void CommsbusAudioProcessor::updateRemotePeerSendChannels(int index, RemotePeer * remote) {
     // this is called while the corereadlock is already held
     int newchancnt = remote->sendChannels;
 
@@ -5247,7 +5247,7 @@ void SonobusAudioProcessor::updateRemotePeerSendChannels(int index, RemotePeer *
     }
 }
 
-void SonobusAudioProcessor::changeListenerCallback (ChangeBroadcaster* source)
+void CommsbusAudioProcessor::changeListenerCallback (ChangeBroadcaster* source)
 {
     if (source == &mTransportSource) {
         if (!mTransportSource.isPlaying() && mTransportSource.getCurrentPosition() >= mTransportSource.getLengthInSeconds()) {
@@ -5271,7 +5271,7 @@ void SonobusAudioProcessor::changeListenerCallback (ChangeBroadcaster* source)
     }
 }
 
-void SonobusAudioProcessor::setRemotePeerBufferTime(int index, float bufferMs)
+void CommsbusAudioProcessor::setRemotePeerBufferTime(int index, float bufferMs)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index >= 0 && index < mRemotePeers.size()) {
@@ -5307,7 +5307,7 @@ void SonobusAudioProcessor::setRemotePeerBufferTime(int index, float bufferMs)
     }
 }
 
-float SonobusAudioProcessor::getRemotePeerBufferTime(int index) const
+float CommsbusAudioProcessor::getRemotePeerBufferTime(int index) const
 {
     float buftimeMs = 30.0f;
     
@@ -5321,7 +5321,7 @@ float SonobusAudioProcessor::getRemotePeerBufferTime(int index) const
     return buftimeMs;    
 }
 
-void SonobusAudioProcessor::setRemotePeerAutoresizeBufferMode(int index, SonobusAudioProcessor::AutoNetBufferMode flag)
+void CommsbusAudioProcessor::setRemotePeerAutoresizeBufferMode(int index, CommsbusAudioProcessor::AutoNetBufferMode flag)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5345,7 +5345,7 @@ void SonobusAudioProcessor::setRemotePeerAutoresizeBufferMode(int index, Sonobus
     }
 }
 
-SonobusAudioProcessor::AutoNetBufferMode SonobusAudioProcessor::getRemotePeerAutoresizeBufferMode(int index, bool & initCompleted) const
+CommsbusAudioProcessor::AutoNetBufferMode CommsbusAudioProcessor::getRemotePeerAutoresizeBufferMode(int index, bool & initCompleted) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5357,14 +5357,14 @@ SonobusAudioProcessor::AutoNetBufferMode SonobusAudioProcessor::getRemotePeerAut
 }
 
 // acceptable limit for drop rate in dropinstance/second, above which it will adjust the jitter buffer in Auto modes
-void SonobusAudioProcessor::setAutoresizeBufferDropRateThreshold(float thresh)
+void CommsbusAudioProcessor::setAutoresizeBufferDropRateThreshold(float thresh)
 {
     mAutoresizeDropRateThresh = thresh;
 }
 
 
 
-bool SonobusAudioProcessor::getRemotePeerReceiveBufferFillRatio(int index, float & retratio, float & retstddev) const
+bool CommsbusAudioProcessor::getRemotePeerReceiveBufferFillRatio(int index, float & retratio, float & retstddev) const
 {
     retratio = 0.0f;
     retstddev = 0.0f;
@@ -5378,7 +5378,7 @@ bool SonobusAudioProcessor::getRemotePeerReceiveBufferFillRatio(int index, float
     return false;
 }
 
-void SonobusAudioProcessor::setRemotePeerRecvActive(int index, bool active)
+void CommsbusAudioProcessor::setRemotePeerRecvActive(int index, bool active)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5404,7 +5404,7 @@ void SonobusAudioProcessor::setRemotePeerRecvActive(int index, bool active)
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerRecvActive(int index) const
+bool CommsbusAudioProcessor::getRemotePeerRecvActive(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5414,7 +5414,7 @@ bool SonobusAudioProcessor::getRemotePeerRecvActive(int index) const
     return false;        
 }
 
-void SonobusAudioProcessor::setRemotePeerSendAllow(int index, bool allow, bool cached)
+void CommsbusAudioProcessor::setRemotePeerSendAllow(int index, bool allow, bool cached)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size() && index >= 0) {
@@ -5433,7 +5433,7 @@ void SonobusAudioProcessor::setRemotePeerSendAllow(int index, bool allow, bool c
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerSendAllow(int index, bool cached) const
+bool CommsbusAudioProcessor::getRemotePeerSendAllow(int index, bool cached) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5443,7 +5443,7 @@ bool SonobusAudioProcessor::getRemotePeerSendAllow(int index, bool cached) const
     return false;        
 }
 
-void SonobusAudioProcessor::setRemotePeerRecvAllow(int index, bool allow, bool cached)
+void CommsbusAudioProcessor::setRemotePeerRecvAllow(int index, bool allow, bool cached)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size() && index >= 0) {
@@ -5462,7 +5462,7 @@ void SonobusAudioProcessor::setRemotePeerRecvAllow(int index, bool allow, bool c
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerRecvAllow(int index, bool cached) const
+bool CommsbusAudioProcessor::getRemotePeerRecvAllow(int index, bool cached) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5472,7 +5472,7 @@ bool SonobusAudioProcessor::getRemotePeerRecvAllow(int index, bool cached) const
     return false;        
 }
 
-void SonobusAudioProcessor::setRemotePeerSoloed(int index, bool soloed)
+void CommsbusAudioProcessor::setRemotePeerSoloed(int index, bool soloed)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5492,7 +5492,7 @@ void SonobusAudioProcessor::setRemotePeerSoloed(int index, bool soloed)
     mAnythingSoloed = anysoloed;
 }
 
-bool SonobusAudioProcessor::getRemotePeerSoloed(int index) const
+bool CommsbusAudioProcessor::getRemotePeerSoloed(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5503,7 +5503,7 @@ bool SonobusAudioProcessor::getRemotePeerSoloed(int index) const
 }
 
 
-int64_t SonobusAudioProcessor::getRemotePeerPacketsReceived(int index) const
+int64_t CommsbusAudioProcessor::getRemotePeerPacketsReceived(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5513,7 +5513,7 @@ int64_t SonobusAudioProcessor::getRemotePeerPacketsReceived(int index) const
     return 0;      
 }
 
-int64_t SonobusAudioProcessor::getRemotePeerPacketsSent(int index) const
+int64_t CommsbusAudioProcessor::getRemotePeerPacketsSent(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5523,7 +5523,7 @@ int64_t SonobusAudioProcessor::getRemotePeerPacketsSent(int index) const
     return 0;      
 }
 
-int64_t SonobusAudioProcessor::getRemotePeerBytesSent(int index) const
+int64_t CommsbusAudioProcessor::getRemotePeerBytesSent(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5533,7 +5533,7 @@ int64_t SonobusAudioProcessor::getRemotePeerBytesSent(int index) const
     return 0;          
 }
 
-int64_t SonobusAudioProcessor::getRemotePeerBytesReceived(int index) const
+int64_t CommsbusAudioProcessor::getRemotePeerBytesReceived(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5543,7 +5543,7 @@ int64_t SonobusAudioProcessor::getRemotePeerBytesReceived(int index) const
     return 0;      
 }
 
-int64_t  SonobusAudioProcessor::getRemotePeerPacketsDropped(int index) const
+int64_t  CommsbusAudioProcessor::getRemotePeerPacketsDropped(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5553,7 +5553,7 @@ int64_t  SonobusAudioProcessor::getRemotePeerPacketsDropped(int index) const
     return 0;      
 }
 
-int64_t  SonobusAudioProcessor::getRemotePeerPacketsResent(int index) const
+int64_t  CommsbusAudioProcessor::getRemotePeerPacketsResent(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5563,7 +5563,7 @@ int64_t  SonobusAudioProcessor::getRemotePeerPacketsResent(int index) const
     return 0;      
 }
 
-bool SonobusAudioProcessor::getRemotePeerSafetyMuted(int index) const
+bool CommsbusAudioProcessor::getRemotePeerSafetyMuted(int index) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -5573,7 +5573,7 @@ bool SonobusAudioProcessor::getRemotePeerSafetyMuted(int index) const
     return false;
 }
 
-bool SonobusAudioProcessor::getRemotePeerBlockedUs(int index) const
+bool CommsbusAudioProcessor::getRemotePeerBlockedUs(int index) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index < mRemotePeers.size()) {
@@ -5583,7 +5583,7 @@ bool SonobusAudioProcessor::getRemotePeerBlockedUs(int index) const
     return false;
 }
 
-void  SonobusAudioProcessor::resetRemotePeerPacketStats(int index)
+void  CommsbusAudioProcessor::resetRemotePeerPacketStats(int index)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5596,7 +5596,7 @@ void  SonobusAudioProcessor::resetRemotePeerPacketStats(int index)
 }
 
 
-bool SonobusAudioProcessor::getRemotePeerLatencyInfo(int index, LatencyInfo & retinfo) const
+bool CommsbusAudioProcessor::getRemotePeerLatencyInfo(int index, LatencyInfo & retinfo) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5727,7 +5727,7 @@ bool SonobusAudioProcessor::getRemotePeerLatencyInfo(int index, LatencyInfo & re
     return false;          
 }
 
-bool SonobusAudioProcessor::isRemotePeerLatencyTestActive(int index)
+bool CommsbusAudioProcessor::isRemotePeerLatencyTestActive(int index)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5738,7 +5738,7 @@ bool SonobusAudioProcessor::isRemotePeerLatencyTestActive(int index)
 }
 
 
-bool SonobusAudioProcessor::isAnyRemotePeerRecording() const
+bool CommsbusAudioProcessor::isAnyRemotePeerRecording() const
 {
     const ScopedReadLock sl (mCoreLock);
     for (int index=0; index < mRemotePeers.size(); ++index) {
@@ -5748,7 +5748,7 @@ bool SonobusAudioProcessor::isAnyRemotePeerRecording() const
     return false;
 }
 
-bool  SonobusAudioProcessor::isRemotePeerRecording(int index) const
+bool  CommsbusAudioProcessor::isRemotePeerRecording(int index) const
 {
     const ScopedReadLock sl (mCoreLock);
     if (index > 0 && index < mRemotePeers.size()) {
@@ -5759,7 +5759,7 @@ bool  SonobusAudioProcessor::isRemotePeerRecording(int index) const
 }
 
 
-bool SonobusAudioProcessor::startRemotePeerLatencyTest(int index, float durationsec)
+bool CommsbusAudioProcessor::startRemotePeerLatencyTest(int index, float durationsec)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5793,7 +5793,7 @@ bool SonobusAudioProcessor::startRemotePeerLatencyTest(int index, float duration
     return false;
 }
 
-bool SonobusAudioProcessor::stopRemotePeerLatencyTest(int index)
+bool CommsbusAudioProcessor::stopRemotePeerLatencyTest(int index)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5815,7 +5815,7 @@ bool SonobusAudioProcessor::stopRemotePeerLatencyTest(int index)
 
 
 
-void SonobusAudioProcessor::setRemotePeerSendActive(int index, bool active)
+void CommsbusAudioProcessor::setRemotePeerSendActive(int index, bool active)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5831,7 +5831,7 @@ void SonobusAudioProcessor::setRemotePeerSendActive(int index, bool active)
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerSendActive(int index) const
+bool CommsbusAudioProcessor::getRemotePeerSendActive(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5841,7 +5841,7 @@ bool SonobusAudioProcessor::getRemotePeerSendActive(int index) const
     return false;        
 }
 
-void SonobusAudioProcessor::setRemotePeerConnected(int index, bool active)
+void CommsbusAudioProcessor::setRemotePeerConnected(int index, bool active)
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5850,7 +5850,7 @@ void SonobusAudioProcessor::setRemotePeerConnected(int index, bool active)
     }
 }
 
-bool SonobusAudioProcessor::getRemotePeerConnected(int index) const
+bool CommsbusAudioProcessor::getRemotePeerConnected(int index) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5861,7 +5861,7 @@ bool SonobusAudioProcessor::getRemotePeerConnected(int index) const
 }
 
 
-bool SonobusAudioProcessor::getRemotePeerAddressInfo(int index, String & rethost, int & retport) const
+bool CommsbusAudioProcessor::getRemotePeerAddressInfo(int index, String & rethost, int & retport) const
 {
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
@@ -5874,7 +5874,7 @@ bool SonobusAudioProcessor::getRemotePeerAddressInfo(int index, String & rethost
 }
 
 
-SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeer(EndpointState * endpoint, int32_t ourId)
+CommsbusAudioProcessor::RemotePeer *  CommsbusAudioProcessor::findRemotePeer(EndpointState * endpoint, int32_t ourId)
 {
     const ScopedReadLock sl (mCoreLock);        
 
@@ -5890,7 +5890,7 @@ SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeer(Endpo
     return retpeer;        
 }
 
-SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByRemoteSourceId(EndpointState * endpoint, int32_t sourceId)
+CommsbusAudioProcessor::RemotePeer *  CommsbusAudioProcessor::findRemotePeerByRemoteSourceId(EndpointState * endpoint, int32_t sourceId)
 {
     const ScopedReadLock sl (mCoreLock);        
 
@@ -5906,7 +5906,7 @@ SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByRemo
     return retpeer;        
 }
 
-SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByRemoteSinkId(EndpointState * endpoint, int32_t sinkId)
+CommsbusAudioProcessor::RemotePeer *  CommsbusAudioProcessor::findRemotePeerByRemoteSinkId(EndpointState * endpoint, int32_t sinkId)
 {
     const ScopedReadLock sl (mCoreLock);        
 
@@ -5922,7 +5922,7 @@ SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByRemo
     return retpeer;        
 }
 
-SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByEchoId(EndpointState * endpoint, int32_t echoId)
+CommsbusAudioProcessor::RemotePeer *  CommsbusAudioProcessor::findRemotePeerByEchoId(EndpointState * endpoint, int32_t echoId)
 {
     const ScopedReadLock sl (mCoreLock);        
 
@@ -5938,7 +5938,7 @@ SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByEcho
     return retpeer;        
 }
 
-SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByLatencyId(EndpointState * endpoint, int32_t latId)
+CommsbusAudioProcessor::RemotePeer *  CommsbusAudioProcessor::findRemotePeerByLatencyId(EndpointState * endpoint, int32_t latId)
 {
     const ScopedReadLock sl (mCoreLock);        
 
@@ -5956,7 +5956,7 @@ SonobusAudioProcessor::RemotePeer *  SonobusAudioProcessor::findRemotePeerByLate
 
 
 
-SonobusAudioProcessor::RemotePeer * SonobusAudioProcessor::doAddRemotePeerIfNecessary(EndpointState * endpoint, int32_t ourId, const String & username, const String & groupname)
+CommsbusAudioProcessor::RemotePeer * CommsbusAudioProcessor::doAddRemotePeerIfNecessary(EndpointState * endpoint, int32_t ourId, const String & username, const String & groupname)
 {
     const ScopedReadLock sl (mCoreLock);
 
@@ -6135,7 +6135,7 @@ SonobusAudioProcessor::RemotePeer * SonobusAudioProcessor::doAddRemotePeerIfNece
     return retpeer;    
 }
 
-void SonobusAudioProcessor::commitCacheForPeer(RemotePeer * retpeer)
+void CommsbusAudioProcessor::commitCacheForPeer(RemotePeer * retpeer)
 {
     if (retpeer->userName.isEmpty()) {
         DBG("username empty, can't commit");
@@ -6170,7 +6170,7 @@ void SonobusAudioProcessor::commitCacheForPeer(RemotePeer * retpeer)
     }
 }
 
-bool SonobusAudioProcessor::findAndLoadCacheForPeer(RemotePeer * retpeer)
+bool CommsbusAudioProcessor::findAndLoadCacheForPeer(RemotePeer * retpeer)
 {
     if (retpeer->userName.isEmpty()) {
         DBG("username empty, can't match");
@@ -6229,7 +6229,7 @@ bool SonobusAudioProcessor::findAndLoadCacheForPeer(RemotePeer * retpeer)
 }
 
 
-bool SonobusAudioProcessor::removeAllRemotePeersWithEndpoint(EndpointState * endpoint)
+bool CommsbusAudioProcessor::removeAllRemotePeersWithEndpoint(EndpointState * endpoint)
 {
     const ScopedReadLock sl (mCoreLock);
 
@@ -6266,7 +6266,7 @@ bool SonobusAudioProcessor::removeAllRemotePeersWithEndpoint(EndpointState * end
 }
 
 
-bool SonobusAudioProcessor::doRemoveRemotePeerIfNecessary(EndpointState * endpoint, int32_t ourId)
+bool CommsbusAudioProcessor::doRemoveRemotePeerIfNecessary(EndpointState * endpoint, int32_t ourId)
 {
     const ScopedReadLock sl (mCoreLock);
 
@@ -6292,7 +6292,7 @@ bool SonobusAudioProcessor::doRemoveRemotePeerIfNecessary(EndpointState * endpoi
     
 }
 
-bool SonobusAudioProcessor::isAnythingRoutedToPeer(int index) const
+bool CommsbusAudioProcessor::isAnythingRoutedToPeer(int index) const
 {
     bool ret = false;
 
@@ -6310,7 +6310,7 @@ bool SonobusAudioProcessor::isAnythingRoutedToPeer(int index) const
 
 ////
 
-bool SonobusAudioProcessor::formatInfoToAooFormat(const AudioCodecFormatInfo & info, int channels, aoo_format_storage & retformat) {
+bool CommsbusAudioProcessor::formatInfoToAooFormat(const AudioCodecFormatInfo & info, int channels, aoo_format_storage & retformat) {
                 
         if (info.codec == CodecPCM) {
             aoo_format_pcm *fmt = (aoo_format_pcm *)&retformat;
@@ -6341,7 +6341,7 @@ bool SonobusAudioProcessor::formatInfoToAooFormat(const AudioCodecFormatInfo & i
 }
     
     
-void SonobusAudioProcessor::setupSourceFormat(SonobusAudioProcessor::RemotePeer * peer, aoo::isource * source, bool latencymode)
+void CommsbusAudioProcessor::setupSourceFormat(CommsbusAudioProcessor::RemotePeer * peer, aoo::isource * source, bool latencymode)
 {
     // have choice and parameters
     int formatIndex = (!peer || peer->formatIndex < 0) ? mDefaultAudioFormatIndex : peer->formatIndex;
@@ -6356,7 +6356,7 @@ void SonobusAudioProcessor::setupSourceFormat(SonobusAudioProcessor::RemotePeer 
     }
 }
 
-ValueTree SonobusAudioProcessor::getSendUserFormatLayoutTree()
+ValueTree CommsbusAudioProcessor::getSendUserFormatLayoutTree()
 {
     // get userformat from send info
     ValueTree fmttree(channelLayoutsKey);
@@ -6402,7 +6402,7 @@ ValueTree SonobusAudioProcessor::getSendUserFormatLayoutTree()
 }
 
 
-void SonobusAudioProcessor::setupSourceUserFormat(RemotePeer * peer, aoo::isource * source)
+void CommsbusAudioProcessor::setupSourceUserFormat(RemotePeer * peer, aoo::isource * source)
 {
     // get userformat from send info
     ValueTree fmttree = getSendUserFormatLayoutTree();
@@ -6417,7 +6417,7 @@ void SonobusAudioProcessor::setupSourceUserFormat(RemotePeer * peer, aoo::isourc
     source->set_userformat(destData.getData(), (int32_t) destData.getSize());
 }
 
-void SonobusAudioProcessor::updateRemotePeerUserFormat(int index, RemotePeer * onlypeer)
+void CommsbusAudioProcessor::updateRemotePeerUserFormat(int index, RemotePeer * onlypeer)
 {
     // get userformat from send info
     ValueTree fmttree = getSendUserFormatLayoutTree();
@@ -6447,7 +6447,7 @@ void SonobusAudioProcessor::updateRemotePeerUserFormat(int index, RemotePeer * o
         osc::OutboundPacketStream msg(buf, sizeof(buf));
 
         try {
-            msg << osc::BeginMessage(SONOBUS_FULLMSG_LAYOUTINFO)
+            msg << osc::BeginMessage(COMMSBUS_FULLMSG_LAYOUTINFO)
             << peer->remoteSinkId
             << osc::Blob(destData.getData(), (int) destData.getSize())
             << osc::EndMessage;
@@ -6465,7 +6465,7 @@ void SonobusAudioProcessor::updateRemotePeerUserFormat(int index, RemotePeer * o
 
 }
 
-void SonobusAudioProcessor::restoreLayoutFormatForPeer(RemotePeer * remote, bool resetmulti)
+void CommsbusAudioProcessor::restoreLayoutFormatForPeer(RemotePeer * remote, bool resetmulti)
 {
     DBG("Restoring layout userformat for peer" );
     remote->numChanGroups = remote->origNumChanGroups;
@@ -6490,7 +6490,7 @@ void SonobusAudioProcessor::restoreLayoutFormatForPeer(RemotePeer * remote, bool
     }
 }
 
-void SonobusAudioProcessor::applyLayoutFormatToPeer(RemotePeer * remote, const ValueTree & valtree)
+void CommsbusAudioProcessor::applyLayoutFormatToPeer(RemotePeer * remote, const ValueTree & valtree)
 {
     DBG("Got layout userformat for peer: " << valtree.toXmlString());
 
@@ -6562,7 +6562,7 @@ void SonobusAudioProcessor::applyLayoutFormatToPeer(RemotePeer * remote, const V
 
 
 
-void SonobusAudioProcessor::parameterChanged (const String &parameterID, float newValue)
+void CommsbusAudioProcessor::parameterChanged (const String &parameterID, float newValue)
 {
     if (parameterID == paramDry) {
         mDry = newValue;
@@ -6839,12 +6839,12 @@ void SonobusAudioProcessor::parameterChanged (const String &parameterID, float n
 }
 
 //==============================================================================
-const String SonobusAudioProcessor::getName() const
+const String CommsbusAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool SonobusAudioProcessor::acceptsMidi() const
+bool CommsbusAudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -6853,7 +6853,7 @@ bool SonobusAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool SonobusAudioProcessor::producesMidi() const
+bool CommsbusAudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -6862,7 +6862,7 @@ bool SonobusAudioProcessor::producesMidi() const
    #endif
 }
 
-bool SonobusAudioProcessor::isMidiEffect() const
+bool CommsbusAudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -6871,37 +6871,37 @@ bool SonobusAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double SonobusAudioProcessor::getTailLengthSeconds() const
+double CommsbusAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int SonobusAudioProcessor::getNumPrograms()
+int CommsbusAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int SonobusAudioProcessor::getCurrentProgram()
+int CommsbusAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void SonobusAudioProcessor::setCurrentProgram (int index)
+void CommsbusAudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const String SonobusAudioProcessor::getProgramName (int index)
+const String CommsbusAudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void SonobusAudioProcessor::changeProgramName (int index, const String& newName)
+void CommsbusAudioProcessor::changeProgramName (int index, const String& newName)
 {
 }
 
 //==============================================================================
-void SonobusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
@@ -6989,12 +6989,25 @@ void SonobusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
         lastOutputChannels = outchannels;
 
         if (mInputChannelGroupCount == 0) {
-            mInputChannelGroupCount = 1;
-            mInputChannelGroups[0].params.chanStartIndex = 0;
-            mInputChannelGroups[0].params.numChannels = jmax(1, getMainBusNumInputChannels()); // default to only as many channels as the main input bus has
-            mInputChannelGroups[0].params.monDestStartIndex = 0;
-            mInputChannelGroups[0].params.monDestChannels = jmin(2, outchannels);
-            mInputChannelGroups[0].commitMonitorDelayParams(); // need to do this too
+            // Commsbus default: a set of independent MONO channel groups, one per
+            // hardware input, so a multi-input interface shows up to the group as
+            // that many separate mono talkers rather than one interleaved stream.
+            // Upstream SonoBus defaulted to a single group spanning every input.
+            const int availableIn = jmax(1, getMainBusNumInputChannels());
+            const int groupCount = jlimit(1, MAX_CHANGROUPS, jmin(DEFAULT_MONO_CHANNEL_GROUPS, availableIn));
+
+            mInputChannelGroupCount = groupCount;
+
+            for (int i = 0; i < groupCount; ++i) {
+                mInputChannelGroups[i].params.chanStartIndex = i;
+                mInputChannelGroups[i].params.numChannels = 1; // mono
+                mInputChannelGroups[i].params.monDestStartIndex = 0;
+                mInputChannelGroups[i].params.monDestChannels = jmin(2, outchannels);
+                if (mInputChannelGroups[i].params.name.isEmpty()) {
+                    mInputChannelGroups[i].params.name = String(i + 1);
+                }
+                mInputChannelGroups[i].commitMonitorDelayParams(); // need to do this too
+            }
         }
     }
     else if (lastInputChannels != inchannels || lastOutputChannels != outchannels) {
@@ -7072,7 +7085,7 @@ void SonobusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
         if (blocksizechanged) {
             for (int i = 0; i < mRemotePeers.size(); ++i) {
                 bool initCompleted;
-                if (getRemotePeerAutoresizeBufferMode(i, initCompleted) == SonobusAudioProcessor::AutoNetBufferModeInitAuto) {
+                if (getRemotePeerAutoresizeBufferMode(i, initCompleted) == CommsbusAudioProcessor::AutoNetBufferModeInitAuto) {
                     float buftime = 0.0;
                     setRemotePeerBufferTime(i, buftime);
                 }
@@ -7093,7 +7106,7 @@ void SonobusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sendRemotePeerInfoUpdate();
 }
 
-void SonobusAudioProcessor::setupSourceFormatsForAll()
+void CommsbusAudioProcessor::setupSourceFormatsForAll()
 {
     const ScopedReadLock sl (mCoreLock);
     //const ScopedLock slformat (mSourceFormatLock);
@@ -7169,7 +7182,7 @@ void SonobusAudioProcessor::setupSourceFormatsForAll()
 }
 
 
-void SonobusAudioProcessor::releaseResources()
+void CommsbusAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
@@ -7178,7 +7191,7 @@ void SonobusAudioProcessor::releaseResources()
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool SonobusAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool CommsbusAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
 #if JucePlugin_IsMidiEffect
     ignoreUnused (layouts);
@@ -7210,7 +7223,7 @@ bool SonobusAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
 }
 #endif
 
-void SonobusAudioProcessor::ensureBuffers(int numSamples)
+void CommsbusAudioProcessor::ensureBuffers(int numSamples)
 {
     auto mainBusNumInputChannels  = getTotalNumInputChannels(); // getMainBusNumInputChannels();
     auto mainBusNumOutputChannels = getTotalNumOutputChannels();
@@ -7327,7 +7340,7 @@ void SonobusAudioProcessor::ensureBuffers(int numSamples)
 }
 
 
-void SonobusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midiMessages)
+void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midiMessages)
 {
     ScopedNoDenormals noDenormals;
     auto totalInputChannels  = getTotalNumInputChannels();
@@ -8407,17 +8420,17 @@ void SonobusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
 }
 
 //==============================================================================
-bool SonobusAudioProcessor::hasEditor() const
+bool CommsbusAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-AudioProcessorEditor* SonobusAudioProcessor::createEditor()
+AudioProcessorEditor* CommsbusAudioProcessor::createEditor()
 {
-    return new SonobusAudioProcessorEditor (*this);
+    return new CommsbusAudioProcessorEditor (*this);
 }
 
-AudioProcessorValueTreeState& SonobusAudioProcessor::getValueTreeState()
+AudioProcessorValueTreeState& CommsbusAudioProcessor::getValueTreeState()
 {
     return mState;
 }
@@ -8460,7 +8473,7 @@ static String videoLinkLargeShareKey("largeShare");
 static String videoLinkPushViewModeKey("pushViewMode");
 static String videoLinkScreenShareParamsKey("screenShare");
 
-ValueTree SonobusAudioProcessor::VideoLinkInfo::getValueTree() const
+ValueTree CommsbusAudioProcessor::VideoLinkInfo::getValueTree() const
 {
     ValueTree item(videoLinkInfoKey);
     
@@ -8475,7 +8488,7 @@ ValueTree SonobusAudioProcessor::VideoLinkInfo::getValueTree() const
     return item;
 }
 
-void SonobusAudioProcessor::VideoLinkInfo::setFromValueTree(const ValueTree & item)
+void CommsbusAudioProcessor::VideoLinkInfo::setFromValueTree(const ValueTree & item)
 {
     roomMode = item.getProperty(videoLinkRoomModeKey, roomMode);
     showNames = item.getProperty(videoLinkShowNamesKey, showNames);
@@ -8487,7 +8500,7 @@ void SonobusAudioProcessor::VideoLinkInfo::setFromValueTree(const ValueTree & it
 }
 
 
-void SonobusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destData, bool includecache, bool includeInputGroups, bool xmlformat)
+void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destData, bool includecache, bool includeInputGroups, bool xmlformat)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
@@ -8507,6 +8520,11 @@ void SonobusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destData
     } else {
         tempstate.removeChild(recentsTree, nullptr);
     }
+
+    // Commsbus: the configured direct peers travel with the rest of the state, so
+    // an installation restores its mesh on launch without any server involvement.
+    tempstate.removeChild(tempstate.getChildWithName(AutoConnectManager::directPeersKey), nullptr);
+    tempstate.appendChild(mAutoConnectManager.getValueTree(), nullptr);
 
     ValueTree extraTree = tempstate.getOrCreateChildWithName(extraStateCollectionKey, nullptr);
     // update state with our recents info
@@ -8601,13 +8619,13 @@ void SonobusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destData
 
 
 //==============================================================================
-void SonobusAudioProcessor::getStateInformation (MemoryBlock& destData)
+void CommsbusAudioProcessor::getStateInformation (MemoryBlock& destData)
 {
     getStateInformationWithOptions(destData, true);
 
 }
 
-void SonobusAudioProcessor::setStateInformationWithOptions (const void* data, int sizeInBytes, bool includecache, bool includeInputGroups, bool xmlformat)
+void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, int sizeInBytes, bool includecache, bool includeInputGroups, bool xmlformat)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
@@ -8635,6 +8653,13 @@ void SonobusAudioProcessor::setStateInformationWithOptions (const void* data, in
                     mRecentConnectionInfos.add(info);
                 }
             }
+        }
+
+        // Commsbus direct peers. Restored unconditionally (not gated on includecache):
+        // they are configuration, not a cache of somewhere we happened to connect.
+        ValueTree directPeersTree = mState.state.getChildWithName(AutoConnectManager::directPeersKey);
+        if (directPeersTree.isValid()) {
+            mAutoConnectManager.setFromValueTree(directPeersTree);
         }
 
         ValueTree extraTree = mState.state.getChildWithName(extraStateCollectionKey);
@@ -8791,18 +8816,24 @@ void SonobusAudioProcessor::setStateInformationWithOptions (const void* data, in
                 reconnectToMostRecent();
             }
 
+            // Commsbus: direct peers are independent of the group server, so this
+            // runs whether or not the reconnect above found anything to do.
+            if (mAutoConnectManager.getAutoConnectOnLaunch()) {
+                startAutoConnect();
+            }
+
             mFreshInit = false;
         }
     }
 }
 
-void SonobusAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void CommsbusAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     setStateInformationWithOptions(data, sizeInBytes, true, true);
 }
 
 
-bool SonobusAudioProcessor::saveCurrentAsDefaultPluginSettings()
+bool CommsbusAudioProcessor::saveCurrentAsDefaultPluginSettings()
 {
     MemoryBlock data;
     // as xml, with no cache, and no channel group stuff
@@ -8812,7 +8843,7 @@ bool SonobusAudioProcessor::saveCurrentAsDefaultPluginSettings()
     return defFile.replaceWithData (data.getData(), data.getSize());
 }
 
-bool SonobusAudioProcessor::loadDefaultPluginSettings()
+bool CommsbusAudioProcessor::loadDefaultPluginSettings()
 {
     File defFile = getSupportDir().getChildFile("PluginDefault.xml");
     MemoryBlock data;
@@ -8824,7 +8855,7 @@ bool SonobusAudioProcessor::loadDefaultPluginSettings()
     return false;
 }
 
-void SonobusAudioProcessor::resetDefaultPluginSettings()
+void CommsbusAudioProcessor::resetDefaultPluginSettings()
 {
     // remove the default file
     File defFile = getSupportDir().getChildFile("PluginDefault.xml");
@@ -8832,7 +8863,7 @@ void SonobusAudioProcessor::resetDefaultPluginSettings()
 }
 
 
-void SonobusAudioProcessor::ServerReconnectTimer::timerCallback()
+void CommsbusAudioProcessor::ServerReconnectTimer::timerCallback()
 {
     if (!processor.isConnectedToServer() && !processor.mPendingReconnect) {
         processor.reconnectToMostRecent();
@@ -8844,7 +8875,15 @@ void SonobusAudioProcessor::ServerReconnectTimer::timerCallback()
     }
 }
 
-bool SonobusAudioProcessor::reconnectToMostRecent()
+void CommsbusAudioProcessor::startAutoConnect()
+{
+    // The manager polls, so a peer that is not reachable yet (still booting, or
+    // the network is not up) is simply retried rather than treated as an error.
+    mAutoConnectManager.retryNow();
+    mAutoConnectManager.start();
+}
+
+bool CommsbusAudioProcessor::reconnectToMostRecent()
 {
     Array<AooServerConnectionInfo> recents;
     getRecentServerConnectionInfos(recents);
@@ -8864,7 +8903,7 @@ bool SonobusAudioProcessor::reconnectToMostRecent()
     return false;
 }
 
-SonobusAudioProcessor::PeerStateCache::PeerStateCache()
+CommsbusAudioProcessor::PeerStateCache::PeerStateCache()
 {
     // set up up channel groups with default layout
     for (auto i = 0; i < MAX_CHANGROUPS; ++i) {
@@ -8874,7 +8913,7 @@ SonobusAudioProcessor::PeerStateCache::PeerStateCache()
 }
 
 
-ValueTree SonobusAudioProcessor::PeerStateCache::getValueTree() const
+ValueTree CommsbusAudioProcessor::PeerStateCache::getValueTree() const
 {
     ValueTree item(peerStateCacheKey);
     
@@ -8908,7 +8947,7 @@ ValueTree SonobusAudioProcessor::PeerStateCache::getValueTree() const
     return item;
 }
 
-void SonobusAudioProcessor::PeerStateCache::setFromValueTree(const ValueTree & item)
+void CommsbusAudioProcessor::PeerStateCache::setFromValueTree(const ValueTree & item)
 {    
     name = item.getProperty(peerNameKey, name);
     netbuf = item.getProperty(peerNetbufKey, netbuf);
@@ -8962,7 +9001,7 @@ void SonobusAudioProcessor::PeerStateCache::setFromValueTree(const ValueTree & i
     }
 }
 
-void SonobusAudioProcessor::loadPeerCacheFromState()
+void CommsbusAudioProcessor::loadPeerCacheFromState()
 {
     ValueTree peerCacheMapTree = mState.state.getChildWithName(peerStateCacheMapKey);
     if (peerCacheMapTree.isValid()) {
@@ -8976,7 +9015,7 @@ void SonobusAudioProcessor::loadPeerCacheFromState()
     
 }
 
-void SonobusAudioProcessor::storePeerCacheToState()
+void CommsbusAudioProcessor::storePeerCacheToState()
 {
     ValueTree peerCacheTree = mState.state.getOrCreateChildWithName(peerStateCacheMapKey, nullptr);
     // update state with our recents info
@@ -8987,7 +9026,7 @@ void SonobusAudioProcessor::storePeerCacheToState()
 
 }
 
-void SonobusAudioProcessor::loadGlobalState()
+void CommsbusAudioProcessor::loadGlobalState()
 {
     File file = mSupportDir.getChildFile("GlobalState.xml");
     
@@ -9003,7 +9042,7 @@ void SonobusAudioProcessor::loadGlobalState()
     }
 }
 
-bool SonobusAudioProcessor::storeGlobalState()
+bool CommsbusAudioProcessor::storeGlobalState()
 {
     File file = mSupportDir.getChildFile("GlobalState.xml");
 
@@ -9013,7 +9052,7 @@ bool SonobusAudioProcessor::storeGlobalState()
     return mGlobalState.createXml()->writeTo(file);
 }
 
-bool SonobusAudioProcessor::isAddressBlocked(const String & ipaddr) const
+bool CommsbusAudioProcessor::isAddressBlocked(const String & ipaddr) const
 {
     auto blocklist = mGlobalState.getChildWithName(blockedAddressesKey);
     if (!blocklist.isValid()) return false;
@@ -9029,7 +9068,7 @@ bool SonobusAudioProcessor::isAddressBlocked(const String & ipaddr) const
     return false;
 }
 
-void SonobusAudioProcessor::addBlockedAddress(const String & ipaddr)
+void CommsbusAudioProcessor::addBlockedAddress(const String & ipaddr)
 {
     auto blocklist = mGlobalState.getOrCreateChildWithName(blockedAddressesKey, nullptr);
     
@@ -9049,7 +9088,7 @@ void SonobusAudioProcessor::addBlockedAddress(const String & ipaddr)
     storeGlobalState();
 }
 
-void SonobusAudioProcessor::removeBlockedAddress(const String & ipaddr)
+void CommsbusAudioProcessor::removeBlockedAddress(const String & ipaddr)
 {
     auto blocklist = mGlobalState.getOrCreateChildWithName(blockedAddressesKey, nullptr);
 
@@ -9069,7 +9108,7 @@ void SonobusAudioProcessor::removeBlockedAddress(const String & ipaddr)
     }
 }
 
-StringArray SonobusAudioProcessor::getAllBlockedAddresses() const
+StringArray CommsbusAudioProcessor::getAllBlockedAddresses() const
 {
     StringArray retlist;
 
@@ -9089,7 +9128,7 @@ StringArray SonobusAudioProcessor::getAllBlockedAddresses() const
 }
 
 
-bool SonobusAudioProcessor::startRecordingToFile(const URL & recordLocationUrl, const String & filename, URL & mainreturl, uint32 recordOptions, RecordFileFormat fileformat)
+bool CommsbusAudioProcessor::startRecordingToFile(const URL & recordLocationUrl, const String & filename, URL & mainreturl, uint32 recordOptions, RecordFileFormat fileformat)
 {
     if (!recordingThread) {
         recordingThread = std::make_unique<TimeSliceThread>("Recording Thread");
@@ -9507,7 +9546,7 @@ bool SonobusAudioProcessor::startRecordingToFile(const URL & recordLocationUrl, 
     return ret;
 }
 
-bool SonobusAudioProcessor::stopRecordingToFile()
+bool CommsbusAudioProcessor::stopRecordingToFile()
 {
     // First, clear this pointer to stop the audio callback from using our writer object..
 
@@ -9574,7 +9613,7 @@ bool SonobusAudioProcessor::stopRecordingToFile()
     return didit;
 }
 
-bool SonobusAudioProcessor::isRecordingToFile()
+bool CommsbusAudioProcessor::isRecordingToFile()
 {
     return (activeMixWriter.load() != nullptr 
             || threadedSelfWriters.size() > 0
@@ -9583,7 +9622,7 @@ bool SonobusAudioProcessor::isRecordingToFile()
             );
 }
 
-void SonobusAudioProcessor::clearTransportURL()
+void CommsbusAudioProcessor::clearTransportURL()
 {
     // unload the previous file source and delete it..
     mTransportSource.stop();
@@ -9592,7 +9631,7 @@ void SonobusAudioProcessor::clearTransportURL()
     mCurrTransportURL = URL();
 }
 
-bool SonobusAudioProcessor::loadURLIntoTransport (const URL& audioURL)
+bool CommsbusAudioProcessor::loadURLIntoTransport (const URL& audioURL)
 {
     if (!mDiskThread.isThreadRunning()) {
         mDiskThread.startThread (Thread::Priority::normal);
@@ -9662,26 +9701,26 @@ bool SonobusAudioProcessor::loadURLIntoTransport (const URL& audioURL)
 
 #pragma Effects
 
-void SonobusAudioProcessor::setMainReverbEnabled(bool flag)
+void CommsbusAudioProcessor::setMainReverbEnabled(bool flag)
 {    
     mMainReverbEnabled = flag;
     mState.getParameter(paramMainReverbEnabled)->setValueNotifyingHost(flag ? 1.0f : 0.0f);
 }
 
-void  SonobusAudioProcessor::setMainReverbDryLevel(float level)
+void  CommsbusAudioProcessor::setMainReverbDryLevel(float level)
 {
     // not used
     mMainReverbParams.dryLevel = jlimit(0.0f, 1.0f, level);
     mMainReverb->setParameters(mMainReverbParams);    
 }
 
-float SonobusAudioProcessor::getMainReverbDryLevel() const
+float CommsbusAudioProcessor::getMainReverbDryLevel() const
 {
     // not used
     return mMainReverbParams.dryLevel;
 }
 
-void  SonobusAudioProcessor::setMainReverbWetLevel(float level)
+void  CommsbusAudioProcessor::setMainReverbWetLevel(float level)
 {
     mState.getParameter(paramMainReverbLevel)->setValueNotifyingHost(level);
 
@@ -9690,43 +9729,43 @@ void  SonobusAudioProcessor::setMainReverbWetLevel(float level)
 }
 
 
-void  SonobusAudioProcessor::setMainReverbSize(float value)
+void  CommsbusAudioProcessor::setMainReverbSize(float value)
 {
     //mMainReverbParams.roomSize = jlimit(0.0f, 1.0f, value);
     //mMainReverb->setParameters(mMainReverbParams);    
     mState.getParameter(paramMainReverbSize)->setValueNotifyingHost(value);
 }
 
-void  SonobusAudioProcessor::setMainReverbPreDelay(float valuemsec)
+void  CommsbusAudioProcessor::setMainReverbPreDelay(float valuemsec)
 {
     mState.getParameter(paramMainReverbPreDelay)->setValueNotifyingHost(mState.getParameter(paramMainReverbPreDelay)->convertTo0to1(valuemsec));
 }
 
-void  SonobusAudioProcessor::setInputReverbWetLevel(float level)
+void  CommsbusAudioProcessor::setInputReverbWetLevel(float level)
 {
     mState.getParameter(paramInputReverbLevel)->setValueNotifyingHost(level);
 }
 
 
-void  SonobusAudioProcessor::setInputReverbSize(float value)
+void  CommsbusAudioProcessor::setInputReverbSize(float value)
 {
     mState.getParameter(paramInputReverbSize)->setValueNotifyingHost(value);
 }
 
-void  SonobusAudioProcessor::setInputReverbPreDelay(float valuemsec)
+void  CommsbusAudioProcessor::setInputReverbPreDelay(float valuemsec)
 {
     mState.getParameter(paramInputReverbPreDelay)->setValueNotifyingHost(mState.getParameter(paramInputReverbPreDelay)->convertTo0to1(valuemsec));
 }
 
 
 
-void SonobusAudioProcessor::setMainReverbModel(ReverbModel flag) 
+void CommsbusAudioProcessor::setMainReverbModel(ReverbModel flag) 
 { 
     mMainReverbModel = flag; 
     mState.getParameter(paramMainReverbModel)->setValueNotifyingHost(mState.getParameter(paramMainReverbModel)->convertTo0to1(flag));
 }
 
-double SonobusAudioProcessor::getMonitoringDelayTimeFromAvgPeerLatency(float scalar)
+double CommsbusAudioProcessor::getMonitoringDelayTimeFromAvgPeerLatency(float scalar)
 {
     double deltimems = 0.0f;
     int cnt = 0;
@@ -9759,5 +9798,5 @@ double SonobusAudioProcessor::getMonitoringDelayTimeFromAvgPeerLatency(float sca
 // This creates new instances of the plugin..
 AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new SonobusAudioProcessor();
+    return new CommsbusAudioProcessor();
 }

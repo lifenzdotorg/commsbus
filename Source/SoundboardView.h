@@ -6,7 +6,7 @@
 
 #include <JuceHeader.h>
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoDrawableButton.h"
 #include "SonoPlaybackProgressButton.h"
 #include "SonoChoiceButton.h"
@@ -23,7 +23,7 @@ class SoundboardView : public Component,
     public FileDragAndDropTarget
 {
 public:
-    explicit SoundboardView(SonobusAudioProcessor& audioproc, SoundboardChannelProcessor* channelProcessor, File supportDir);
+    explicit SoundboardView(CommsbusAudioProcessor& audioproc, SoundboardChannelProcessor* channelProcessor, File supportDir);
 
     void paint(Graphics&) override;
 
@@ -95,7 +95,7 @@ private:
     constexpr static const float BUTTON_SPACING_MARGIN = 2;
 #endif
 
-    SonobusAudioProcessor & audioProcessor;
+    CommsbusAudioProcessor & audioProcessor;
 
     /**
      * Controller for soundboard view.

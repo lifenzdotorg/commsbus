@@ -6,7 +6,7 @@
 
 #include "JuceHeader.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
@@ -24,7 +24,7 @@ public TextEditor::Listener,
 public MultiTimer
 {
 public:
-    ConnectView(SonobusAudioProcessor& proc, AooServerConnectionInfo & info);
+    ConnectView(CommsbusAudioProcessor& proc, AooServerConnectionInfo & info);
     virtual ~ConnectView();
 
 
@@ -65,7 +65,7 @@ public:
 
     void connectWithInfo(const AooServerConnectionInfo & info, bool allowEmptyGroup = false);
 
-    bool handleSonobusURL(const URL & url);
+    bool handleCommsbusURL(const URL & url);
 
     bool attemptToPasteConnectionFromClipboard();
     bool copyInfoToClipboard(bool singleURL=false, String * retmessage = nullptr);
@@ -96,7 +96,7 @@ protected:
     void showAdvancedMenu();
 
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     ListenerList<Listener> listeners;
 
@@ -155,6 +155,10 @@ protected:
 
     std::unique_ptr<TabbedComponent> mConnectTab;
     std::unique_ptr<Component> mDirectConnectContainer;
+    std::unique_ptr<Viewport>  mDirectConnectViewport;
+
+    // DIRECT is tab 0; RECENTS is reinserted directly after it on narrow layouts.
+    static constexpr int recentsTabPosition = 1;
     std::unique_ptr<Viewport> mServerConnectViewport;
     std::unique_ptr<Component> mServerConnectContainer;
     std::unique_ptr<Viewport> mPublicServerConnectViewport;

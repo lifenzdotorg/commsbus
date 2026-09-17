@@ -6,14 +6,14 @@
 
 #include <JuceHeader.h>
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoDrawableButton.h"
 #include "SonoLookAndFeel.h"
 
 class LatencyMatchView : public Component, public MultiTimer
 {
 public:
-    LatencyMatchView(SonobusAudioProcessor& proc);
+    LatencyMatchView(CommsbusAudioProcessor& proc);
     ~LatencyMatchView();
 
     void paint (Graphics&) override;
@@ -32,7 +32,7 @@ protected:
     Slider * createPeerLatSlider();
     Label * createPeerLabel();
 
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
 
     std::unique_ptr<Viewport> mViewport;

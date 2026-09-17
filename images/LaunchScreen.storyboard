@@ -16,7 +16,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="sonobus_logo.png" translatesAutoresizingMaskIntoConstraints="NO" id="nNQ-TI-MGT">
+                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="commsbus_logo.png" translatesAutoresizingMaskIntoConstraints="NO" id="nNQ-TI-MGT">
                                 <rect key="frame" x="91.5" y="237.5" width="192" height="192"/>
                                 <constraints>
                                     <constraint firstAttribute="width" relation="lessThanOrEqual" constant="250" id="YJ7-4S-kBW">
@@ -37,7 +37,7 @@
                                     <fontDescription key="fontDescription" name="GillSans" family="Gill Sans" pointSize="26"/>
                                 </variation>
                             </label>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="SonoBus" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="H1m-RD-lB0">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Commsbus" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="H1m-RD-lB0">
                                 <rect key="frame" x="119" y="174.5" width="137" height="43"/>
                                 <fontDescription key="fontDescription" name="GillSans-SemiBold" family="Gill Sans" pointSize="36"/>
                                 <color key="textColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
@@ -73,6 +73,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="sonobus_logo.png" width="192" height="192"/>
+        <image name="commsbus_logo.png" width="192" height="192"/>
     </resources>
 </document>

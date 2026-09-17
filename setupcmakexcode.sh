@@ -1,14 +1,7 @@
 #!/bin/bash
 
-DEFS=""
-
-if [ -n "${AAX_SDK_PATH}" ] ; then
-  DEPS="$DEPS -DAAX_SDK_PATH=${AAX_SDK_PATH}"
-fi
-
-if [ -n "${VST2_SDK_PATH}" ] ; then
-  DEPS="$DEPS -DVST2_SDK_PATH=${VST2_SDK_PATH}"
-fi
+# Commsbus builds the standalone application only, so the AAX/VST2 plugin SDK
+# paths upstream SonoBus accepted here are no longer used.
 
 TEAMOPT=""
 if [ x"$APPLE_TEAMID" != x ] ; then
@@ -16,7 +9,5 @@ if [ x"$APPLE_TEAMID" != x ] ; then
 fi
 
 # xcode
-cmake -GXcode ${DEPS} -B buildXcode ${TEAMOPT}
-
-
+cmake -GXcode -B buildXcode ${TEAMOPT}
 

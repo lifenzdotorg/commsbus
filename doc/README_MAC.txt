@@ -1,10 +1,10 @@
 
-SonoBus
+Commsbus
 
 High Quality Network Audio Streaming 
 
 
-SonoBus is an easy to use application for streaming high-quality,
+Commsbus is an easy to use application for streaming high-quality,
 low-latency peer-to-peer audio between devices over the internet or a
 local network.
 
@@ -18,7 +18,7 @@ Available for macOS, Windows, iOS and Linux.
 IMPORTANT TIPS
 ==================
 
-SonoBus does not use any echo cancellation, or automatic noise
+Commsbus does not use any echo cancellation, or automatic noise
 reduction in order to maintain the highest audio quality. As a result,
 if you have a live microphone signal you will need to also use
 headphones to prevent echos and/or feedback.
@@ -29,7 +29,7 @@ will work with WiFi, the added network jitter and packet loss will
 require you to use a bigger safety buffer to maintain a quality audio
 signal, which results in higher latencies.
 
-SonoBus does NOT currently use any encryption for the data
+Commsbus does NOT currently use any encryption for the data
 communication, so while it is very unlikely that it will be
 intercepted, please keep that in mind. All audio is sent directly
 between users peer-to-peer, the connection server is only used so that
@@ -40,7 +40,7 @@ INSTALLATION (Mac)
 =======================
 
 The software is distributed as an installer package inside a DMG disk image. 
-Once you've double-clicked the SonoBus Installer package it will guide you
+Once you've double-clicked the Commsbus Installer package it will guide you
 through the steps and you can choose to install the application along with
 all the audio plugin types you may use. It needs administrator privileges to 
 install the plugins in the system-wide locations.

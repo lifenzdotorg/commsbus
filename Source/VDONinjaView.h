@@ -12,7 +12,7 @@
 #include "EffectParams.h"
 #include "SonoChoiceButton.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 
 //==============================================================================
 /*
@@ -20,7 +20,7 @@
 class VDONinjaView    : public EffectsBaseView, public SonoChoiceButton::Listener
 {
 public:
-    VDONinjaView(SonobusAudioProcessor & processor_)  : processor(processor_)
+    VDONinjaView(CommsbusAudioProcessor & processor_)  : processor(processor_)
     {
         modeInfoLabel.setText(TRANS("Mode:"), dontSendNotification);
         modeInfoLabel.setJustificationType(Justification::centredLeft);
@@ -85,9 +85,9 @@ public:
         //};
 
         pushViewModeButton.setTooltip(TRANS("Choose whether to send and receive video, or either one only"));
-        pushViewModeButton.addItem(TRANS("Push and View"), SonobusAudioProcessor::VideoLinkInfo::PushAndView);
-        pushViewModeButton.addItem(TRANS("Push Only"), SonobusAudioProcessor::VideoLinkInfo::PushOnly);
-        pushViewModeButton.addItem(TRANS("View Only"), SonobusAudioProcessor::VideoLinkInfo::ViewOnly);
+        pushViewModeButton.addItem(TRANS("Push and View"), CommsbusAudioProcessor::VideoLinkInfo::PushAndView);
+        pushViewModeButton.addItem(TRANS("Push Only"), CommsbusAudioProcessor::VideoLinkInfo::PushOnly);
+        pushViewModeButton.addItem(TRANS("View Only"), CommsbusAudioProcessor::VideoLinkInfo::ViewOnly);
         pushViewModeButton.addChoiceListener(this);
 
 
@@ -393,7 +393,7 @@ private:
                 }
             }
 
-            if (state.pushViewMode == SonobusAudioProcessor::VideoLinkInfo::PushOnly) {
+            if (state.pushViewMode == CommsbusAudioProcessor::VideoLinkInfo::PushOnly) {
                 params.set("view", ""); // means only push
             }
 
@@ -418,7 +418,7 @@ private:
                 params.set("ssb", ""); // allow screenshare later
             }
 
-            if (state.pushViewMode != SonobusAudioProcessor::VideoLinkInfo::PushOnly && others.size() > 0) {
+            if (state.pushViewMode != CommsbusAudioProcessor::VideoLinkInfo::PushOnly && others.size() > 0) {
                 params.set("view", others.joinIntoString(","));
             }
         }
@@ -448,7 +448,7 @@ private:
             }
         }
 
-        if (state.pushViewMode != SonobusAudioProcessor::VideoLinkInfo::ViewOnly) {
+        if (state.pushViewMode != CommsbusAudioProcessor::VideoLinkInfo::ViewOnly) {
             // don't specify id if in room mode
             if (!state.roomMode) {
                 params.set("push", makeId(processor.getCurrentUsername(), state.screenShareMode));
@@ -466,7 +466,7 @@ private:
         return url;
     }
     
-    SonobusAudioProcessor & processor;
+    CommsbusAudioProcessor & processor;
 
     TextButton   roomModeButton;
     TextButton   pushViewButton;

@@ -16,41 +16,25 @@ fi
 
 #BUILDDIR='../Builds/VisualStudio2017/x64/Release'
 #BUILDDIR32='../Builds/VisualStudio2017/Win32/Release32'
-BUILDDIR='../build/SonoBus_artefacts/Release'
-BUILDDIR32='../build32/SonoBus_artefacts/Release'
-INSTBUILDDIR='../build/SonoBusInst_artefacts/Release'
-INSTBUILDDIR32='../build32/SonoBusInst_artefacts/Release'
+BUILDDIR='../build/Commsbus_artefacts/Release'
+BUILDDIR32='../build32/Commsbus_artefacts/Release'
 
-rm -rf SonoBus
+rm -rf Commsbus
 
-mkdir -p SonoBus/Plugins/VST SonoBus/Plugins/VST3 SonoBus/Plugins/AAX
+mkdir -p Commsbus
 
-cp -v ../doc/README_WINDOWS.txt SonoBus/README.txt
-cp -v ${BUILDDIR}/Standalone/SonoBus.exe SonoBus/
-cp -pHLRv ${BUILDDIR}/VST3/SonoBus.vst3 SonoBus/Plugins/VST3/
-cp -pHLRv ${INSTBUILDDIR}/VST3/SonoBusInstrument.vst3 SonoBus/Plugins/VST3/
-cp -v ${BUILDDIR}/VST/SonoBus.dll SonoBus/Plugins/VST/
-cp -pHLRv ${BUILDDIR}/AAX/SonoBus.aaxplugin SonoBus/Plugins/AAX/
+# Commsbus ships the standalone application only -- the VST3/VST/AAX plugin
+# targets were removed.
+cp -v ../doc/README_WINDOWS.txt Commsbus/README.txt
+cp -v ${BUILDDIR}/Standalone/Commsbus.exe Commsbus/
 
-
-mkdir -p SonoBus/Plugins32/VST SonoBus/Plugins32/VST3 SonoBus/Plugins32/AAX
-
-cp -v ${BUILDDIR32}/Standalone/SonoBus.exe SonoBus/SonoBus32.exe
-cp -pHLRv ${BUILDDIR32}/VST3/SonoBus.vst3 SonoBus/Plugins32/VST3/
-cp -pHLRv ${INSTBUILDDIR32}/VST3/SonoBusInstrument.vst3 SonoBus/Plugins32/VST3/
-cp -v ${BUILDDIR32}/VST/SonoBus.dll SonoBus/Plugins32/VST/
-
-
-
-# sign AAX
-if [ -n "${AAXSIGNCMD}" ]; then
-  echo "Signing AAX plugin"
-  ${AAXSIGNCMD} --keypassword "${CERTPASS}"  --in 'SonoBus\Plugins\AAX\Sonobus.aaxplugin' --out 'SonoBus\Plugins\AAX\Sonobus.aaxplugin'
+if [ -f ${BUILDDIR32}/Standalone/Commsbus.exe ] ; then
+  cp -v ${BUILDDIR32}/Standalone/Commsbus.exe Commsbus/Commsbus32.exe
 fi
 
 
 # sign executable
-#signtool.exe sign /v /t "http://timestamp.digicert.com" /f "$CERTFILE" /p "$CERTPASS" SonoBus/SonoBus.exe
+#signtool.exe sign /v /t "http://timestamp.digicert.com" /f "$CERTFILE" /p "$CERTPASS" Commsbus/Commsbus.exe
 
 mkdir -p instoutput
 rm -f instoutput/*
@@ -60,11 +44,11 @@ iscc /O"instoutput" "/Ssigntool=signtool.exe sign /t http://timestamp.digicert.c
 
 #signtool.exe sign /v /t "http://timestamp.digicert.com" /f SonosaurusCodeSigningSectigoCert.p12 /p "$CERTPASS" instoutput/
 
-#ZIPFILE=sonobus-${VERSION}-win.zip
+#ZIPFILE=commsbus-${VERSION}-win.zip
 #cp -v ../doc/README_WINDOWS.txt instoutput/README.txt
 #rm -f ${ZIPFILE}
-#(cd instoutput; zip  ../${ZIPFILE} SonoBus\ Installer.exe README.txt )
+#(cd instoutput; zip  ../${ZIPFILE} Commsbus\ Installer.exe README.txt )
 
-EXEFILE=sonobus-${VERSION}-win.exe
+EXEFILE=commsbus-${VERSION}-win.exe
 rm -f ${EXEFILE}
-cp instoutput/SonoBus-${VERSION}-Installer.exe ${EXEFILE}
+cp instoutput/Commsbus-${VERSION}-Installer.exe ${EXEFILE}

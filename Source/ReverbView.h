@@ -18,14 +18,14 @@
 class ReverbView    : public EffectsBaseView, public Slider::Listener, public Button::Listener, public SonoChoiceButton::Listener
 {
 public:
-    ReverbView(SonobusAudioProcessor & processor_, bool input) : processor(processor_), inputMode(input)
+    ReverbView(CommsbusAudioProcessor & processor_, bool input) : processor(processor_), inputMode(input)
     {
         modelChoice.setTitle(TRANS("Reverb Style"));
         modelChoice.setColour(SonoTextButton::outlineColourId, Colour::fromFloatRGBA(0.6, 0.6, 0.6, 0.4));
         modelChoice.addChoiceListener(this);
-        modelChoice.addItem(TRANS("Freeverb"), SonobusAudioProcessor::ReverbModelFreeverb);
-        modelChoice.addItem(TRANS("MVerb"), SonobusAudioProcessor::ReverbModelMVerb);
-        modelChoice.addItem(TRANS("Zita"), SonobusAudioProcessor::ReverbModelZita);
+        modelChoice.addItem(TRANS("Freeverb"), CommsbusAudioProcessor::ReverbModelFreeverb);
+        modelChoice.addItem(TRANS("MVerb"), CommsbusAudioProcessor::ReverbModelMVerb);
+        modelChoice.addItem(TRANS("Zita"), CommsbusAudioProcessor::ReverbModelZita);
 
         auto sizename = TRANS("Size");
         sizeSlider.setName("revsize");
@@ -41,7 +41,7 @@ public:
         configLabel(sizeLabel);
 
         mReverbSizeAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(),
-                                                                                                  input ? SonobusAudioProcessor::paramInputReverbSize : SonobusAudioProcessor::paramMainReverbSize,
+                                                                                                  input ? CommsbusAudioProcessor::paramInputReverbSize : CommsbusAudioProcessor::paramMainReverbSize,
                                                                                                   sizeSlider);
         auto levelname = TRANS("Level");
         levelSlider.setName("revlevel");
@@ -57,7 +57,7 @@ public:
         configLabel(levelLabel);
 
         mReverbLevelAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(),
-                                                                                                   input ? SonobusAudioProcessor::paramInputReverbLevel : SonobusAudioProcessor::paramMainReverbLevel,
+                                                                                                   input ? CommsbusAudioProcessor::paramInputReverbLevel : CommsbusAudioProcessor::paramMainReverbLevel,
                                                                                                    levelSlider);
         auto dampname = TRANS("Damping");
         dampingSlider.setName("revdamp");
@@ -73,7 +73,7 @@ public:
         configLabel(dampingLabel);
 
         mReverbDampingAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(),
-                                                                                                     input ? SonobusAudioProcessor::paramInputReverbDamping : SonobusAudioProcessor::paramMainReverbDamping, dampingSlider);
+                                                                                                     input ? CommsbusAudioProcessor::paramInputReverbDamping : CommsbusAudioProcessor::paramMainReverbDamping, dampingSlider);
         auto predelname = TRANS("Pre-Delay");
         preDelaySlider.setName("revpredel");
         preDelaySlider.setTitle(predelname);
@@ -88,7 +88,7 @@ public:
         configLabel(preDelayLabel);
 
         mReverbPreDelayAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(),
-                                                                                                      input ? SonobusAudioProcessor::paramInputReverbPreDelay : SonobusAudioProcessor::paramMainReverbPreDelay, preDelaySlider);
+                                                                                                      input ? CommsbusAudioProcessor::paramInputReverbPreDelay : CommsbusAudioProcessor::paramMainReverbPreDelay, preDelaySlider);
            
         // these are in the header component
         auto mainname = input ? TRANS("Input Reverb") : TRANS("Reverb");
@@ -98,7 +98,7 @@ public:
         titleLabel.setAccessible(false);
 
         if (!input) {
-            mReverbEnableAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramMainReverbEnabled, enableButton);
+            mReverbEnableAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramMainReverbEnabled, enableButton);
         } else {
             enableButton.setVisible(false);
             dragButton.setVisible(false);
@@ -244,7 +244,7 @@ public:
 
     void choiceButtonSelected(SonoChoiceButton *comp, int index, int ident) override {
         if (comp == &modelChoice) {
-            processor.setMainReverbModel((SonobusAudioProcessor::ReverbModel) ident);
+            processor.setMainReverbModel((CommsbusAudioProcessor::ReverbModel) ident);
         }
     }
 
@@ -278,7 +278,7 @@ public:
     
 private:
 
-    SonobusAudioProcessor & processor;
+    CommsbusAudioProcessor & processor;
     bool inputMode = false;
 
     ListenerList<Listener> listeners;

@@ -12,7 +12,7 @@
 #include "EffectParams.h"
 #include "SonoChoiceButton.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 
 //==============================================================================
 /*
@@ -24,7 +24,7 @@ class ReverbSendView    : public EffectsBaseView,
    public EffectsBaseView::HeaderListener
 {
 public:
-    ReverbSendView(SonobusAudioProcessor & processor_, bool showdrag=true, bool input=false)  : sonoSliderLNF(14), processor(processor_), showDragIcon(showdrag), inputMode(input)
+    ReverbSendView(CommsbusAudioProcessor & processor_, bool showdrag=true, bool input=false)  : sonoSliderLNF(14), processor(processor_), showDragIcon(showdrag), inputMode(input)
     {
         sonoSliderLNF.textJustification = Justification::centredLeft;
 
@@ -253,7 +253,7 @@ private:
 
     ListenerList<Listener> listeners;
 
-    SonobusAudioProcessor & processor;
+    CommsbusAudioProcessor & processor;
 
     Slider       sendSlider;
     bool showDragIcon = false;

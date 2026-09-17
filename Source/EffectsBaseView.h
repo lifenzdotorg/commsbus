@@ -6,7 +6,7 @@
 
 #include "JuceHeader.h"
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoDrawableButton.h"
 

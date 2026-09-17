@@ -1,16 +1,16 @@
 [Setup]
-AppName=SonoBus
+AppName=Commsbus
 AppVersion={#SBVERSION}
 MinVersion=6.1
 WizardStyle=modern
-DefaultDirName={autopf}\SonoBus
-DefaultGroupName=SonoBus
-UninstallDisplayIcon={app}\SonoBus.exe
+DefaultDirName={autopf}\Commsbus
+DefaultGroupName=Commsbus
+UninstallDisplayIcon={app}\Commsbus.exe
 Compression=lzma2
 SolidCompression=yes
 ;ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-OutputBaseFilename=SonoBus-{#SBVERSION}-Installer
+OutputBaseFilename=Commsbus-{#SBVERSION}-Installer
 LicenseFile=gpl-3.0.txt
 SetupLogging=yes
 SignTool=signtool $f
@@ -40,42 +40,42 @@ Name: "vst3_32"; Description: "32-bit VST3 Plugin (.vst3)"; Types: full custom
 
 
 [Files]
-Source: "SonoBus\SonoBus.exe";  DestDir: "{app}" ; Check: Is64BitInstallMode; Components:app; Flags: ignoreversion signonce
-;Source: "SonoBus\Plugins\SonoBus.dll";  DestDir: {code:GetVST2Dir_64}; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
-Source: "SonoBus\Plugins\VST\SonoBus.dll"; DestDir: {code:GetVST2Dir|0}; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
-;Source: "SonoBus\Plugins\SonoBus.dll";  DestDir: "{autopf64}\Steinberg\VSTPlugins"; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
-Source: "SonoBus\Plugins\VST3\SonoBus.vst3"; DestDir: "{commoncf}\VST3"; Check: Is64BitInstallMode; Components:vst3_64; Flags: ignoreversion signonce recursesubdirs createallsubdirs
-Source: "SonoBus\Plugins\VST3\SonoBusInstrument.vst3"; DestDir: "{commoncf}\VST3"; Check: Is64BitInstallMode; Components:vst3_64; Flags: ignoreversion signonce recursesubdirs createallsubdirs
-Source: "SonoBus\Plugins\AAX\SonoBus.aaxplugin"; DestDir: "{commoncf}\Avid\Audio\Plug-Ins"; Check: Is64BitInstallMode; Components:aax_64; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "Commsbus\Commsbus.exe";  DestDir: "{app}" ; Check: Is64BitInstallMode; Components:app; Flags: ignoreversion signonce
+;Source: "Commsbus\Plugins\Commsbus.dll";  DestDir: {code:GetVST2Dir_64}; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
+Source: "Commsbus\Plugins\VST\Commsbus.dll"; DestDir: {code:GetVST2Dir|0}; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
+;Source: "Commsbus\Plugins\Commsbus.dll";  DestDir: "{autopf64}\Steinberg\VSTPlugins"; Check: Is64BitInstallMode; Components:vst2_64; Flags: ignoreversion signonce
+Source: "Commsbus\Plugins\VST3\Commsbus.vst3"; DestDir: "{commoncf}\VST3"; Check: Is64BitInstallMode; Components:vst3_64; Flags: ignoreversion signonce recursesubdirs createallsubdirs
+Source: "Commsbus\Plugins\VST3\CommsbusInstrument.vst3"; DestDir: "{commoncf}\VST3"; Check: Is64BitInstallMode; Components:vst3_64; Flags: ignoreversion signonce recursesubdirs createallsubdirs
+Source: "Commsbus\Plugins\AAX\Commsbus.aaxplugin"; DestDir: "{commoncf}\Avid\Audio\Plug-Ins"; Check: Is64BitInstallMode; Components:aax_64; Flags: ignoreversion recursesubdirs createallsubdirs
 
 
-Source: "SonoBus\SonoBus32.exe"; DestDir: "{app}" ;  DestName:"SonoBus.exe"; Check: not Is64BitInstallMode;  Components:app32; Flags: ignoreversion signonce
-Source: "SonoBus\Plugins32\VST\SonoBus.dll"; DestDir: {code:GetVST2Dir|1}; Components:vst2_32; Flags: ignoreversion signonce
-Source: "SonoBus\Plugins32\VST3\SonoBus.vst3"; DestDir: "{commoncf32}\VST3\"; Components:vst3_32; Flags: ignoreversion signonce recursesubdirs createallsubdirs
-Source: "SonoBus\Plugins32\VST3\SonoBusInstrument.vst3"; DestDir: "{commoncf32}\VST3\"; Components:vst3_32; Flags: ignoreversion signonce recursesubdirs createallsubdirs
-;Source: "SonoBus\Plugins32\SonoBus.aaxplugin"; DestDir: "{commoncf32}\Avid\Audio\Plug-Ins"; Components:aax_32; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "Commsbus\Commsbus32.exe"; DestDir: "{app}" ;  DestName:"Commsbus.exe"; Check: not Is64BitInstallMode;  Components:app32; Flags: ignoreversion signonce
+Source: "Commsbus\Plugins32\VST\Commsbus.dll"; DestDir: {code:GetVST2Dir|1}; Components:vst2_32; Flags: ignoreversion signonce
+Source: "Commsbus\Plugins32\VST3\Commsbus.vst3"; DestDir: "{commoncf32}\VST3\"; Components:vst3_32; Flags: ignoreversion signonce recursesubdirs createallsubdirs
+Source: "Commsbus\Plugins32\VST3\CommsbusInstrument.vst3"; DestDir: "{commoncf32}\VST3\"; Components:vst3_32; Flags: ignoreversion signonce recursesubdirs createallsubdirs
+;Source: "Commsbus\Plugins32\Commsbus.aaxplugin"; DestDir: "{commoncf32}\Avid\Audio\Plug-Ins"; Components:aax_32; Flags: ignoreversion recursesubdirs createallsubdirs
 
-Source: "SonoBus\README.txt"; DestDir: "{app}"; DestName: "README.txt"; Flags: isreadme
+Source: "Commsbus\README.txt"; DestDir: "{app}"; DestName: "README.txt"; Flags: isreadme
 
 
 ; because we switched to folder-based VST3s 
 
 [InstallDelete]
-Type: files ; Name: "{commoncf}\VST3\SonoBus.vst3"
-Type: files ; Name: "{commoncf32}\VST3\SonoBus.vst3"
+Type: files ; Name: "{commoncf}\VST3\Commsbus.vst3"
+Type: files ; Name: "{commoncf32}\VST3\Commsbus.vst3"
 
 
 
 [Icons]
-Name: "{group}\SonoBus"; Filename: "{app}\SonoBus.exe"
+Name: "{group}\Commsbus"; Filename: "{app}\Commsbus.exe"
 Name: "{group}\README"; Filename: "{app}\README.txt"
-Name: "{group}\Uninstall SonoBus"; Filename: "{app}\unins000.exe"
+Name: "{group}\Uninstall Commsbus"; Filename: "{app}\unins000.exe"
 
 [Registry]
-Root: HKCR; Subkey: "sonobus"; ValueType: "string"; ValueData: "URL:sonobus Protocol"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "sonobus"; ValueType: "string"; ValueName: "URL Protocol"; ValueData: ""
-Root: HKCR; Subkey: "sonobus\DefaultIcon"; ValueType: "string"; ValueData: "{app}\SonoBus.exe,0"
-Root: HKCR; Subkey: "sonobus\shell\open\command"; ValueType: "string"; ValueData: """{app}\SonoBus.exe"" ""%1"""
+Root: HKCR; Subkey: "commsbus"; ValueType: "string"; ValueData: "URL:commsbus Protocol"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "commsbus"; ValueType: "string"; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCR; Subkey: "commsbus\DefaultIcon"; ValueType: "string"; ValueData: "{app}\Commsbus.exe,0"
+Root: HKCR; Subkey: "commsbus\shell\open\command"; ValueType: "string"; ValueData: """{app}\Commsbus.exe"" ""%1"""
 
 
 [Code]

@@ -35,7 +35,7 @@
 #include "CrossPlatformUtils.h"
 
 // HACK
-#include "SonobusPluginEditor.h"
+#include "CommsbusAudioProcessorEditor.h"
 
 #include <limits>
 #include <algorithm>
@@ -98,7 +98,9 @@ public:
           autoOpenMidiDevices (shouldAutoOpenMidiDevices),
           shouldOverrideSampleRate (var(true)),
           allowBluetoothInput (var(false)),
-          shouldCheckForNewVersion (var(true))
+          // Commsbus defaults this OFF: it is intended to run unattended, and an
+          // update prompt appearing on a machine nobody is sitting at is not useful.
+          shouldCheckForNewVersion (var(false))
     {
         createPlugin();
 
@@ -459,14 +461,14 @@ public:
     {
         if (settings != nullptr && processor != nullptr)
         {
-            auto * sonobusprocessor = dynamic_cast<SonobusAudioProcessor*>(processor.get());
+            auto * commsbusprocessor = dynamic_cast<CommsbusAudioProcessor*>(processor.get());
 
-            bool usexmlstate = sonobusprocessor != nullptr;
+            bool usexmlstate = commsbusprocessor != nullptr;
 
             MemoryBlock data;
 
-            if (usexmlstate && sonobusprocessor) {
-                sonobusprocessor->getStateInformationWithOptions (data, true, true, usexmlstate);
+            if (usexmlstate && commsbusprocessor) {
+                commsbusprocessor->getStateInformationWithOptions (data, true, true, usexmlstate);
                 std::unique_ptr<XmlElement> filtxml = juce::parseXML(String::createStringFromData(data.getData(), (int)data.getSize()));
                 if (filtxml) {
                     settings->setValue ("filterStateXML", filtxml.get());
@@ -490,13 +492,13 @@ public:
         if (settings != nullptr)
         {
             MemoryBlock data;
-            auto * sonobusprocessor = dynamic_cast<SonobusAudioProcessor*>(processor.get());
+            auto * commsbusprocessor = dynamic_cast<CommsbusAudioProcessor*>(processor.get());
 
-            if (sonobusprocessor != nullptr && settings->containsKey("filterStateXML")) {
+            if (commsbusprocessor != nullptr && settings->containsKey("filterStateXML")) {
                 String filtxml = settings->getValue ("filterStateXML");
                 data.replaceWith(filtxml.toUTF8(), filtxml.getNumBytesAsUTF8());
                 if (data.getSize() > 0) {
-                    sonobusprocessor->setStateInformationWithOptions (data.getData(), (int) data.getSize(), true, true, true);
+                    commsbusprocessor->setStateInformationWithOptions (data.getData(), (int) data.getSize(), true, true, true);
                     return;
                 }
             }
@@ -1058,7 +1060,7 @@ private:
             if (editor != nullptr)
             {
                 // hack to allow editor to get devicemanager
-                if (auto * sonoeditor = dynamic_cast<SonobusAudioProcessorEditor*>(editor.get())) {
+                if (auto * sonoeditor = dynamic_cast<CommsbusAudioProcessorEditor*>(editor.get())) {
                     sonoeditor->getAudioDeviceManager = [this]() { return &owner.getDeviceManager();  };
                     sonoeditor->getInputChannelGroupsView()->getAudioDeviceManager = [this]() { return &owner.getDeviceManager();  };
                     sonoeditor->getPeersContainerView()->getAudioDeviceManager = [this]() { return &owner.getDeviceManager();  };

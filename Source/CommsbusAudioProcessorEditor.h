@@ -7,7 +7,7 @@
 
 #include <JuceHeader.h>
 
-#include "SonobusPluginProcessor.h"
+#include "CommsbusAudioProcessor.h"
 #include "SonoLookAndFeel.h"
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
@@ -28,7 +28,7 @@
 class RandomSentenceGenerator;
 class WaveformTransportComponent;
 
-class SonobusAudioProcessorEditor;
+class CommsbusAudioProcessorEditor;
 class ChannelGroupsView;
 class MonitorDelayView;
 class ChatView;
@@ -39,12 +39,12 @@ class SuggestNewGroupView;
 //==============================================================================
 /**
 */
-class SonobusAudioProcessorEditor  : public AudioProcessorEditor, public MultiTimer,
+class CommsbusAudioProcessorEditor  : public AudioProcessorEditor, public MultiTimer,
 public Button::Listener,
 public AudioProcessorValueTreeState::Listener,
 public Slider::Listener,
 public SonoChoiceButton::Listener, 
-public SonobusAudioProcessor::ClientListener,
+public CommsbusAudioProcessor::ClientListener,
 public ComponentListener,
 public ChangeListener,
 public TextEditor::Listener,
@@ -57,8 +57,8 @@ public ChannelGroupsView::Listener,
 public PeersContainerView::Listener
 {
 public:
-    SonobusAudioProcessorEditor (SonobusAudioProcessor&);
-    ~SonobusAudioProcessorEditor();
+    CommsbusAudioProcessorEditor (CommsbusAudioProcessor&);
+    ~CommsbusAudioProcessorEditor();
 
     //==============================================================================
     void paint (Graphics&) override;
@@ -130,24 +130,24 @@ public:
     void fileDragExit (const StringArray& files) override;
 
     // client listener
-    void aooClientConnected(SonobusAudioProcessor *comp, bool success, const String & errmesg="") override;
-    void aooClientDisconnected(SonobusAudioProcessor *comp, bool success, const String & errmesg="") override;
-    void aooClientLoginResult(SonobusAudioProcessor *comp, bool success, const String & errmesg="") override;
-    void aooClientGroupJoined(SonobusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") override;
-    void aooClientGroupLeft(SonobusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") override;
-    void aooClientPublicGroupModified(SonobusAudioProcessor *comp, const String & group, int count, const String & errmesg="") override;
-    void aooClientPublicGroupDeleted(SonobusAudioProcessor *comp, const String & group,  const String & errmesg="") override;
-    void aooClientPeerJoined(SonobusAudioProcessor *comp, const String & group, const String & user) override;
-    void aooClientPeerPendingJoin(SonobusAudioProcessor *comp, const String & group, const String & user) override;
-    void aooClientPeerJoinFailed(SonobusAudioProcessor *comp, const String & group, const String & user) override;
-    void aooClientPeerJoinBlocked(SonobusAudioProcessor *comp, const String & group, const String & user, const String & address, int port) override;
-    void aooClientPeerLeft(SonobusAudioProcessor *comp, const String & group, const String & user) override;
-    void aooClientError(SonobusAudioProcessor *comp, const String & errmesg) override;
-    void aooClientPeerChangedState(SonobusAudioProcessor *comp, const String & mesg) override;
-    void sbChatEventReceived(SonobusAudioProcessor *comp, const SBChatEvent & mesg) override;
-    void peerRequestedLatencyMatch(SonobusAudioProcessor *comp, const String & username, float latency) override;
-    void peerBlockedInfoChanged(SonobusAudioProcessor *comp, const String & username, bool blocked) override;
-    void peerSuggestedNewGroup(SonobusAudioProcessor *comp, const String & username, const String & newgroup, const String & groupPass, bool isPublic, const StringArray & others) override;
+    void aooClientConnected(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") override;
+    void aooClientDisconnected(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") override;
+    void aooClientLoginResult(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") override;
+    void aooClientGroupJoined(CommsbusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") override;
+    void aooClientGroupLeft(CommsbusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") override;
+    void aooClientPublicGroupModified(CommsbusAudioProcessor *comp, const String & group, int count, const String & errmesg="") override;
+    void aooClientPublicGroupDeleted(CommsbusAudioProcessor *comp, const String & group,  const String & errmesg="") override;
+    void aooClientPeerJoined(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
+    void aooClientPeerPendingJoin(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
+    void aooClientPeerJoinFailed(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
+    void aooClientPeerJoinBlocked(CommsbusAudioProcessor *comp, const String & group, const String & user, const String & address, int port) override;
+    void aooClientPeerLeft(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
+    void aooClientError(CommsbusAudioProcessor *comp, const String & errmesg) override;
+    void aooClientPeerChangedState(CommsbusAudioProcessor *comp, const String & mesg) override;
+    void sbChatEventReceived(CommsbusAudioProcessor *comp, const SBChatEvent & mesg) override;
+    void peerRequestedLatencyMatch(CommsbusAudioProcessor *comp, const String & username, float latency) override;
+    void peerBlockedInfoChanged(CommsbusAudioProcessor *comp, const String & username, bool blocked) override;
+    void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & groupPass, bool isPublic, const StringArray & others) override;
 
 
     std::function<AudioDeviceManager*()> getAudioDeviceManager; // = []() { return 0; };
@@ -256,7 +256,7 @@ private:
 
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
-    SonobusAudioProcessor& processor;
+    CommsbusAudioProcessor& processor;
 
     SonoLookAndFeel sonoLookAndFeel;
     SonoBigTextLookAndFeel sonoSliderLNF;
@@ -560,28 +560,28 @@ private:
     std::unique_ptr<TableListBox> mRemoteSourceListBox;
     
     
-    class SonobusCommandManager : public ApplicationCommandManager {
+    class CommsbusCommandManager : public ApplicationCommandManager {
     public:
-        SonobusCommandManager(SonobusAudioProcessorEditor & parent_) : parent(parent_) {}
+        CommsbusCommandManager(CommsbusAudioProcessorEditor & parent_) : parent(parent_) {}
         ApplicationCommandTarget* getFirstCommandTarget(CommandID commandID) override {
             return &parent;
         }
     private:
-        SonobusAudioProcessorEditor & parent;
+        CommsbusAudioProcessorEditor & parent;
     };
 
 
     void populateRecentSetupsMenu(PopupMenu & popup);
     void addToRecentsSetups(const File & file);
 
-    SonobusCommandManager commandManager { *this };
+    CommsbusCommandManager commandManager { *this };
 
     
-    class SonobusMenuBarModel
+    class CommsbusMenuBarModel
      : public MenuBarModel
     {
     public:
-        SonobusMenuBarModel(SonobusAudioProcessorEditor & parent_) : parent(parent_) {}
+        CommsbusMenuBarModel(CommsbusAudioProcessorEditor & parent_) : parent(parent_) {}
         
         // MenuBarModel
         StringArray getMenuBarNames() override;
@@ -590,10 +590,10 @@ private:
 
         
     protected:
-        SonobusAudioProcessorEditor & parent;
+        CommsbusAudioProcessorEditor & parent;
     };
     
-    std::unique_ptr<SonobusMenuBarModel> menuBarModel;
+    std::unique_ptr<CommsbusMenuBarModel> menuBarModel;
     std::unique_ptr<MenuBarComponent> mMenuBar;
 
 
@@ -676,7 +676,7 @@ private:
     class CustomTooltipWindow : public TooltipWindow
     {
     public:
-        CustomTooltipWindow(SonobusAudioProcessorEditor * parent_, Component * viewparent) : TooltipWindow(viewparent), parent(parent_) {}
+        CustomTooltipWindow(CommsbusAudioProcessorEditor * parent_, Component * viewparent) : TooltipWindow(viewparent), parent(parent_) {}
         virtual ~CustomTooltipWindow() {
             if (parent) {
                 // reset our smart pointer without a delete! someone else is deleting it
@@ -692,7 +692,7 @@ private:
             return TooltipWindow::getTipFor(c);
         }
                 
-        SonobusAudioProcessorEditor * parent;
+        CommsbusAudioProcessorEditor * parent;
     };
     
     std::unique_ptr<CustomTooltipWindow> tooltipWindow;
@@ -728,5 +728,5 @@ private:
     File mSettingsFolder;
     
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SonobusAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CommsbusAudioProcessorEditor)
 };

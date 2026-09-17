@@ -67,7 +67,9 @@ bool VersionInfo::isNewerVersionThanCurrent()
 
 std::unique_ptr<VersionInfo> VersionInfo::fetch (const String& endpoint)
 {
-    URL latestVersionURL ("https://api.github.com/repos/sonosaurus/sonobus/releases/" + endpoint);
+    // Commsbus releases, NOT upstream sonosaurus/sonobus: pointing this at
+    // upstream would offer to install SonoBus over a Commsbus install.
+    URL latestVersionURL ("https://api.github.com/repos/lifenzdotorg/commsbus/releases/" + endpoint);
     String extraHeaders;      
     String authuserpass = SystemStats::getEnvironmentVariable("GITUSERPASS", "");
     

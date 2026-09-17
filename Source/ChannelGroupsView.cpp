@@ -25,7 +25,7 @@ public:
     int command;
 };
 
-ChannelGroupEffectsView::ChannelGroupEffectsView(SonobusAudioProcessor& proc, bool peermode)
+ChannelGroupEffectsView::ChannelGroupEffectsView(CommsbusAudioProcessor& proc, bool peermode)
 : Component(), peerMode(peermode), processor(proc)
 {
     effectsConcertina =  std::make_unique<ConcertinaPanel>();
@@ -425,7 +425,7 @@ void ChannelGroupEffectsView::effectsHeaderClicked(EffectsBaseView *comp)
 
 #pragma ChannelGroupMonitorEffectsView
 
-ChannelGroupMonitorEffectsView::ChannelGroupMonitorEffectsView(SonobusAudioProcessor& proc, bool peermode)
+ChannelGroupMonitorEffectsView::ChannelGroupMonitorEffectsView(CommsbusAudioProcessor& proc, bool peermode)
 : Component(), peerMode(peermode), processor(proc)
 {
     effectsConcertina =  std::make_unique<ConcertinaPanel>();
@@ -737,7 +737,7 @@ void ChannelGroupMonitorEffectsView::effectsHeaderClicked(EffectsBaseView *comp)
 
 #pragma ChannelGroupReverbEffectsView
 
-ChannelGroupReverbEffectsView::ChannelGroupReverbEffectsView(SonobusAudioProcessor& proc)
+ChannelGroupReverbEffectsView::ChannelGroupReverbEffectsView(CommsbusAudioProcessor& proc)
 : Component(), processor(proc)
 {
     effectsConcertina =  std::make_unique<ConcertinaPanel>();
@@ -914,7 +914,7 @@ void ChannelGroupView::resized()
 // ==================================================
 //
 
-ChannelGroupsView::ChannelGroupsView(SonobusAudioProcessor& proc, bool peerMode, int peerIndex)
+ChannelGroupsView::ChannelGroupsView(CommsbusAudioProcessor& proc, bool peerMode, int peerIndex)
  : Component("pcv"),  addLnf(20), processor(proc), mPeerMode(peerMode), mPeerIndex(peerIndex)
 {
     mutedTextColor = Colour::fromFloatRGBA(0.8, 0.5, 0.2, 1.0);
@@ -1566,7 +1566,7 @@ void ChannelGroupsView::rebuildChannelViews(bool notify)
 
 
                     // disable solo for main monitor too
-                    processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
+                    processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
 
                     updateChannelViews();
                 } else {
@@ -1636,7 +1636,7 @@ void ChannelGroupsView::rebuildChannelViews(bool notify)
             //mMetChannelView->nameLabel->setColour(TextEditor::backgroundColourId, Colours::transparentBlack);
             //mMetChannelView->nameLabel->setColour(TextEditor::outlineColourId, Colours::transparentBlack);
 
-            mMetLevelAttachment   = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramMetGain, *mMetChannelView->levelSlider);
+            mMetLevelAttachment   = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramMetGain, *mMetChannelView->levelSlider);
 
 
             std::unique_ptr<Drawable> grpimg(Drawable::createFromImageData(BinaryData::send_group_small_svg, BinaryData::send_group_small_svgSize));
@@ -1644,7 +1644,7 @@ void ChannelGroupsView::rebuildChannelViews(bool notify)
             mMetChannelView->linkButton->setTitle(TRANS("Send Metronome"));
             mMetChannelView->linkButton->setImages(grpimg.get());
             mMetChannelView->linkButton->setClickingTogglesState(true);
-            mMetSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramSendMetAudio, *mMetChannelView->linkButton);
+            mMetSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramSendMetAudio, *mMetChannelView->linkButton);
             mMetChannelView->linkButton->setForegroundImageRatio(1.0f);
             mMetChannelView->linkButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.5, 0.7, 0.65));
             mMetChannelView->linkButton->setColour(TextButton::buttonColourId, Colours::transparentBlack);
@@ -1721,7 +1721,7 @@ void ChannelGroupsView::rebuildChannelViews(bool notify)
             mFileChannelView->linkButton->setTitle(TRANS("Send File Playback"));
             mFileChannelView->linkButton->setImages(grpimg.get());
             mFileChannelView->linkButton->setClickingTogglesState(true);
-            mFileSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramSendFileAudio, *mFileChannelView->linkButton);
+            mFileSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramSendFileAudio, *mFileChannelView->linkButton);
             mFileChannelView->linkButton->setButtonStyle(DrawableButton::ButtonStyle::ImageOnButtonBackground);
             mFileChannelView->linkButton->setForegroundImageRatio(1.0f);
             mFileChannelView->linkButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.5, 0.7, 0.65));
@@ -1796,7 +1796,7 @@ void ChannelGroupsView::rebuildChannelViews(bool notify)
             mSoundboardChannelView->linkButton->setTitle(TRANS("Send Soundboard"));
             mSoundboardChannelView->linkButton->setImages(grpimg.get());
             mSoundboardChannelView->linkButton->setClickingTogglesState(true);
-            mSoundboardSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), SonobusAudioProcessor::paramSendSoundboardAudio, *mSoundboardChannelView->linkButton);
+            mSoundboardSendAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramSendSoundboardAudio, *mSoundboardChannelView->linkButton);
             mSoundboardChannelView->linkButton->setButtonStyle(DrawableButton::ButtonStyle::ImageOnButtonBackground);
             mSoundboardChannelView->linkButton->setForegroundImageRatio(1.0f);
             mSoundboardChannelView->linkButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.5, 0.7, 0.65));
@@ -2318,7 +2318,7 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     int estwidth = mEstimatedWidth > 13 ? mEstimatedWidth - 13 : 320;
 
 
-    sendcnt = (int) processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramSendChannels)->convertFrom0to1( processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramSendChannels)->getValue());
+    sendcnt = (int) processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramSendChannels)->convertFrom0to1( processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramSendChannels)->getValue());
 
     if (sendcnt == 0) {
         sendcnt = processor.getTotalNumInputChannels(); // processor.getMainBusNumInputChannels();
@@ -2710,7 +2710,7 @@ void ChannelGroupsView::updateInputModeChannelViews(int specific)
     bool needsUpdateLayout = false;
 
     int changroup = 0;
-    int sendcnt = (int) processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramSendChannels)->convertFrom0to1( processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramSendChannels)->getValue());
+    int sendcnt = (int) processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramSendChannels)->convertFrom0to1( processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramSendChannels)->getValue());
 
     if (sendcnt == 0) {
         sendcnt = processor.getTotalNumInputChannels(); // processor.getMainBusNumInputChannels();
@@ -3462,7 +3462,7 @@ void ChannelGroupsView::buttonClicked (Button* buttonThatWasClicked)
                      */
 
                     // disable solo for main monitor too
-                    //processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
+                    //processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(0.0);
 
                     updateChannelViews();
                 } else {
@@ -3557,7 +3557,7 @@ void ChannelGroupsView::buttonClicked (Button* buttonThatWasClicked)
                     }
 
                     // change solo for main monitor too
-                    //processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(newsolo ? 1.0f : 0.0);
+                    //processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(newsolo ? 1.0f : 0.0);
 
                     updateChannelViews();
                 } else {
@@ -3566,7 +3566,7 @@ void ChannelGroupsView::buttonClicked (Button* buttonThatWasClicked)
 
                     //if (newsolo) {
                        // only enable main in solo
-                      //  processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(1.0f);
+                      //  processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainMonitorSolo)->setValueNotifyingHost(1.0f);
                     //}
 
                     updateChannelViews();

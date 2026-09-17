@@ -1,9 +1,9 @@
-name: sonobus
+name: commsbus
 base: core22
-adopt-info: sonobus
-summary: SonoBus
+adopt-info: commsbus
+summary: Commsbus
 description: |
-  SonoBus is an easy to use application for streaming high-quality,
+  Commsbus is an easy to use application for streaming high-quality,
   low-latency peer-to-peer audio between devices over the internet
   or a local network.
   Simply choose a unique group name (with optional password), and
@@ -52,10 +52,10 @@ parts:
     stage-packages:
       - libglib2.0-bin
 
-  sonobus:
+  commsbus:
     after: [desktop]
     plugin: cmake
-    source: https://github.com/sonosaurus/sonobus.git
+    source: https://github.com/lifenzdotorg/commsbus.git
     #source: .
     source-tag: '1.7.2'
     # source-subdir: "Builds/LinuxMakefile"
@@ -77,12 +77,12 @@ parts:
       - "-DCMAKE_BUILD_TYPE=Release"
     override-build: |
       snapcraftctl build
-      strip --strip-unneeded SonoBus_artefacts/Release/Standalone/sonobus
+      strip --strip-unneeded Commsbus_artefacts/Release/Standalone/commsbus
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       mkdir -p $SNAPCRAFT_PART_INSTALL/lib/vst3
-      cp -a SonoBus_artefacts/Release/Standalone/sonobus $SNAPCRAFT_PART_INSTALL/bin/
-      cp -a SonoBus_artefacts/Release/VST3/SonoBus.vst3 $SNAPCRAFT_PART_INSTALL/lib/vst3/
-      cp -a SonoBusInst_artefacts/Release/VST3/SonoBusInstrument.vst3 $SNAPCRAFT_PART_INSTALL/lib/vst3/
+      cp -a Commsbus_artefacts/Release/Standalone/commsbus $SNAPCRAFT_PART_INSTALL/bin/
+      cp -a Commsbus_artefacts/Release/VST3/Commsbus.vst3 $SNAPCRAFT_PART_INSTALL/lib/vst3/
+      cp -a CommsbusInst_artefacts/Release/VST3/CommsbusInstrument.vst3 $SNAPCRAFT_PART_INSTALL/lib/vst3/
     stage-packages:
       - jackd1
       - libopus0
@@ -96,8 +96,8 @@ parts:
       - libcurl4
 
 apps:
-  sonobus:
-    command: bin/sonobus
+  commsbus:
+    command: bin/commsbus
     command-chain:
       - bin/desktop-launch
       - snap/command-chain/alsa-launch

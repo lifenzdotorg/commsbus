@@ -7,10 +7,10 @@
 
 using namespace SonoAudio;
 
-class SonobusConnectTabbedComponent : public TabbedComponent
+class CommsbusConnectTabbedComponent : public TabbedComponent
 {
 public:
-    SonobusConnectTabbedComponent(TabbedButtonBar::Orientation orientation, ConnectView & editor_) : TabbedComponent(orientation), editor(editor_) {
+    CommsbusConnectTabbedComponent(TabbedButtonBar::Orientation orientation, ConnectView & editor_) : TabbedComponent(orientation), editor(editor_) {
 
     }
 
@@ -32,7 +32,7 @@ enum {
 };
 
 
-ConnectView::ConnectView(SonobusAudioProcessor& proc, AooServerConnectionInfo & info)
+ConnectView::ConnectView(CommsbusAudioProcessor& proc, AooServerConnectionInfo & info)
 : Component(), processor(proc), currConnectionInfo(info),
 recentsListModel(this),
 recentsGroupFont (17.0 * SonoLookAndFeel::getFontScale(), Font::bold), recentsNameFont(15 * SonoLookAndFeel::getFontScale(), Font::plain), recentsInfoFont(13 * SonoLookAndFeel::getFontScale(), Font::plain),
@@ -42,7 +42,7 @@ publicGroupsListModel(this)
     setColour (selectedColourId, Colour::fromFloatRGBA(0.0f, 0.4f, 0.8f, 0.5f));
     setColour (separatorColourId, Colour::fromFloatRGBA(0.3f, 0.3f, 0.3f, 0.3f));
 
-    mConnectTab = std::make_unique<SonobusConnectTabbedComponent>(TabbedButtonBar::Orientation::TabsAtTop, *this);
+    mConnectTab = std::make_unique<CommsbusConnectTabbedComponent>(TabbedButtonBar::Orientation::TabsAtTop, *this);
     mConnectTab->setOutline(0);
     mConnectTab->setTabBarDepth(36);
     mConnectTab->getTabbedButtonBar().setMinimumTabScaleFactor(0.1f);
@@ -58,6 +58,9 @@ publicGroupsListModel(this)
 
     mServerConnectViewport->setViewedComponent(mServerConnectContainer.get());
 
+    mDirectConnectViewport = std::make_unique<Viewport>();
+    mDirectConnectViewport->setViewedComponent(mDirectConnectContainer.get(), false);
+
 
 
     mRecentsGroup = std::make_unique<GroupComponent>("", TRANS("RECENTS"));
@@ -65,10 +68,14 @@ publicGroupsListModel(this)
     mRecentsGroup->setColour(GroupComponent::outlineColourId, Colour::fromFloatRGBA(0.8, 0.8, 0.8, 0.1));
     mRecentsGroup->setTextLabelPosition(Justification::centred);
 
+    // Commsbus leads with DIRECT: peer-to-peer by address, no rendezvous server
+    // involved. Upstream SonoBus shipped this tab commented out and steered people
+    // to private groups instead; the group tabs are kept here as a fallback for
+    // when peers cannot reach each other by address.
+    mConnectTab->addTab(TRANS("DIRECT"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mDirectConnectViewport.get(), false);
     mConnectTab->addTab(TRANS("RECENTS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mRecentsContainer.get(), false);
     mConnectTab->addTab(TRANS("PRIVATE GROUP"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mServerConnectViewport.get(), false);
     mConnectTab->addTab(TRANS("PUBLIC GROUPS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mPublicServerConnectContainer.get(), false);
-    //mConnectTab->addTab(TRANS("DIRECT"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mDirectConnectContainer.get(), false);
 
 
 
@@ -86,7 +93,7 @@ publicGroupsListModel(this)
     mRemoteAddressStaticLabel = std::make_unique<Label>("remaddrst", TRANS("Host: "));
     mRemoteAddressStaticLabel->setJustificationType(Justification::centredRight);
 
-    mDirectConnectDescriptionLabel = std::make_unique<Label>("dirconndesc", TRANS("Connect directly to other instances of SonoBus on your local network with the local address that they advertise. This is experimental, using a private group is recommended instead, and works fine on local networks."));
+    mDirectConnectDescriptionLabel = std::make_unique<Label>("dirconndesc", TRANS("Connect straight to another Commsbus machine using the address it advertises below. No connection server is involved. Peers added this way are remembered and reconnected automatically."));
     mDirectConnectDescriptionLabel->setJustificationType(Justification::topLeft);
 
     mAddRemoteHostEditor = std::make_unique<TextEditor>("remaddredit");
@@ -471,13 +478,12 @@ void ConnectView::updateState()
     updateRecents();
 
     if (firstTimeConnectShow) {
-        if (mConnectTab->getNumTabs() > 2) {
-            if (recentsListModel.getNumRows() > 0) {
-                // show recents tab first
-                mConnectTab->setCurrentTabIndex(0);
-            } else {
-                mConnectTab->setCurrentTabIndex(1);
-            }
+        // Commsbus opens on DIRECT (tab 0). Recents only wins if there is actually
+        // something in it, so an existing group workflow is not disrupted.
+        if (mConnectTab->getNumTabs() > 1 && recentsListModel.getNumRows() > 0) {
+            mConnectTab->setCurrentTabIndex(1); // RECENTS
+        } else {
+            mConnectTab->setCurrentTabIndex(0); // DIRECT
         }
         firstTimeConnectShow = false;
     }
@@ -681,12 +687,21 @@ void ConnectView::resized()  {
 
     mConnectComponentBg->setRectangle (getLocalBounds().toFloat());
 
-    if (getWidth() > 700) {
-        if (mConnectTab->getNumTabs() > 2) {
-            // move recents to main connect component, out of tab
-            int adjcurrtab = jmax(0, mConnectTab->getCurrentTabIndex() - 1);
+    // Wide layouts pull RECENTS out of the tab strip into its own panel. This
+    // tracks the tab by name rather than by a fixed index: DIRECT now occupies
+    // index 0, so the old hard-coded removeTab(0)/moveTab(2,0) would have moved
+    // the wrong tab.
+    const int recentsTabIndex = mConnectTab->getTabNames().indexOf(TRANS("RECENTS"));
 
-            mConnectTab->removeTab(0);
+    if (getWidth() > 700) {
+        if (recentsTabIndex >= 0) {
+            // move recents to main connect component, out of tab
+            int adjcurrtab = mConnectTab->getCurrentTabIndex();
+            if (adjcurrtab >= recentsTabIndex) {
+                adjcurrtab = jmax(0, adjcurrtab - 1);
+            }
+
+            mConnectTab->removeTab(recentsTabIndex);
             mRecentsGroup->addAndMakeVisible(mRecentsContainer.get());
             addAndMakeVisible(mRecentsGroup.get());
 
@@ -694,14 +709,18 @@ void ConnectView::resized()  {
             updateLayout();
         }
     } else {
-        if (mConnectTab->getNumTabs() < 3) {
+        if (recentsTabIndex < 0) {
             int tabsel = mConnectTab->getCurrentTabIndex();
             mRecentsGroup->removeChildComponent(mRecentsContainer.get());
             mRecentsGroup->setVisible(false);
 
             mConnectTab->addTab(TRANS("RECENTS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mRecentsContainer.get(), false);
-            mConnectTab->moveTab(2, 0);
-            mConnectTab->setCurrentTabIndex(tabsel + 1);
+            // RECENTS belongs directly after DIRECT
+            mConnectTab->moveTab(mConnectTab->getNumTabs() - 1, recentsTabPosition);
+            if (tabsel >= recentsTabPosition) {
+                ++tabsel;
+            }
+            mConnectTab->setCurrentTabIndex(tabsel);
             updateLayout();
         }
     }
@@ -713,7 +732,11 @@ void ConnectView::resized()  {
                                        mServerConnectViewport->getWidth() - (mServerConnectViewport->getHeight() < minHeight ? mServerConnectViewport->getScrollBarThickness() : 0 ),
                                        jmax(minHeight, mServerConnectViewport->getHeight()));
 
-    //remoteBox.performLayout(mDirectConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mDirectConnectContainer->getWidth()), mDirectConnectContainer->getHeight()));
+    mDirectConnectContainer->setBounds(0, 0,
+                                       mDirectConnectViewport->getWidth() - (mDirectConnectViewport->getHeight() < minHeight ? mDirectConnectViewport->getScrollBarThickness() : 0),
+                                       jmax(minHeight, mDirectConnectViewport->getHeight()));
+
+    remoteBox.performLayout(mDirectConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mDirectConnectContainer->getWidth()), mDirectConnectContainer->getHeight()));
     serverBox.performLayout(mServerConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mServerConnectContainer->getWidth()), mServerConnectContainer->getHeight()));
 
     //mPublicServerConnectContainer->setBounds(0,0,
@@ -865,7 +888,7 @@ void ConnectView::publicGroupLogin()
 
 bool ConnectView::copyInfoToClipboard(bool singleURL, String * retmessage)
 {
-    String message = TRANS("Share this link with others to connect with SonoBus:") + " \n";
+    String message = TRANS("Share this link with others to connect with Commsbus:") + " \n";
 
     String hostport = mServerHostEditor->getText();
     if (hostport.isEmpty()) {
@@ -886,7 +909,7 @@ bool ConnectView::copyInfoToClipboard(bool singleURL, String * retmessage)
     }
 
     String urlstr1;
-    urlstr1 << String("sonobus://") << hostport << String("/");
+    urlstr1 << String("commsbus://") << hostport << String("/");
     URL url(urlstr1);
     URL url2("http://go.sonobus.net/sblaunch");
 
@@ -1005,7 +1028,12 @@ void ConnectView::buttonClicked (Button* buttonThatWasClicked)
         }
 
         if (host.isNotEmpty() && port != 0) {
-            if (processor.connectRemotePeer(host, port, "", "", processor.getValueTreeState().getParameter(SonobusAudioProcessor::paramMainRecvMute)->getValue() == 0)) {
+            if (processor.connectRemotePeer(host, port, "", "", processor.getValueTreeState().getParameter(CommsbusAudioProcessor::paramMainRecvMute)->getValue() == 0)) {
+                // Remember it, so this peer is reconnected on the next launch and
+                // after any drop, without anyone retyping the address.
+                processor.getAutoConnectManager().addPeer(DirectPeerEntry(host, port));
+                processor.startAutoConnect();
+
                 setVisible(false);
                 if (auto * callout = dynamic_cast<CallOutBox*>(directConnectCalloutBox.get())) {
                     callout->dismiss();
@@ -1321,8 +1349,8 @@ bool ConnectView::attemptToPasteConnectionFromClipboard()
     auto clip = SystemClipboard::getTextFromClipboard();
 
     if (clip.isNotEmpty()) {
-        // look for sonobus URL anywhere in it
-        String urlpart = clip.fromFirstOccurrenceOf("sonobus://", true, true);
+        // look for commsbus URL anywhere in it
+        String urlpart = clip.fromFirstOccurrenceOf("commsbus://", true, true);
         if (urlpart.isNotEmpty()) {
             // find the end (whitespace) and strip it out
             urlpart = urlpart.upToFirstOccurrenceOf("\n", false, true).trim();
@@ -1330,12 +1358,12 @@ bool ConnectView::attemptToPasteConnectionFromClipboard()
             URL url(urlpart);
 
             if (url.isWellFormed()) {
-                DBG("Got good sonobus URL: " << urlpart);
+                DBG("Got good commsbus URL: " << urlpart);
 
                 // clear clipboard
                 SystemClipboard::copyTextToClipboard("");
 
-                return handleSonobusURL(url);
+                return handleCommsbusURL(url);
             }
         }
         else {
@@ -1349,11 +1377,11 @@ bool ConnectView::attemptToPasteConnectionFromClipboard()
                 URL url(urlpart);
 
                 if (url.isWellFormed()) {
-                    DBG("Got good http sonobus URL: " << urlpart);
+                    DBG("Got good http commsbus URL: " << urlpart);
 
                     SystemClipboard::copyTextToClipboard("");
 
-                    return handleSonobusURL(url);
+                    return handleCommsbusURL(url);
                 }
             }
         }
@@ -1362,10 +1390,10 @@ bool ConnectView::attemptToPasteConnectionFromClipboard()
     return false;
 }
 
-bool ConnectView::handleSonobusURL(const URL & url)
+bool ConnectView::handleCommsbusURL(const URL & url)
 {
     // look for either  http://go.sonobus.net/sblaunch?  style url
-    // or sonobus://host:port/? style
+    // or commsbus://host:port/? style
 
     auto & pnames = url.getParameterNames();
     auto & pvals = url.getParameterValues();
@@ -1388,7 +1416,7 @@ bool ConnectView::handleSonobusURL(const URL & url)
 
     }
 
-    if (url.getScheme() == "sonobus") {
+    if (url.getScheme() == "commsbus") {
         // use domain part as host:port
         String hostpart = url.getDomain();
         currConnectionInfo.serverHost =  hostpart.upToFirstOccurrenceOf(":", false, true);

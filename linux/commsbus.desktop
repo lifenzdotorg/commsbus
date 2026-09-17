@@ -1,10 +1,11 @@
 [Desktop Entry]
-Name=SonoBus
+Name=Commsbus
 Comment=High Quality Network Audio Streaming 
 GenericName=Network Audio Streaming Software
-Exec=sonobus
-Icon=${SNAP}/meta/gui/sonobus.png
+Exec=commsbus %u
+Icon=commsbus
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Mixer;
 Keywords=live;online;music;conference;
+MimeType=x-scheme-handler/commsbus

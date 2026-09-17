@@ -1,25 +1,13 @@
 #!/bin/bash
 
-DEFS=""
 CONFIG="Release"
 
-if [ -n "${AAX_SDK_PATH}" ] ; then
-  echo "Will build AAX plugin"
-  DEPS="$DEPS -DAAX_SDK_PATH=${AAX_SDK_PATH}"
-fi
-
-if [ -n "${VST2_SDK_PATH}" ] ; then
-  echo "Will build VST2 plugin"
-  DEPS="$DEPS -DVST2_SDK_PATH=${VST2_SDK_PATH}"
-fi
-
+# Commsbus builds the standalone application only, so the AAX/VST2 plugin SDK
+# paths upstream SonoBus accepted here are no longer used.
 
 if [ "$1" = "debug" ] ; then
   CONFIG="Debug"
 fi
 
-cmake -DCMAKE_BUILD_TYPE=$CONFIG $DEPS -B build
-
-
-
+cmake -DCMAKE_BUILD_TYPE=$CONFIG -B build
 
