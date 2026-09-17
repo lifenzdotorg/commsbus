@@ -518,6 +518,18 @@ Image detail::WindowingHelpers::createIconForFile (const File& file)
 
 static Image createNSWindowSnapshot (NSWindow* nsWindow)
 {
+   #if defined (MAC_OS_VERSION_15_0) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_15_0
+    // Commsbus fork patch: CGWindowListCreateImage is *obsoleted* (not merely
+    // deprecated) in the macOS 15 SDK and later, so the call below no longer
+    // compiles at all -- the -Wdeprecated-declarations suppression underneath is
+    // not enough. This JUCE version has no ScreenCaptureKit implementation to
+    // fall back to. Commsbus never snapshots native windows, so return a null
+    // image rather than adopt ScreenCaptureKit and its screen-recording
+    // permission prompt. Revisit if this JUCE fork is updated to a version that
+    // implements the ScreenCaptureKit path.
+    ignoreUnused (nsWindow);
+    return {};
+   #else
     JUCE_AUTORELEASEPOOL
     {
         // CGWindowListCreateImage is replaced by functions in the ScreenCaptureKit framework, but
@@ -552,6 +564,7 @@ static Image createNSWindowSnapshot (NSWindow* nsWindow)
 
         return result;
     }
+   #endif
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
