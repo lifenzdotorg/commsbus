@@ -136,21 +136,7 @@ public:
     };
     
     // treated as bitmask options
-    enum RecordFileOptions {
-        RecordDefaultOptions = 0,
-        RecordMix = 1,
-        RecordSelf = 2,
-        RecordMixMinusSelf = 4,
-        RecordIndividualUsers = 8
-    };
     
-    enum RecordFileFormat {
-        FileFormatDefault = 0,
-        FileFormatAuto,
-        FileFormatFLAC,
-        FileFormatWAV,
-        FileFormatOGG
-    };
 
     enum PeerDisplayMode {
         PeerDisplayModeFull = 0,
@@ -459,8 +445,6 @@ public:
     bool isRemotePeerLatencyTestActive(int index);
     
     
-    bool isAnyRemotePeerRecording() const;
-    bool isRemotePeerRecording(int index) const;
 
     void setRemotePeerCompressorParams(int index, int changroup, SonoAudio::CompressorParams & params);
     bool getRemotePeerCompressorParams(int index, int changroup, SonoAudio::CompressorParams & retparams);
@@ -709,37 +693,17 @@ public:
     double getMonitoringDelayTimeFromAvgPeerLatency(float scalar=1.0f);
 
 
-    // recording stuff, if record options are RecordMixOnly, or RecordSelf  (only) the file refers to the name of the file
-    //   otherwise it refers to a directory where the files will be recorded (and also the prefix for the recorded files)
-    bool startRecordingToFile(const URL & recordLocation, const String & filename, URL & mainreturl, uint32 recordOptions=RecordDefaultOptions, RecordFileFormat fileformat=FileFormatDefault);
-    bool stopRecordingToFile();
-    bool isRecordingToFile();
-    double getElapsedRecordTime() const { return mElapsedRecordSamples / getSampleRate(); }
     String getLastErrorMessage() const { return mLastError; }
 
-    void setDefaultRecordingDirectory(const URL & recdir)  { mDefaultRecordDir = recdir; }
-    URL getDefaultRecordingDirectory() const { return mDefaultRecordDir; }
 
     void setLastBrowseDirectory(String recdir)  { mLastBrowseDir = recdir; }
     String getLastBrowseDirectory() const { return mLastBrowseDir; }
 
-    uint32 getDefaultRecordingOptions() const { return mDefaultRecordingOptions; }
-    void setDefaultRecordingOptions(uint32 opts) { mDefaultRecordingOptions = opts; }
 
-    RecordFileFormat getDefaultRecordingFormat() const { return mDefaultRecordingFormat; }
-    void setDefaultRecordingFormat(RecordFileFormat fmt) { mDefaultRecordingFormat = fmt; }
 
-    int getDefaultRecordingBitsPerSample() const { return mDefaultRecordingBitsPerSample; }
-    void setDefaultRecordingBitsPerSample(int fmt) { mDefaultRecordingBitsPerSample = fmt; }
 
-    bool getSelfRecordingPreFX() const { return mRecordInputPreFX; }
-    void setSelfRecordingPreFX(bool flag) { mRecordInputPreFX = flag; }
 
-    bool getSelfRecordingSilenceWhenMuted() const { return mRecordInputSilenceWhenMuted; }
-    void setSelfRecordingSilenceWhenMuted(bool flag) { mRecordInputSilenceWhenMuted = flag; }
 
-    bool getRecordFinishOpens() const { return mRecordFinishOpens; }
-    void setRecordFinishOpens(bool flag) { mRecordFinishOpens = flag; }
 
     bool getReconnectAfterServerLoss() const { return mReconnectAfterServerLoss.get(); }
     void setReconnectAfterServerLoss(bool flag) { mReconnectAfterServerLoss = flag; }
@@ -1147,32 +1111,10 @@ private:
     
     // recording stuff
     
-    uint32 mDefaultRecordingOptions = RecordMix;
-    RecordFileFormat mDefaultRecordingFormat = FileFormatFLAC;
-    int mDefaultRecordingBitsPerSample = 16;
-    bool mRecordInputPreFX = true;
-    bool mRecordInputSilenceWhenMuted = true;
-    bool mRecordFinishOpens = true;
-    URL mDefaultRecordDir;
     String mLastError;
-    int mSelfRecordChannels = 2;
     int mActiveInputChannels = 2;
     String mLastBrowseDir;
 
-    std::atomic<bool> writingPossible = { false };
-    std::atomic<bool> userWritingPossible = { false };
-    int totalRecordingChannels = 2;
-    int64 mElapsedRecordSamples = 0;
-    std::unique_ptr<TimeSliceThread> recordingThread;
-    std::unique_ptr<AudioFormatWriter::ThreadedWriter> threadedMixWriter;
-    std::unique_ptr<AudioFormatWriter::ThreadedWriter> threadedMixMinusWriter;
-    OwnedArray<AudioFormatWriter::ThreadedWriter> threadedSelfWriters;
-    int  mSelfRecordChans[MAX_CHANGROUPS] { 0 };
-
-    CriticalSection writerLock;
-    std::atomic<AudioFormatWriter::ThreadedWriter*> activeMixWriter { nullptr };
-    std::atomic<AudioFormatWriter::ThreadedWriter*> activeMixMinusWriter { nullptr };
-    std::atomic<AudioFormatWriter::ThreadedWriter*> activeSelfWriters[MAX_CHANGROUPS] { nullptr };
 
     // playing stuff
 

@@ -322,7 +322,6 @@ private:
 
     std::unique_ptr<SonoDrawableButton> mRecordingButton;
 
-    std::unique_ptr<Drawable> mPeerRecImage;
 
 
     // effects
@@ -407,7 +406,6 @@ private:
     bool mPanChanged = false;
     
 
-    URL lastRecordedFile;
 
     String mActiveLanguageCode;
 

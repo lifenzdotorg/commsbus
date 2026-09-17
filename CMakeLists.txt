@@ -483,7 +483,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/record.svg
         images/record_active.svg
         images/record_active_alt.svg
-        images/rectape.svg
         images/reset_buffer_icon.svg
         images/send.svg
         images/send_group.svg

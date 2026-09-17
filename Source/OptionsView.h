@@ -88,7 +88,6 @@ protected:
     void configLevelSlider(Slider *);
 
     void changeUdpPort(int port);
-    void chooseRecDirBrowser();
 
 
     CommsbusAudioProcessor& processor;
@@ -102,14 +101,11 @@ protected:
     std::unique_ptr<AudioDeviceSelectorComponent> mAudioDeviceSelector;
     std::unique_ptr<Viewport> mAudioOptionsViewport;
     std::unique_ptr<Viewport> mOtherOptionsViewport;
-    std::unique_ptr<Viewport> mRecordOptionsViewport;
 
 
     std::unique_ptr<Component> mOptionsComponent;
-    std::unique_ptr<Component> mRecOptionsComponent;
 
     int minOptionsHeight = 0;
-    int minRecOptionsHeight = 0;
 
     uint32 settingsClosedTimestamp = 0;
 
@@ -150,19 +146,6 @@ protected:
     std::unique_ptr<ToggleButton> mOptionsUnivFontButton;
 
 
-    std::unique_ptr<Label> mOptionsRecFilesStaticLabel;
-    std::unique_ptr<ToggleButton> mOptionsRecMixButton;
-    std::unique_ptr<ToggleButton> mOptionsRecMixMinusButton;
-    std::unique_ptr<ToggleButton> mOptionsRecSelfButton;
-    std::unique_ptr<ToggleButton> mOptionsRecOthersButton;
-    std::unique_ptr<ToggleButton> mOptionsRecSelfPostFxButton;
-    std::unique_ptr<ToggleButton> mOptionsRecSelfSilenceMutedButton;
-    std::unique_ptr<SonoChoiceButton> mRecFormatChoice;
-    std::unique_ptr<SonoChoiceButton> mRecBitsChoice;
-    std::unique_ptr<Label> mRecFormatStaticLabel;
-    std::unique_ptr<Label> mRecLocationStaticLabel;
-    std::unique_ptr<TextButton> mRecLocationButton;
-    std::unique_ptr<ToggleButton> mOptionsRecFinishOpenButton;
 
 
     FlexBox mainBox;
@@ -187,16 +170,8 @@ protected:
     FlexBox optionsAllowBluetoothBox;
     FlexBox optionsAutoDropThreshBox;
 
-    FlexBox recOptionsBox;
-    FlexBox optionsRecordFormatBox;
-    FlexBox optionsRecMixBox;
-    FlexBox optionsRecSelfBox;
     FlexBox optionsRecMixMinusBox;
     FlexBox optionsRecOthersBox;
-    FlexBox optionsRecordDirBox;
-    FlexBox optionsRecordSelfPostFxBox;
-    FlexBox optionsRecordSilentSelfMuteBox;
-    FlexBox optionsRecordFinishBox;
 
 
     std::unique_ptr<TabbedComponent> mSettingsTab;

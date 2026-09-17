@@ -726,11 +726,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     //mDefaultRecordDir = URL(parentDir);
     //mLastBrowseDir = mDefaultRecordDir.getLocalFile().getFullPathName();
     // LEAVE EMPTY by default
-#else
-    auto parentDir = File::getSpecialLocation (File::userMusicDirectory);
-    parentDir = parentDir.getChildFile("Commsbus");
-    mDefaultRecordDir = URL(parentDir);
-    mLastBrowseDir = mDefaultRecordDir.getLocalFile().getFullPathName();
 #endif
 
 
@@ -2974,7 +2969,6 @@ void CommsbusAudioProcessor::sendRemotePeerInfoUpdate(int index, RemotePeer * to
     // not great, better than nothing - TODO make this accurate
     info->setProperty("inlat", 1e3 * currSamplesPerBlock / getSampleRate());
     info->setProperty("outlat", 1e3 * currSamplesPerBlock / getSampleRate());
-    info->setProperty("rec", isRecordingToFile());
 
     // nettype TODO
 
@@ -5499,27 +5493,6 @@ bool CommsbusAudioProcessor::isRemotePeerLatencyTestActive(int index)
 }
 
 
-bool CommsbusAudioProcessor::isAnyRemotePeerRecording() const
-{
-    const ScopedReadLock sl (mCoreLock);
-    for (int index=0; index < mRemotePeers.size(); ++index) {
-        RemotePeer * remote = mRemotePeers.getUnchecked(index);
-        if (remote->remoteIsRecording) return true;
-    }
-    return false;
-}
-
-bool  CommsbusAudioProcessor::isRemotePeerRecording(int index) const
-{
-    const ScopedReadLock sl (mCoreLock);
-    if (index > 0 && index < mRemotePeers.size()) {
-        RemotePeer * remote = mRemotePeers.getUnchecked(index);
-        return remote->remoteIsRecording;
-    }
-    return false;
-}
-
-
 bool CommsbusAudioProcessor::startRemotePeerLatencyTest(int index, float durationsec)
 {
     const ScopedReadLock sl (mCoreLock);        
@@ -7002,8 +6975,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
     int sendChans = mSendChannels.get();
 
-    bool userwritingpossible = userWritingPossible.load();
-    bool writingpossible = writingPossible.load();
 
     inGain = mMainInMute.get() ? 0.0f : inGain;
 
@@ -7076,9 +7047,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
 
     inputPostBuffer.clear(0, numSamples);
-    if (writingpossible && mRecordInputPreFX) {
-        inputPreBuffer.clear(0, numSamples);
-    }
 
     bool inReverbEnabled = false;
     for (auto i = 0; i < mInputChannelGroupCount && i < MAX_CHANGROUPS; ++i)
@@ -7105,15 +7073,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
         mInputChannelGroups[i].processBlock(buffer, inputPostBuffer, destch, mInputChannelGroups[i].params.numChannels, silentBuffer, numSamples, inGain,
                                             nullptr, revbuf, 0, revfxchannels, inReverbEnabled);
-
-        if (writingpossible && mRecordInputPreFX) {
-            // copy input as-is for later recording
-            for (int ch = 0; ch < mInputChannelGroups[i].params.numChannels; ++ch) {
-                int usech = mInputChannelGroups[i].params.chanStartIndex + ch;
-                const auto * srcbuf = usech < buffer.getNumChannels() ? buffer.getReadPointer(usech) : silentBuffer.getReadPointer(0);
-                inputPreBuffer.copyFrom(destch + ch, 0, srcbuf, numSamples);
-            }
-        }
 
         destch += mInputChannelGroups[i].params.numChannels;
     }
@@ -7318,27 +7277,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
                 remote->workBuffer.clear(0, numSamples);
 
                 remote->oursink->process((float **)remote->workBuffer.getArrayOfWritePointers(), numSamples, t);
-            }
-
-            
-            // record individual tracks pre-compressor/level/pan, ignoring muting/solo, raw material
-
-            if (userwritingpossible) {
-                const ScopedTryLock sl (writerLock);
-                if (sl.isLocked() && remote->fileWriter)
-                {
-                    float *tmpbuf[MAX_PANNERS];
-                    int numchan = remote->fileWriter->getWriter()->getNumChannels();
-                    for (int i = 0; i < numchan && i < MAX_PANNERS; ++i) {
-                        if (i < remote->recvChannels) {
-                            tmpbuf[i] = remote->workBuffer.getWritePointer(i);
-                        }
-                        else {
-                            tmpbuf[i] = silentBuffer.getWritePointer(0);
-                        }
-                    }
-                    remote->fileWriter->write (tmpbuf, numSamples);
-                }
             }
 
             // write out per-user output bus
@@ -7707,109 +7645,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     
     outputMeterSource.measureBlock (buffer, 0, numSamples);
 
-    // output to file writer if necessary
-    if (writingpossible) {
-        const ScopedTryLock sl (writerLock);
-        if (sl.isLocked())
-        {
-            if (activeMixWriter.load() != nullptr 
-                || activeMixMinusWriter.load() != nullptr
-                || activeSelfWriters[0].load() != nullptr
-                )
-            {
-                // write the raw (pre or post FX) input
-                if (activeSelfWriters[0].load() != nullptr) {
-                    const float * const* inbufs = mRecordInputPreFX ? inputPreBuffer.getArrayOfReadPointers() : inputPostBuffer.getArrayOfReadPointers();
-                    int chindex = 0;
-                    for (int i=0; i < mInputChannelGroupCount; ++i) {
-                        int chcnt = mInputChannelGroups[i].params.numChannels;
-                        const bool silenceIns = mRecordInputSilenceWhenMuted && (inGain == 0.0f || mInputChannelGroups[i].params.muted);
-                        if (activeSelfWriters[i].load() != nullptr) {
-                            // we need to make sure the writer has at least all the inputs it expects
-                            const float * useinbufs[MAX_PANNERS];
-                            for (int j=0; j < mSelfRecordChans[i] && j < MAX_PANNERS; ++j) {
-                                useinbufs[j] = (j < chcnt && !silenceIns) ? inbufs[chindex+j] : silentBuffer.getReadPointer(0);
-                            }
-                            activeSelfWriters[i].load()->write (useinbufs, numSamples);
-                        }
-                        chindex += chcnt;
-                    }
-                }
-
-                // we need to mix the input, audio from remote peers, and the file playback together here
-                workBuffer.clear(0, numSamples);
-
-
-                bool rampit =  (fabsf(wetnow - mLastWet) > 0.00001);
-                
-                for (int channel = 0; channel < totalRecordingChannels; ++channel) {
-                    
-                    // apply Main out gain to audio from remote peers and file playback (should we?)
-                    if (rampit) {
-                        workBuffer.addFromWithRamp(channel, 0, tempBuffer.getReadPointer(channel), numSamples, mLastWet, wetnow);
-                        if (hasmainfx) {
-                            workBuffer.addFromWithRamp(channel, 0, mainFxBuffer.getReadPointer(channel), numSamples, mLastWet, wetnow);
-                        }
-                   }
-                    else {
-                        workBuffer.addFrom(channel, 0, tempBuffer, channel, 0, numSamples, wetnow);
-
-                        if (hasmainfx) {
-                            workBuffer.addFrom(channel, 0, mainFxBuffer, channel, 0, numSamples, wetnow);
-                        }
-                    }
-                }
-
-                if (activeMixMinusWriter.load() != nullptr) {
-                    activeMixMinusWriter.load()->write (workBuffer.getArrayOfReadPointers(), numSamples);
-                }
-
-                // mix in input
-                for (int channel = 0; channel < totalRecordingChannels; ++channel) {
-                    if (channel >= inputBuffer.getNumChannels()) continue;
-                    //int usechan = channel < mainBusInputChannels ? channel : channel > 0 ? channel-1 : 0;
-                    auto usechan = channel;
-
-                    if (mDry.get() > 0.0f) {
-                        // copy input with monitor gain if > 0
-                        if (dryrampit) {
-                            workBuffer.addFromWithRamp(channel, 0, inputBuffer.getReadPointer(usechan), numSamples, mLastDry, drynow);
-
-                            if (doinreverb && channel < 2) {
-                                workBuffer.addFromWithRamp(channel, 0, inputRevBuffer.getReadPointer(channel), numSamples, mLastDry, drynow);
-                            }
-                        }
-                        else {
-                            workBuffer.addFrom(channel, 0, inputBuffer.getReadPointer(usechan), numSamples, drynow);
-
-                            if (doinreverb && channel < 2) {
-                                workBuffer.addFrom(channel, 0, inputRevBuffer.getReadPointer(usechan), numSamples, drynow);
-                            }
-                        }
-                    }
-                    else if (!anysoloed || mMainMonitorSolo.get()) {
-                        // monitoring is off, we just mix it into written file at full volume, as long as no one else is soloed
-                        workBuffer.addFrom(channel, 0, inputBuffer.getReadPointer(usechan), numSamples);
-
-                        if (doinreverb && channel < 2) {
-                            workBuffer.addFrom(channel, 0, inputRevBuffer.getReadPointer(usechan), numSamples);
-                        }
-                    }
-
-                }
-
-                if (activeMixWriter.load() != nullptr) {
-                    // write out full mix
-                    activeMixWriter.load()->write (workBuffer.getArrayOfReadPointers(), numSamples);
-                }
-                
-            }
-        }
-    }
-
-    if (writingpossible || userwritingpossible) {
-        mElapsedRecordSamples += numSamples;
-    }
 
 
     lastSamplesPerBlock = numSamples;
@@ -7939,18 +7774,7 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(useSpecificUdpPortKey, mUseSpecificUdpPort, nullptr);
     extraTree.setProperty(changeQualForAllKey, mChangingDefaultAudioCodecChangesAll, nullptr);
     extraTree.setProperty(changeRecvQualForAllKey, mChangingDefaultRecvAudioCodecChangesAll, nullptr);
-    extraTree.setProperty(defRecordOptionsKey, var((int)mDefaultRecordingOptions), nullptr);
-    extraTree.setProperty(defRecordFormatKey, var((int)mDefaultRecordingFormat), nullptr);
-    extraTree.setProperty(defRecordBitsKey, var((int)mDefaultRecordingBitsPerSample), nullptr);
-    extraTree.setProperty(recordSelfPreFxKey, mRecordInputPreFX, nullptr);
-    extraTree.setProperty(recordSelfSilenceMutedKey, mRecordInputSilenceWhenMuted, nullptr);
-    extraTree.setProperty(recordFinishOpenKey, mRecordFinishOpens, nullptr);
 
-    if (mDefaultRecordDir.isLocalFile()) {
-        // backwards compat
-        extraTree.setProperty(defRecordDirKey, mDefaultRecordDir.getLocalFile().getFullPathName(), nullptr);
-    }
-    extraTree.setProperty(defRecordDirURLKey, mDefaultRecordDir.toString(false), nullptr);
 
     extraTree.setProperty(lastBrowseDirKey, mLastBrowseDir, nullptr);
     extraTree.setProperty(sliderSnapKey, mSliderSnapToMouse, nullptr);
@@ -8062,50 +7886,8 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             bool chrqual = extraTree.getProperty(changeRecvQualForAllKey, mChangingDefaultRecvAudioCodecChangesAll);
             setChangingDefaultRecvAudioCodecSetsExisting(chrqual);
 
-            uint32 opts = (uint32)(int) extraTree.getProperty(defRecordOptionsKey, (int)mDefaultRecordingOptions);
-            setDefaultRecordingOptions(opts);
-
-            uint32 fmt = (uint32)(int) extraTree.getProperty(defRecordFormatKey, (int)mDefaultRecordingFormat);
-            setDefaultRecordingFormat((RecordFileFormat)fmt);
-
-            int bps = (uint32)(int) extraTree.getProperty(defRecordBitsKey, (int)mDefaultRecordingBitsPerSample);
-            setDefaultRecordingBitsPerSample(bps);
-
             bool linkmon = extraTree.getProperty(linkMonitoringDelayTimesKey, mLinkMonitoringDelayTimes);
             setLinkMonitoringDelayTimes(linkmon);
-
-            bool prefx = extraTree.getProperty(recordSelfPreFxKey, mRecordInputPreFX);
-            setSelfRecordingPreFX(prefx);
-
-            bool silmute = extraTree.getProperty(recordSelfSilenceMutedKey, mRecordInputSilenceWhenMuted);
-            setSelfRecordingSilenceWhenMuted(silmute);
-
-
-            setRecordFinishOpens(extraTree.getProperty(recordFinishOpenKey, mRecordFinishOpens));
-
-
-#if !(JUCE_IOS)
-            String urlstr = extraTree.getProperty(defRecordDirURLKey, "");
-            if (urlstr.isNotEmpty()) {
-                // doublecheck it's a valid URL due to bad update
-                auto url = URL(urlstr);
-                if (url.getScheme().isEmpty()) {
-                    // assume it's a file
-                    DBG("Bad saved record URL: " << urlstr);
-                    url = URL(File(urlstr));
-                }
-                setDefaultRecordingDirectory(url);
-            } else {
-#if ! JUCE_ANDROID
-                // backward compat (but not on android)
-                String filestr = extraTree.getProperty(defRecordDirKey, "");
-                if (filestr.isNotEmpty()) {
-                    File recdir = File(filestr);
-                    setDefaultRecordingDirectory(URL(recdir));
-                }
-#endif
-            }
-#endif
 
 #if !(JUCE_IOS || JUCE_ANDROID)
             setLastBrowseDirectory(extraTree.getProperty(lastBrowseDirKey, mLastBrowseDir));
@@ -8483,500 +8265,6 @@ StringArray CommsbusAudioProcessor::getAllBlockedAddresses() const
     return retlist;
 }
 
-
-bool CommsbusAudioProcessor::startRecordingToFile(const URL & recordLocationUrl, const String & filename, URL & mainreturl, uint32 recordOptions, RecordFileFormat fileformat)
-{
-    if (!recordingThread) {
-        recordingThread = std::make_unique<TimeSliceThread>("Recording Thread");
-        recordingThread->startThread();        
-    }
-    
-    stopRecordingToFile();
-
-    bool ret = false;
-    
-    // Now create a WAV writer object that writes to our output stream...
-    //WavAudioFormat audioFormat;
-    std::unique_ptr<AudioFormat> audioFormat;
-    std::unique_ptr<AudioFormat> wavAudioFormat;
-
-    int qualindex = 0;
-    
-    int bitsPerSample = mDefaultRecordingBitsPerSample;
-
-    if (getSampleRate() <= 0)
-    {
-        return false;
-    }
-    
-    // just put a bogus directory in it, we'll be using only the filename part
-    File usefile = File::getCurrentWorkingDirectory().getChildFile(filename);
-    String mimetype;
-    
-    if (fileformat == FileFormatDefault) {
-        fileformat = mDefaultRecordingFormat;
-    }
-    
-    if (recordOptions == RecordDefaultOptions) {
-        recordOptions = mDefaultRecordingOptions;
-    }
-
-    totalRecordingChannels = getMainBusNumOutputChannels();
-    if (totalRecordingChannels == 0) {
-        totalRecordingChannels = 2;
-    }
-
-    if (fileformat == FileFormatFLAC && totalRecordingChannels > 8) {
-        // flac doesn't support > 8 channels
-        fileformat = FileFormatWAV;
-    }
-
-    if (fileformat == FileFormatFLAC || (fileformat == FileFormatAuto && usefile.getFileExtension().toLowerCase() == ".flac")) {
-        audioFormat = std::make_unique<FlacAudioFormat>();
-        usefile = usefile.withFileExtension(".flac");
-        mimetype = "audio/flac" ;
-    }
-    else if (fileformat == FileFormatWAV || (fileformat == FileFormatAuto && usefile.getFileExtension().toLowerCase() == ".wav")) {
-        audioFormat = std::make_unique<WavAudioFormat>();
-        usefile = usefile.withFileExtension(".wav");
-        mimetype = "audio/wav" ;
-    }
-    else if (fileformat == FileFormatOGG || (fileformat == FileFormatAuto && usefile.getFileExtension().toLowerCase() == ".ogg")) {
-        audioFormat = std::make_unique<OggVorbisAudioFormat>();
-        qualindex = 8; // 256k
-        usefile = usefile.withFileExtension(".ogg");
-        mimetype = "audio/ogg" ;
-    }
-    else {
-        mLastError = TRANS("Could not find format for filename");
-        DBG(mLastError);
-        return false;
-    }
-
-    bool userwriting = false;
-
-    
-#if JUCE_ANDROID
-
-    auto makeStream = [this,mimetype](const URL & parent, String & name, URL & returl) {
-        auto parentTree = AndroidDocument::fromDocument(parent);
-        if (!parentTree.hasValue() && parent.isLocalFile()) {
-            parentTree = AndroidDocument::fromFile(parent.getLocalFile());
-        }
-        if (parentTree.hasValue()) {
-            auto fileurl = parent.getChildURL(name);
-            //auto doc = AndroidDocument::fromDocument(fileurl);
-            auto bname = File::getCurrentWorkingDirectory().getChildFile(name).getFileNameWithoutExtension();
-            auto doc = parentTree.createChildDocumentWithTypeAndName(mimetype, bname);
-            if (!doc.hasValue()) {
-                // fall back to file ops
-                DBG("creating fallback file stream");
-
-                if (fileurl.isLocalFile()) {
-                    auto file = fileurl.getLocalFile().getNonexistentSibling();
-                    name = file.getFileName();
-                    returl = URL(file);
-                    return std::unique_ptr<OutputStream> (file.createOutputStream());
-                }
-            }
-            else {
-                // TODO, prevent creating existing filename
-                DBG("creating doc stream: " << doc.getUrl().toString(false));
-                returl = doc.getUrl();
-                return doc.createOutputStream();
-            }
-        }
-        return std::unique_ptr<OutputStream>();
-    };
-
-    auto deleteExisting = [this,mimetype](const URL & parent, String name) {
-        auto childurl = parent.getChildURL(name);
-        auto doc = AndroidDocument::fromDocument(childurl);
-        
-        if (doc.hasValue()) {
-            DBG("deleting doc: " << doc.getUrl().toString(false));
-            return doc.deleteDocument();
-        }
-        else if (childurl.isLocalFile()) {
-            return childurl.getLocalFile().deleteFile();
-        }
-
-        return false;
-    };
-
-    auto makeReturnUrl = [this,mimetype](const URL & parent, String name) {
-        auto childurl = parent.getChildURL(name);
-        return childurl;
-    };
-    
-    
-    auto makeChildDirUrl = [this](const URL & parent, String name) {
-        auto parentTree = AndroidDocument::fromDocument(parent);
-        if (!parentTree.hasValue() && parent.isLocalFile()) {
-            parentTree = AndroidDocument::fromFile(parent.getLocalFile());
-        }
-        if (parentTree.hasValue()) {
-            auto childDir = parentTree.createChildDirectory(name);
-            // TODO, create unique name
-            if (childDir.hasValue()) {
-                DBG("Created child dir: " << childDir.getUrl().toString(false));
-                return childDir.getUrl();
-            }
-        }
-        else {
-            auto recdirurl = parent.getChildURL(name);
-            if (recdirurl.isLocalFile()) {
-                File recdir = recdirurl.getLocalFile().getNonexistentSibling();
-                if (recdir.createDirectory()) {
-                    DBG("Created child dir as file: " << name);
-                    return URL(recdir);
-                }
-            }
-        }
-            
-        return URL();
-    };
-
-    
-#else
-    
-    auto makeStream = [this](const URL & parent, String & name, URL & returl) {
-        URL fileurl = parent.getChildURL(name);
-        if (fileurl.isLocalFile()) {
-            auto file = fileurl.getLocalFile().getNonexistentSibling();
-            name = file.getFileName();
-            returl = URL(file);
-            return std::unique_ptr<OutputStream> (file.createOutputStream());
-        }
-        return std::unique_ptr<OutputStream>();
-    };
-
-    auto deleteExisting = [this](const URL & parent, String name) {
-        URL fileurl = parent.getChildURL(name);
-        if (fileurl.isLocalFile()) {
-            return fileurl.getLocalFile().deleteFile();
-        }
-        return false;
-    };
-
-    auto makeReturnUrl = [this](const URL & parent, String name) {
-        return parent.getChildURL(name);
-    };
-    
-    
-    auto makeChildDirUrl = [this](const URL & parent, String name) {
-        auto recdirurl = parent.getChildURL(name);
-        if (recdirurl.isLocalFile()) {
-            File recdir = recdirurl.getLocalFile().getNonexistentSibling();
-            if (recdir.createDirectory()) {
-                return URL(recdir);
-            }
-        }
-            
-        return URL();
-    };
-
-#endif
-    
-    
-    
-    if (recordOptions == RecordMix) {
-
-        // Create an OutputStream to write to our destination file...
-        deleteExisting(recordLocationUrl, usefile.getFileName());
-        
-        String filename = usefile.getFileName();
-        URL returl;
-        
-        if (auto fileStream = makeStream(recordLocationUrl, filename, returl))
-        {
-            if (auto writer = audioFormat->createWriterFor (fileStream.get(), getSampleRate(), totalRecordingChannels, bitsPerSample, {}, qualindex))
-            {
-                fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
-                
-                // Now we'll create one of these helper objects which will act as a FIFO buffer, and will
-                // write the data to disk on our background thread.
-                threadedMixWriter.reset (new AudioFormatWriter::ThreadedWriter (writer, *recordingThread, 32768));
-                
-                DBG("Started recording only mix file " << returl.toString(false));
-
-                mainreturl = returl;
-                ret = true;
-            } else {
-                mLastError.clear();
-                mLastError << TRANS("Error creating writer for ") << returl.toString(false);
-                DBG(mLastError);
-            }
-        } else {
-            auto returl = makeReturnUrl(recordLocationUrl, filename);
-            mLastError.clear();
-            mLastError << TRANS("Error creating output file: ") << returl.toString(false);
-            DBG(mLastError);
-        }
-        
-    }
-    else {
-        // make directory from the filename
-        auto recdir = makeChildDirUrl(recordLocationUrl, usefile.getFileNameWithoutExtension());
-        
-        if (recdir.isEmpty()) {
-            mLastError.clear();
-            mLastError << TRANS("Error creating directory for recording: ") << makeReturnUrl(recordLocationUrl, usefile.getFileNameWithoutExtension()).toString(false);
-            DBG(mLastError);
-            return false;
-        }
-
-        // create writers for all appropriate things
-
-        if (recordOptions & RecordMixMinusSelf) {
-            String filename = usefile.getFileNameWithoutExtension() + "-MIXMINUS" + usefile.getFileExtension();
-            filename = File::createLegalFileName(filename);
-            
-            URL returl;
-            
-            if (auto fileStream = makeStream(recdir, filename, returl))
-            {
-                if (auto writer = audioFormat->createWriterFor (fileStream.get(), getSampleRate(), totalRecordingChannels, bitsPerSample, {}, qualindex))
-                {
-                    fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
-                    
-                    // Now we'll create one of these helper objects which will act as a FIFO buffer, and will
-                    // write the data to disk on our background thread.
-                    threadedMixMinusWriter.reset (new AudioFormatWriter::ThreadedWriter (writer, *recordingThread, 32768));
-
-                    DBG("Created mix minus output file: " << returl.toString(false));
-             
-                    mainreturl = returl;
-                    ret = true;
-                } else {
-                    DBG("Error creating mix minus writer for " << returl.toString(false));
-                }
-            } else {
-                DBG("Error creating mix minus output file: " << makeReturnUrl(recdir, filename).toString(false));
-            }
-        }
-        
-        if (recordOptions & RecordSelf) {
-            mSelfRecordChannels = mActiveInputChannels;
-
-            for (int i=0; i < mInputChannelGroupCount && i < MAX_CHANGROUPS; ++i) {
-                int chans = mInputChannelGroups[i].params.numChannels;
-                mSelfRecordChans[i] = chans;
-                String inname = mInputChannelGroups[i].params.name;
-                String filename = usefile.getFileNameWithoutExtension() + (inname.isEmpty() ? "-SELF" : ("-SELF-" + inname)) + usefile.getFileExtension();
-                filename = File::createLegalFileName(filename);
-                
-                URL returl;
-
-                if (auto fileStream = makeStream(recdir, filename, returl))
-                {
-                    if (auto writer = audioFormat->createWriterFor (fileStream.get(), getSampleRate(), chans, bitsPerSample, {}, qualindex))
-                    {
-                        fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
-
-                        // Now we'll create one of these helper objects which will act as a FIFO buffer, and will
-                        // write the data to disk on our background thread.
-                        threadedSelfWriters.add (new AudioFormatWriter::ThreadedWriter (writer, *recordingThread, 32768));
-
-                        DBG("Created self output file: " << returl.toString(false));
-
-                        mainreturl = returl;
-                        ret = true;
-
-                    } else {
-                        DBG("Error creating self writer for " << returl.toString(false));
-                    }
-                } else {
-                    DBG("Error creating self output file: " << makeReturnUrl(recdir, filename).toString(false));
-                }
-            }
-        }
-
-        if (recordOptions & RecordMix) {
-            String filename = usefile.getFileNameWithoutExtension() + "-MIX" + usefile.getFileExtension();
-            filename = File::createLegalFileName(filename);
-            
-            URL returl;
-
-            if (auto fileStream = makeStream(recdir, filename, returl))
-            {
-
-                if (auto writer = audioFormat->createWriterFor (fileStream.get(), getSampleRate(), totalRecordingChannels, bitsPerSample, {}, qualindex))
-                {
-                    fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
-                    
-                    // Now we'll create one of these helper objects which will act as a FIFO buffer, and will
-                    // write the data to disk on our background thread.
-                    threadedMixWriter.reset (new AudioFormatWriter::ThreadedWriter (writer, *recordingThread, 32768));
-
-                    DBG("Created mix output file: " << returl.toString(false));
-
-                    mainreturl = returl;
-                    ret = true;
-                } else {
-                    DBG("Error creating mix writer for " << returl.toString(false));
-                }
-            } else {
-                DBG("Error creating mix output file: " << makeReturnUrl(recdir, filename).toString(false));
-            }
-        }
-
-        
-       
-
-        
-        if (recordOptions & RecordIndividualUsers) {
-            const ScopedReadLock sl (mCoreLock);        
-
-            for (auto & remote : mRemotePeers) {
-
-                int numchan = remote->recvChannels;
-                if (numchan == 0) {
-                    // assume there will be something eventually
-                    numchan = 2;
-                }
-                AudioFormat * useformat = audioFormat.get();
-                String fileext = usefile.getFileExtension();
-
-                if (fileformat == FileFormatFLAC && numchan > 8) {
-                    if (!wavAudioFormat) {
-                        wavAudioFormat = std::make_unique<WavAudioFormat>();
-                    }
-                    useformat = wavAudioFormat.get();
-                    fileext = ".wav";
-                }
-
-                String userfilename = usefile.getFileNameWithoutExtension() + "-" + remote->userName + fileext;
-                userfilename = File::createLegalFileName(userfilename);
-
-                URL returl;
-
-                if (auto fileStream = makeStream(recdir, userfilename, returl))
-                {
-                    if (auto writer = useformat->createWriterFor (fileStream.get(), getSampleRate(), numchan, bitsPerSample, {}, qualindex))
-                    {
-                        fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
-                        
-                        // Now we'll create one of these helper objects which will act as a FIFO buffer, and will
-                        // write the data to disk on our background thread.
-                        remote->fileWriter = std::make_unique<AudioFormatWriter::ThreadedWriter>(writer, *recordingThread, 32768);
-
-                        DBG("Created user output file: " << returl.toString(false));
-                        ret = true;
-                        userwriting = true;
-                    } else {
-                        DBG("Error user writer for " << returl.toString(false));
-                    }
-                } else {
-                    DBG("Error creating user output file: " << makeReturnUrl(recdir, filename).toString(false));
-                }
-            }
-        }
-    }
-    
-    if (ret) {
-        // And now, swap over our active writer pointers so that the audio callback will start using it..
-        const ScopedLock sl (writerLock);
-        mElapsedRecordSamples = 0;
-        activeMixWriter = threadedMixWriter.get();
-        activeMixMinusWriter = threadedMixMinusWriter.get();
-
-        for (int i=0; i < MAX_CHANGROUPS; ++i) {
-            if (i < threadedSelfWriters.size()) {
-                activeSelfWriters[i] = threadedSelfWriters.getUnchecked(i);
-            }
-            else {
-                activeSelfWriters[i] = nullptr;
-            }
-        }
-
-        writingPossible.store(activeMixWriter || threadedSelfWriters.size() || activeMixMinusWriter);
-
-        userWritingPossible.store(userwriting);
-
-        //DBG("Started recording file " << usefile.getFullPathName());
-    }
-
-    sendRemotePeerInfoUpdate();
-
-    return ret;
-}
-
-bool CommsbusAudioProcessor::stopRecordingToFile()
-{
-    // First, clear this pointer to stop the audio callback from using our writer object..
-
-    OwnedArray<AudioFormatWriter::ThreadedWriter> userwriters;
-    userwriters.ensureStorageAllocated(mRemotePeers.size());
-
-    {
-        const ScopedReadLock scl (mCoreLock);
-
-        const ScopedLock sl (writerLock);
-        activeMixWriter = nullptr;
-        activeMixMinusWriter = nullptr;
-        for (int i=0; i < MAX_CHANGROUPS; ++i) {
-            activeSelfWriters[i] = nullptr;
-        }
-
-        writingPossible.store(false);
-        userWritingPossible.store(false);
-
-        // transfer ownership of writers to our temporary OwnedArray to be cleared below
-        for (auto & remote : mRemotePeers) {
-            if (remote->fileWriter) {
-                userwriters.add(std::move(remote->fileWriter));
-            }
-        }
-
-    }
-    
-    bool didit = false;
-    
-    if (threadedMixWriter) {
-        
-        // Now we can delete the writer object. It's done in this order because the deletion could
-        // take a little time while remaining data gets flushed to disk, and we can't be blocking
-        // the audio callback while this happens.
-        threadedMixWriter.reset();
-        
-        DBG("Stopped recording mix file");
-        didit = true;
-    }
-
-    if (!threadedSelfWriters.isEmpty()) {
-        threadedSelfWriters.clearQuick(true);
-        DBG("Stopped recording self file(s)");
-        didit = true;
-    }
-
-    if (threadedMixMinusWriter) {
-        threadedMixMinusWriter.reset();
-        
-        DBG("Stopped recording mix-minus file");
-        didit = true;
-    }
-
-    // cleanup any user writers
-    if (!userwriters.isEmpty()) {
-        userwriters.clear();
-        DBG("Stopped recording user files");
-        didit = true;
-    }
-
-    sendRemotePeerInfoUpdate();
-
-    return didit;
-}
-
-bool CommsbusAudioProcessor::isRecordingToFile()
-{
-    return (activeMixWriter.load() != nullptr 
-            || threadedSelfWriters.size() > 0
-            || activeMixMinusWriter.load() != nullptr 
-            || userWritingPossible.load()
-            );
-}
 
 #pragma Effects
 

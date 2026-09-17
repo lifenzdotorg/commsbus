@@ -877,19 +877,8 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mIAAHostButton->addListener(this);
 
     
-    mPeerRecImage = Drawable::createFromImageData(BinaryData::rectape_svg, BinaryData::rectape_svgSize);
-    mPeerRecImage->setInterceptsMouseClicks(false, false);
 
     {
-        mRecordingButton = std::make_unique<SonoDrawableButton>("record", DrawableButton::ButtonStyle::ImageFitted);
-        std::unique_ptr<Drawable> recimg(Drawable::createFromImageData(BinaryData::record_svg, BinaryData::record_svgSize));
-        std::unique_ptr<Drawable> recselimg(Drawable::createFromImageData(BinaryData::record_active_alt_svg, BinaryData::record_active_alt_svgSize));
-        mRecordingButton->setImages(recimg.get(), nullptr, nullptr, nullptr, recselimg.get());
-        mRecordingButton->addListener(this);
-        mRecordingButton->setColour(DrawableButton::backgroundOnColourId, Colours::transparentBlack);
-        mRecordingButton->setTooltip(TRANS("Start/Stop recording audio to file"));
-        mRecordingButton->setTitle(TRANS("Record"));
-        mRecordingButton->setClickingTogglesState(true);
     }
 
 #if JUCE_IOS || JUCE_ANDROID
@@ -912,7 +901,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mTopLevelContainer->addAndMakeVisible(mMainUserLabel.get());
     mTopLevelContainer->addAndMakeVisible(mMainPersonImage.get());
     mTopLevelContainer->addAndMakeVisible(mMainGroupImage.get());
-    mTopLevelContainer->addChildComponent(mPeerRecImage.get());
     mTopLevelContainer->addAndMakeVisible(mPeerLayoutFullButton.get());
     mTopLevelContainer->addAndMakeVisible(mPeerLayoutMinimalButton.get());
 
@@ -966,9 +954,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mTopLevelContainer->addChildComponent(mIAAHostButton.get());
 
 
-    if (mRecordingButton) {
-        mTopLevelContainer->addAndMakeVisible(mRecordingButton.get());
-    }
 
 
 
@@ -1563,12 +1548,7 @@ void CommsbusAudioProcessorEditor::timerCallback(int timerid)
 
         mChatButton->setToggleState(mChatView->haveNewSinceLastView(), dontSendNotification);
 
-        auto anyrec = processor.isAnyRemotePeerRecording() || processor.isRecordingToFile();
-        if (mPeerRecImage->isVisible() != anyrec) {
-            mPeerRecImage->setVisible(anyrec);
-            mPeerRecImage->repaint();
-            resized();
-        }
+
 
 #if 0
         if (JUCEApplicationBase::isStandaloneApp() && getAudioDeviceManager())
@@ -1769,175 +1749,6 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
             switchToHostApplication();
         }
     }
-    else if (buttonThatWasClicked == mRecordingButton.get()) {
-        if (processor.isRecordingToFile()) {
-            processor.stopRecordingToFile();
-
-            mRecordingButton->setToggleState(false, dontSendNotification);
-            //updateServerStatusLabel("Stopped Recording");
-
-            String filepath;
-#if (JUCE_IOS || JUCE_ANDROID)
-            if (lastRecordedFile.isLocalFile()) {
-                filepath = lastRecordedFile.getLocalFile().getRelativePathFrom(File::getSpecialLocation (File::userDocumentsDirectory));
-                //showPopTip(TRANS("Finished recording to ") + filepath, 4000, mRecordingButton.get(), 130);
-            }
-            else {
-                filepath = lastRecordedFile.getFileName();
-            }
-#elif (JUCE_ANDROID)
-            filepath = lastRecordedFile.getFileName();
-#else
-            if (lastRecordedFile.isLocalFile()) {
-                filepath = lastRecordedFile.getLocalFile().getRelativePathFrom(File::getSpecialLocation (File::userHomeDirectory));
-            }
-            else {
-                filepath = lastRecordedFile.getFileName();
-            }
-#endif
-
-            mRecordingButton->setTooltip(TRANS("Last recorded file: ") + filepath);
-
-
-            //Timer::callAfterDelay(200, []() {
-            //    AccessibilityHandler::postAnnouncement(TRANS("Recording finished"), AccessibilityHandler::AnnouncementPriority::high);
-            //});
-
-
-            if (processor.getRecordFinishOpens()) {
-                // load up recording
-                if (lastRecordedFile.isLocalFile()) {
-                }
-                updateLayout();
-                resized();
-            }
-            
-        } else {
-
-            SafePointer<CommsbusAudioProcessorEditor> safeThis (this);
-
-#if JUCE_ANDROID
-            if (getAndroidSDKVersion() < 29) {
-                if (! RuntimePermissions::isGranted (RuntimePermissions::writeExternalStorage))
-                {
-                    RuntimePermissions::request (RuntimePermissions::writeExternalStorage,
-                                                 [safeThis] (bool granted) mutable
-                                                 {
-                        if (granted)
-                            safeThis->buttonClicked (safeThis->mRecordingButton.get());
-                    });
-                    return;
-                }
-            }
-#endif
-            
-            // create new timestamped filename
-            String filename = (currGroup.isEmpty() ? "CommsbusSession" : currGroup) + String("_") + Time::getCurrentTime().formatted("%Y-%m-%d_%H.%M.%S");
-
-            filename = File::createLegalFileName(filename);
-
-            auto parentDirUrl = processor.getDefaultRecordingDirectory();
-            
-            if (parentDirUrl.isEmpty()) {
-                // only happens on android, ask for external location to store files
-                
-                auto alertcb = [safeThis] (int button) {
-                    if (safeThis && button == 0) {
-                        safeThis->requestRecordDir([safeThis] (URL recurl) mutable
-                                                   {
-                            //if (!recurl.isEmpty()) {
-                            //    safeThis->buttonClicked (safeThis->mRecordingButton.get());
-                            //}
-                        });
-                    }
-                };
-                
-#if JUCE_ANDROID
-                auto mbopts = MessageBoxOptions().withTitle(TRANS("Select Folder")).withMessage(TRANS("You need to first choose a folder on your device to save recordings to.")).withButton(TRANS("Choose Folder")).withButton(TRANS("Cancel")).withAssociatedComponent(this);
-
-                AlertWindow::showAsync(mbopts, alertcb);
-#else
-                // just do it
-                alertcb(0);
-#endif
-                return;
-            }
-            
-            File parentDir;
-            if (parentDirUrl.isLocalFile()) {
-                parentDir = parentDirUrl.getLocalFile();
-                parentDir.createDirectory();
-            }
-
-            filename += ".flac";
-            
-            //File file (parentDir.getNonexistentChildFile (filename, ".flac"));
-            URL returl;
-            
-            if (processor.startRecordingToFile(parentDirUrl, filename, returl)) {
-                //updateServerStatusLabel("Started recording...");
-                lastRecordedFile = returl;
-                String filepath;
-
-#if (JUCE_IOS || JUCE_ANDROID)
-                showPopTip(TRANS("Started recording output"), 2000, mRecordingButton.get());
-#else
-                //Timer::callAfterDelay(200, []() {
-                //    AccessibilityHandler::postAnnouncement(TRANS("Started recording output"), AccessibilityHandler::AnnouncementPriority::high);
-                //});
-#endif
-
-
-
-                if (processor.getDefaultRecordingOptions() == CommsbusAudioProcessor::RecordMix) {
-
-#if (JUCE_IOS)
-                    if (lastRecordedFile.isLocalFile()) {
-                        filepath = lastRecordedFile.getLocalFile().getRelativePathFrom(File::getSpecialLocation (File::userDocumentsDirectory));
-                    } else {
-                        filepath = lastRecordedFile.getFileName();
-                    }
-#elif JUCE_ANDROID
-                    filepath = lastRecordedFile.getFileName();
-#else
-                    if (lastRecordedFile.isLocalFile()) {
-                        filepath = lastRecordedFile.getLocalFile().getRelativePathFrom(File::getSpecialLocation (File::userHomeDirectory));
-                    } else {
-                        filepath = lastRecordedFile.getFileName();
-                    }
-#endif
-
-                    mRecordingButton->setTooltip(TRANS("Recording audio to: ") + filepath);
-                } else 
-                {
-#if (JUCE_IOS)
-                    if (lastRecordedFile.isLocalFile()) {
-                        filepath = lastRecordedFile.getLocalFile().getParentDirectory().getRelativePathFrom(File::getSpecialLocation (File::userDocumentsDirectory));
-                    } else {
-                        filepath = lastRecordedFile.getFileName();
-                    }
-#elif (JUCE_ANDROID)
-                    filepath = lastRecordedFile.getFileName();
-#else
-                    if (lastRecordedFile.isLocalFile()) {
-                        filepath = lastRecordedFile.getLocalFile().getParentDirectory().getRelativePathFrom(File::getSpecialLocation (File::userHomeDirectory));
-                    } else {
-                        filepath = lastRecordedFile.getFileName();
-                    }
-#endif
-                    mRecordingButton->setTooltip(TRANS("Recording multi-track audio to: ") + filepath);
-                }
-            }
-            else {
-                // show error starting record
-                String lasterr = processor.getLastErrorMessage();
-                showPopTip(lasterr, 0, mRecordingButton.get());
-            }
-            
-            mRecordingButton->setToggleState(true, dontSendNotification);
-
-        }
-    }
     
     
     
@@ -1965,73 +1776,6 @@ void CommsbusAudioProcessorEditor::resetJitterBufferForAll()
     }
 }
 
-
-void CommsbusAudioProcessorEditor::requestRecordDir(std::function<void (URL)> callback)
-{
-    SafePointer<CommsbusAudioProcessorEditor> safeThis (this);
-
-    DBG("Requesting recdir");
-    
-    File initopendir;
-#if JUCE_ANDROID
-    initopendir = File::getSpecialLocation(File::SpecialLocationType::userMusicDirectory);
-    // doesn't work
-#endif
-    
-    mFileChooser.reset(new FileChooser(TRANS("Choose a location to store recorded files."),
-                                       initopendir,
-                                       "",
-                                       true, false, getTopLevelComponent()));
-    
-    
-    
-    mFileChooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectDirectories,
-                               [safeThis,callback] (const FileChooser& chooser) mutable
-                               {
-        auto results = chooser.getURLResults();
-        if (safeThis != nullptr && results.size() > 0)
-        {
-            auto url = results.getReference (0);
-            
-            DBG("Chosen recdir to save in: " <<  url.toString(false));
-            
-#if JUCE_ANDROID
-            auto docdir = AndroidDocument::fromTree(url);
-            if (!docdir.hasValue()) {
-                docdir = AndroidDocument::fromFile(url.getLocalFile());
-            }
-            
-            if (docdir.hasValue()) {
-                AndroidDocumentPermission::takePersistentReadWriteAccess(url);
-                if (docdir.getInfo().isDirectory()) {
-                    safeThis->processor.setDefaultRecordingDirectory(url);
-                }
-            }
-#else
-            if (url.isLocalFile()) {
-                File lfile = url.getLocalFile();
-                if (lfile.isDirectory()) {
-                    safeThis->processor.setDefaultRecordingDirectory(url);
-                } else {
-                    auto parurl = URL(lfile.getParentDirectory());
-                    safeThis->processor.setDefaultRecordingDirectory(parurl);
-                }
-
-            }
-#endif
-            
-            if (url.isLocalFile()) {
-            }
-
-            callback(url);
-        }
-        
-        if (safeThis) {
-            safeThis->mFileChooser.reset();
-        }
-                    
-    }, nullptr);
-}
 
 void CommsbusAudioProcessorEditor::showSaveSettingsPreset()
 {
@@ -2969,10 +2713,6 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         mPeerContainer->resetPendingUsers();
     }
 
-    if (mRecordingButton) {
-        mRecordingButton->setToggleState(processor.isRecordingToFile(), dontSendNotification);
-    }
-
     mReverbModelChoice->setSelectedId(processor.getMainReverbModel(), dontSendNotification);
     mEffectsButton->setToggleState(processor.getMainReverbEnabled(), dontSendNotification);
 
@@ -3070,7 +2810,6 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         mMainLinkButton->setVisible(false);
         mMainLinkArrow->setVisible(false);
 
-        mPeerRecImage->setVisible(false);
 
         mMainMessageLabel->setVisible(true);
 
@@ -3888,7 +3627,6 @@ void CommsbusAudioProcessorEditor::resized()
 
     const auto precwidth = 20;
     auto peerrecbounds = Rectangle<int>(mMainLinkButton->getRight() - precwidth - 4, mMainLinkButton->getY() + mMainLinkButton->getHeight()/2 - precwidth/2, precwidth,  precwidth);
-    mPeerRecImage->setTransformToFit(peerrecbounds.toFloat(), RectanglePlacement::fillDestination);
 
 
 
@@ -3900,9 +3638,6 @@ void CommsbusAudioProcessorEditor::resized()
 
     mConnectionTimeLabel->setBounds(mConnectButton->getBounds().removeFromBottom(16));
     
-    if (mRecordingButton) {
-    }
-
     mDrySlider->setMouseDragSensitivity(jmax(128, mDrySlider->getWidth()));
     mOutGainSlider->setMouseDragSensitivity(jmax(128, mOutGainSlider->getWidth()));
     //mInGainSlider->setMouseDragSensitivity(jmax(128, mInGainSlider->getWidth()));
@@ -4246,32 +3981,6 @@ void CommsbusAudioProcessorEditor::updateLayout()
     }
 #endif
 
-    if (mRecordingButton) {
-
-
-
-        transportWaveBox.items.clear();
-        transportWaveBox.flexDirection = FlexBox::Direction::row;
-
-        transportWaveBox.items.add(FlexItem(isNarrow ? 11 : 5, 6).withMargin(0).withFlex(0));
-        transportWaveBox.items.add(FlexItem(isNarrow ? 17 : 3, 6).withMargin(0).withFlex(0));
-
-        
-        if ( ! isNarrow) {
-
-        }
-        else {
-
-        }
-            
-#if JUCE_IOS || JUCE_ANDROID
-#else
-#endif
-
-        toolbarBox.items.add(FlexItem(toolwidth, minitemheight, *mRecordingButton).withMargin(0).withFlex(0));
-        toolbarBox.items.add(FlexItem(2, 6).withMargin(0).withFlex(0.1).withMaxWidth(6));
-    }
-
     if (!isNarrow) {
         toolbarBox.items.add(FlexItem(1, 5).withMargin(0).withFlex(0.1));
         toolbarBox.items.add(FlexItem(120, minitemheight, outputMainBox).withMargin(0).withFlex(1).withMaxWidth(390));
@@ -4575,15 +4284,6 @@ void CommsbusAudioProcessorEditor::getCommandInfo (CommandID cmdID, ApplicationC
                 info.addDefaultKeypress (',', ModifierKeys::commandModifier);
             }
             break;
-        case CommsbusCommands::RecordToggle:
-            info.setInfo (TRANS("Record"),
-                          TRANS("Toggle Record"),
-                          TRANS("Popup"), 0);
-            info.setActive(true);
-            if (useKeybindings) {
-                info.addDefaultKeypress ('r', ModifierKeys::commandModifier);
-            }
-            break;
         case CommsbusCommands::CheckForNewVersion:
             info.setInfo (TRANS("Check For New Version"),
                           TRANS("Check for New Version"),
@@ -4686,7 +4386,6 @@ void CommsbusAudioProcessorEditor::getAllCommands (Array<CommandID>& cmds) {
     cmds.add(CommsbusCommands::Connect);
     cmds.add(CommsbusCommands::Disconnect);
     cmds.add(CommsbusCommands::ShowOptions);
-    cmds.add(CommsbusCommands::RecordToggle);
     cmds.add(CommsbusCommands::CheckForNewVersion);
     cmds.add(CommsbusCommands::LoadSetupFile);
     cmds.add(CommsbusCommands::SaveSetupFile);
@@ -4772,11 +4471,6 @@ bool CommsbusAudioProcessorEditor::perform (const InvocationInfo& info) {
         case CommsbusCommands::ShowOptions:
             DBG("got show options!");
             buttonClicked(mSettingsButton.get());
-
-            break;
-        case CommsbusCommands::RecordToggle:
-            DBG("got record toggle!");
-            buttonClicked(mRecordingButton.get());
 
             break;
         case CommsbusCommands::CheckForNewVersion:   
@@ -4892,7 +4586,6 @@ PopupMenu CommsbusAudioProcessorEditor::CommsbusMenuBarModel::getMenuForIndex (i
             break;
         case MenuTransportIndex:
             retval.addSeparator();
-            retval.addCommandItem (&parent.commandManager, CommsbusCommands::RecordToggle);
             break;
         case MenuViewIndex:
             retval.addCommandItem (&parent.commandManager, CommsbusCommands::ChatToggle);

@@ -14,7 +14,6 @@ public:
         Connect,
         Disconnect,
         ShowOptions,
-        RecordToggle,
         CheckForNewVersion,
         LoadSetupFile,
         SaveSetupFile,

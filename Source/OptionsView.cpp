@@ -91,7 +91,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
 
     initializeLanguages();
 
-    mRecOptionsComponent = std::make_unique<Component>();
     mOptionsComponent = std::make_unique<Component>();
 
     mSettingsTab = std::make_unique<TabbedComponent>(TabbedButtonBar::Orientation::TabsAtTop);
@@ -191,58 +190,22 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     //mOptionsHearLatencyButton->addListener(this);
     //mHearLatencyTestAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (p.getValueTreeState(), CommsbusAudioProcessor::paramHearLatencyTest, *mOptionsHearLatencyButton);
 
-    mOptionsRecFinishOpenButton = std::make_unique<ToggleButton>(TRANS("Open finished recording for playback"));
-    mOptionsRecFinishOpenButton->addListener(this);
 
 
-    mOptionsRecFilesStaticLabel = std::make_unique<Label>("", TRANS("Record feature creates the following files:"));
-    configLabel(mOptionsRecFilesStaticLabel.get(), false);
-    mOptionsRecFilesStaticLabel->setJustificationType(Justification::centredLeft);
-
-    mOptionsRecMixButton = std::make_unique<ToggleButton>(TRANS("Full Mix"));
-    mOptionsRecMixButton->addListener(this);
-
-    mOptionsRecMixMinusButton = std::make_unique<ToggleButton>(TRANS("Full Mix without yourself"));
-    mOptionsRecMixMinusButton->addListener(this);
-
-    mOptionsRecSelfButton = std::make_unique<ToggleButton>(TRANS("Yourself"));
-    mOptionsRecSelfButton->addListener(this);
-
-    mOptionsRecOthersButton = std::make_unique<ToggleButton>(TRANS("Each Connected User"));
-    mOptionsRecOthersButton->addListener(this);
-
-    mOptionsRecSelfPostFxButton = std::make_unique<ToggleButton>(TRANS("Record yourself including input FX"));
-    mOptionsRecSelfPostFxButton->addListener(this);
-
-    mOptionsRecSelfSilenceMutedButton = std::make_unique<ToggleButton>(TRANS("Silence self recording when input is muted"));
-    mOptionsRecSelfSilenceMutedButton->addListener(this);
 
 
-    mRecFormatChoice = std::make_unique<SonoChoiceButton>();
-    mRecFormatChoice->addChoiceListener(this);
-    mRecFormatChoice->addItem(TRANS("FLAC"), CommsbusAudioProcessor::FileFormatFLAC);
-    mRecFormatChoice->addItem(TRANS("WAV"), CommsbusAudioProcessor::FileFormatWAV);
-    mRecFormatChoice->addItem(TRANS("OGG"), CommsbusAudioProcessor::FileFormatOGG);
-
-    mRecBitsChoice = std::make_unique<SonoChoiceButton>();
-    mRecBitsChoice->addChoiceListener(this);
-    mRecBitsChoice->addItem(TRANS("16 bit"), 16);
-    mRecBitsChoice->addItem(TRANS("24 bit"), 24);
 
 
-    mRecFormatStaticLabel = std::make_unique<Label>("", TRANS("Audio File Format:"));
-    configLabel(mRecFormatStaticLabel.get(), false);
-    mRecFormatStaticLabel->setJustificationType(Justification::centredRight);
 
 
-    mRecLocationStaticLabel = std::make_unique<Label>("", TRANS("Record Location:"));
-    configLabel(mRecLocationStaticLabel.get(), false);
-    mRecLocationStaticLabel->setJustificationType(Justification::centredRight);
 
-    mRecLocationButton = std::make_unique<TextButton>("fileloc");
-    mRecLocationButton->setButtonText("");
-    mRecLocationButton->setLookAndFeel(&smallLNF);
-    mRecLocationButton->addListener(this);
+
+
+
+
+
+
+
 
 
 
@@ -396,19 +359,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
 
 
 
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecFinishOpenButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecFilesStaticLabel.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecMixButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecSelfButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecMixMinusButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecOthersButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecSelfPostFxButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mOptionsRecSelfSilenceMutedButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mRecFormatChoice.get());
-    mRecOptionsComponent->addAndMakeVisible(mRecBitsChoice.get());
-    mRecOptionsComponent->addAndMakeVisible(mRecFormatStaticLabel.get());
-    mRecOptionsComponent->addAndMakeVisible(mRecLocationButton.get());
-    mRecOptionsComponent->addAndMakeVisible(mRecLocationStaticLabel.get());
 
 
     if (JUCEApplicationBase::isStandaloneApp() && getAudioDeviceManager && getAudioDeviceManager())
@@ -491,10 +441,7 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     mSettingsTab->addTab(TRANS("OPTIONS"),Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mOtherOptionsViewport.get(), false);
    // mSettingsTab->addTab(TRANS("HELP"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mHelpComponent.get(), false);
 
-    mRecordOptionsViewport = std::make_unique<Viewport>();
-    mRecordOptionsViewport->setViewedComponent(mRecOptionsComponent.get(), false);
 
-    mSettingsTab->addTab(TRANS("RECORDING"),Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mRecordOptionsViewport.get(), false);
 
     setFocusContainerType(FocusContainerType::keyboardFocusContainer);
 
@@ -643,30 +590,6 @@ void OptionsView::updateState(bool ignorecheck)
 
     mOptionsSliderSnapToMouseButton->setToggleState(processor.getSlidersSnapToMousePosition(), dontSendNotification);
     mOptionsDisableShortcutButton->setToggleState(processor.getDisableKeyboardShortcuts(), dontSendNotification);
-
-    uint32 recmask = processor.getDefaultRecordingOptions();
-
-    mOptionsRecOthersButton->setToggleState((recmask & CommsbusAudioProcessor::RecordIndividualUsers) != 0, dontSendNotification);
-    mOptionsRecMixButton->setToggleState((recmask & CommsbusAudioProcessor::RecordMix) != 0, dontSendNotification);
-    mOptionsRecMixMinusButton->setToggleState((recmask & CommsbusAudioProcessor::RecordMixMinusSelf) != 0, dontSendNotification);
-    mOptionsRecSelfButton->setToggleState((recmask & CommsbusAudioProcessor::RecordSelf) != 0, dontSendNotification);
-
-    mOptionsRecSelfPostFxButton->setToggleState(!processor.getSelfRecordingPreFX(), dontSendNotification);
-    mOptionsRecSelfSilenceMutedButton->setToggleState(processor.getSelfRecordingSilenceWhenMuted(), dontSendNotification);
-
-    mOptionsRecFinishOpenButton->setToggleState(processor.getRecordFinishOpens(), dontSendNotification);
-
-    mRecFormatChoice->setSelectedId((int)processor.getDefaultRecordingFormat(), dontSendNotification);
-    mRecBitsChoice->setSelectedId((int)processor.getDefaultRecordingBitsPerSample(), dontSendNotification);
-
-    auto recdirurl = processor.getDefaultRecordingDirectory();
-    String dispath = recdirurl.getFileName();
-    if (recdirurl.isLocalFile()) {
-        File recdir = recdirurl.getLocalFile();
-        dispath = recdir.getRelativePathFrom(File::getSpecialLocation (File::userHomeDirectory));
-        if (dispath.startsWith(".")) dispath = recdir.getFullPathName();
-    }
-    mRecLocationButton->setButtonText(dispath);
 
     CompressorParams limparams;
     processor.getInputLimiterParams(0, limparams);
@@ -861,83 +784,32 @@ void OptionsView::updateLayout()
 
     int indentw = 40;
 
-    optionsRecordDirBox.items.clear();
-    optionsRecordDirBox.flexDirection = FlexBox::Direction::row;
-    optionsRecordDirBox.items.add(FlexItem(115, minitemheight, *mRecLocationStaticLabel).withMargin(0).withFlex(0));
-    optionsRecordDirBox.items.add(FlexItem(minButtonWidth, minitemheight, *mRecLocationButton).withMargin(0).withFlex(3));
 
-    optionsRecordFormatBox.items.clear();
-    optionsRecordFormatBox.flexDirection = FlexBox::Direction::row;
-    optionsRecordFormatBox.items.add(FlexItem(115, minitemheight, *mRecFormatStaticLabel).withMargin(0).withFlex(0));
-    optionsRecordFormatBox.items.add(FlexItem(minButtonWidth, minitemheight, *mRecFormatChoice).withMargin(0).withFlex(1));
-    optionsRecordFormatBox.items.add(FlexItem(2, 4));
-    optionsRecordFormatBox.items.add(FlexItem(80, minitemheight, *mRecBitsChoice).withMargin(0).withFlex(0.25));
 
-    optionsRecMixBox.items.clear();
-    optionsRecMixBox.flexDirection = FlexBox::Direction::row;
-    optionsRecMixBox.items.add(FlexItem(indentw, 12));
-    optionsRecMixBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecMixButton).withMargin(0).withFlex(1));
 
     optionsRecMixMinusBox.items.clear();
     optionsRecMixMinusBox.flexDirection = FlexBox::Direction::row;
     optionsRecMixMinusBox.items.add(FlexItem(indentw, 12));
-    optionsRecMixMinusBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecMixMinusButton).withMargin(0).withFlex(1));
 
-    optionsRecSelfBox.items.clear();
-    optionsRecSelfBox.flexDirection = FlexBox::Direction::row;
-    optionsRecSelfBox.items.add(FlexItem(indentw, 12));
-    optionsRecSelfBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecSelfButton).withMargin(0).withFlex(1));
 
     optionsRecOthersBox.items.clear();
     optionsRecOthersBox.flexDirection = FlexBox::Direction::row;
     optionsRecOthersBox.items.add(FlexItem(indentw, 12));
-    optionsRecOthersBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecOthersButton).withMargin(0).withFlex(1));
-
-    optionsRecordSelfPostFxBox.items.clear();
-    optionsRecordSelfPostFxBox.flexDirection = FlexBox::Direction::row;
-    optionsRecordSelfPostFxBox.items.add(FlexItem(10, 12));
-    optionsRecordSelfPostFxBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecSelfPostFxButton).withMargin(0).withFlex(1));
-
-    optionsRecordSilentSelfMuteBox.items.clear();
-    optionsRecordSilentSelfMuteBox.flexDirection = FlexBox::Direction::row;
-    optionsRecordSilentSelfMuteBox.items.add(FlexItem(10, 12));
-    optionsRecordSilentSelfMuteBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecSelfSilenceMutedButton).withMargin(0).withFlex(1));
-
-    optionsRecordFinishBox.items.clear();
-    optionsRecordFinishBox.flexDirection = FlexBox::Direction::row;
-    optionsRecordFinishBox.items.add(FlexItem(10, 12));
-    optionsRecordFinishBox.items.add(FlexItem(minButtonWidth, minpassheight, *mOptionsRecFinishOpenButton).withMargin(0).withFlex(1));
 
 
-    recOptionsBox.items.clear();
-    recOptionsBox.flexDirection = FlexBox::Direction::column;
-    recOptionsBox.items.add(FlexItem(4, 6));
+
+
+
 //#if !(JUCE_IOS || JUCE_ANDROID)
 #if !(JUCE_IOS)
-    recOptionsBox.items.add(FlexItem(100, minitemheight, optionsRecordDirBox).withMargin(2).withFlex(0));
 #endif
-    recOptionsBox.items.add(FlexItem(100, minitemheight, optionsRecordFormatBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(4, 4));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, *mOptionsRecFilesStaticLabel).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecMixBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecMixMinusBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecSelfBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecOthersBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(4, 4));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordSelfPostFxBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordSilentSelfMuteBox).withMargin(2).withFlex(0));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordFinishBox).withMargin(2).withFlex(0));
-    minRecOptionsHeight = 0;
-    for (auto & item : recOptionsBox.items) {
-        minRecOptionsHeight += item.minHeight + item.margin.top + item.margin.bottom;
-    }
 
 
     mainBox.items.clear();
     mainBox.flexDirection = FlexBox::Direction::column;
     mainBox.items.add(FlexItem(100, minitemheight, *mSettingsTab).withMargin(0).withFlex(1));
 
-    prefHeight = jmax(minOptionsHeight, minRecOptionsHeight) + mSettingsTab->getTabBarDepth();
+    prefHeight = minOptionsHeight + mSettingsTab->getTabBarDepth();
 }
 
 void OptionsView::resized()  {
@@ -950,12 +822,10 @@ void OptionsView::resized()  {
         mAudioDeviceSelector->setBounds(Rectangle<int>(0,0,innerbounds.getWidth() - 10,mAudioDeviceSelector->getHeight()));
     }
     mOptionsComponent->setBounds(Rectangle<int>(0,0,innerbounds.getWidth() - 10, minOptionsHeight));
-    mRecOptionsComponent->setBounds(Rectangle<int>(0,0,innerbounds.getWidth() - 10, minRecOptionsHeight));
 
 
 
     optionsBox.performLayout(mOptionsComponent->getLocalBounds());
-    recOptionsBox.performLayout(mRecOptionsComponent->getLocalBounds());
 
     mOptionsAutosizeStaticLabel->setBounds(mBufferTimeSlider->getBounds().removeFromLeft(mBufferTimeSlider->getWidth()*0.75));
 
@@ -1076,28 +946,7 @@ void OptionsView::buttonClicked (Button* buttonThatWasClicked)
         return;
     }
 
-    if (buttonThatWasClicked == mRecLocationButton.get()) {
-        // browse folder chooser
-        SafePointer<OptionsView> safeThis (this);
-
-#if JUCE_ANDROID
-        if (getAndroidSDKVersion() < 29) {
-            if (! RuntimePermissions::isGranted (RuntimePermissions::readExternalStorage))
-            {
-                RuntimePermissions::request (RuntimePermissions::readExternalStorage,
-                                             [safeThis] (bool granted) mutable
-                                             {
-                    if (granted)
-                        safeThis->buttonClicked (safeThis->mRecLocationButton.get());
-                });
-                return;
-            }
-        }
-#endif
-        
-         
-        chooseRecDirBrowser();
-    }
+    
     else if (buttonThatWasClicked == mOptionsInputLimiterButton.get()) {
         CompressorParams params;
         for (int j=0; j < processor.getInputGroupCount(); ++j) {
@@ -1106,37 +955,13 @@ void OptionsView::buttonClicked (Button* buttonThatWasClicked)
             processor.setInputLimiterParams(j, params);
         }
     }
-    else if (buttonThatWasClicked == mOptionsRecMixButton.get()
-             || buttonThatWasClicked == mOptionsRecSelfButton.get()
-             || buttonThatWasClicked == mOptionsRecOthersButton.get()
-             || buttonThatWasClicked == mOptionsRecMixMinusButton.get()
-             ) {
-        uint32 recmask = 0;
-        recmask |= (mOptionsRecMixButton->getToggleState() ? CommsbusAudioProcessor::RecordMix : 0);
-        recmask |= (mOptionsRecOthersButton->getToggleState() ? CommsbusAudioProcessor::RecordIndividualUsers : 0);
-        recmask |= (mOptionsRecSelfButton->getToggleState() ? CommsbusAudioProcessor::RecordSelf : 0);
-        recmask |= (mOptionsRecMixMinusButton->getToggleState() ? CommsbusAudioProcessor::RecordMixMinusSelf : 0);
-
-        // ensure at least one is selected
-        if (recmask == 0) {
-            recmask = CommsbusAudioProcessor::RecordMix;
-            mOptionsRecMixButton->setToggleState(true, dontSendNotification);
-        }
-
-        processor.setDefaultRecordingOptions(recmask);
-    }
+    
     else if (buttonThatWasClicked == mOptionsChangeAllFormatButton.get()) {
         processor.setChangingDefaultAudioCodecSetsExisting(mOptionsChangeAllFormatButton->getToggleState());
     }
-    else if (buttonThatWasClicked == mOptionsRecSelfPostFxButton.get()) {
-        processor.setSelfRecordingPreFX(!mOptionsRecSelfPostFxButton->getToggleState());
-    }
-    else if (buttonThatWasClicked == mOptionsRecSelfSilenceMutedButton.get()) {
-        processor.setSelfRecordingSilenceWhenMuted(mOptionsRecSelfSilenceMutedButton->getToggleState());
-    }
-    else if (buttonThatWasClicked == mOptionsRecFinishOpenButton.get()) {
-        processor.setRecordFinishOpens(mOptionsRecFinishOpenButton->getToggleState());
-    }
+    
+    
+    
     else if (buttonThatWasClicked == mOptionsUseSpecificUdpPortButton.get()) {
         if (!mOptionsUseSpecificUdpPortButton->getToggleState()) {
             // toggled off, change back to use system chosen port
@@ -1244,12 +1069,8 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
     else if (comp == mOptionsAutosizeDefaultChoice.get()) {
         processor.setDefaultAutoresizeBufferMode((CommsbusAudioProcessor::AutoNetBufferMode) ident);
     }
-    else if (comp == mRecFormatChoice.get()) {
-        processor.setDefaultRecordingFormat((CommsbusAudioProcessor::RecordFileFormat) ident);
-    }
-    else if (comp == mRecBitsChoice.get()) {
-        processor.setDefaultRecordingBitsPerSample(ident);
-    }
+    
+    
     else if (comp == mOptionsLanguageChoice.get()) {
         String code = codes[ident];
         //app->mainConfig.languageOverrideCode =  codes[comp->getRowId()].toStdString();
@@ -1294,71 +1115,6 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
     }
 
 }
-
-void OptionsView::chooseRecDirBrowser()
-{
-    SafePointer<OptionsView> safeThis (this);
-
-    File recdir;
-    if (processor.getDefaultRecordingDirectory().isLocalFile()) {
-        recdir = processor.getDefaultRecordingDirectory().getLocalFile();
-    }
-
-    mFileChooser.reset(new FileChooser(TRANS("Choose the folder for new recordings"),
-                                       recdir,
-                                       "",
-                                       true, false, getTopLevelComponent()));
-
-
-    int modes = FileBrowserComponent::canSelectDirectories | FileBrowserComponent::openMode;
-    mFileChooser->launchAsync (modes,
-                               [safeThis] (const FileChooser& chooser) mutable
-                               {
-        auto results = chooser.getURLResults();
-        if (safeThis != nullptr && results.size() > 0)
-        {
-            auto url = results.getReference (0);
-
-            DBG("Chose directory: " <<  url.toString(false));
-
-#if JUCE_ANDROID
-            auto docdir = AndroidDocument::fromTree(url);
-            if (!docdir.hasValue()) {
-                docdir = AndroidDocument::fromFile(url.getLocalFile());
-            }
-            
-            if (docdir.hasValue()) {
-                AndroidDocumentPermission::takePersistentReadWriteAccess(url);
-                if (docdir.getInfo().isDirectory()) {
-                    safeThis->processor.setDefaultRecordingDirectory(url);
-                }
-            }
-#else
-            if (url.isLocalFile()) {
-                File lfile = url.getLocalFile();
-                if (lfile.isDirectory()) {
-                    safeThis->processor.setDefaultRecordingDirectory(url);
-                } else {
-                    auto parurl = URL(lfile.getParentDirectory());
-                    safeThis->processor.setDefaultRecordingDirectory(parurl);
-                }
-
-            }
-#endif
-
-            safeThis->updateState();
-
-        }
-
-        if (safeThis) {
-            safeThis->mFileChooser.reset();
-        }
-
-    }, nullptr);
-
-}
-
-
 
 void OptionsView::showPopTip(const String & message, int timeoutMs, Component * target, int maxwidth)
 {
