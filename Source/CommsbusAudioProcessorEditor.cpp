@@ -691,7 +691,28 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mMainContainer->addAndMakeVisible(mPeerContainer.get());
 
     mInputChannelsContainer = std::make_unique<ChannelGroupsView>(processor, false);
-    mMainContainer->addChildComponent(mInputChannelsContainer.get());
+    // Always shown: the transmit side is the point of the application, not an
+    // optional mixer panel the way it was in SonoBus.
+    mMainContainer->addAndMakeVisible(mInputChannelsContainer.get());
+    mInputChannelsContainer->setVisible(true);
+
+    auto makeSectionHeader = [](const String & text, const String & tooltip) {
+        auto lab = std::make_unique<Label>(text.toLowerCase(), text);
+        lab->setFont(Font(13, Font::bold));
+        lab->setColour(Label::textColourId, Colour::fromFloatRGBA(0.55f, 0.78f, 0.95f, 1.0f));
+        lab->setJustificationType(Justification::centredLeft);
+        lab->setTooltip(tooltip);
+        lab->setInterceptsMouseClicks(false, false);
+        return lab;
+    };
+
+    mTransmitHeaderLabel = makeSectionHeader(TRANS("TRANSMIT"),
+        TRANS("Audio device inputs (Dante) sent out over the network to the far end."));
+    mReceiveHeaderLabel = makeSectionHeader(TRANS("RECEIVE"),
+        TRANS("Streams arriving from the far end, routed out to the audio device (Dante) directly or via a bus."));
+
+    mMainContainer->addAndMakeVisible(mTransmitHeaderLabel.get());
+    mMainContainer->addAndMakeVisible(mReceiveHeaderLabel.get());
     mInputChannelsContainer->addListener(this);
 
     //mInputChannelsViewport = std::make_unique<Viewport>();
@@ -3578,8 +3599,13 @@ void CommsbusAudioProcessorEditor::resized()
 
     Rectangle<int> inmixactualbounds = Rectangle<int>(0,0,0,0);
 
+    const int sectionHeaderH = 18;
+    const int fullwidth = std::max(peersminbounds.getWidth(), mMainViewport->getWidth() - 10);
+
+    mTransmitHeaderLabel->setBounds(4, 0, fullwidth, sectionHeaderH);
+
     if (mInputChannelsContainer->isVisible()) {
-        inmixactualbounds = Rectangle<int>(0, 0,
+        inmixactualbounds = Rectangle<int>(0, sectionHeaderH,
                                            std::max(inmixminbounds.getWidth(), inchantargwidth),
                                            inmixminbounds.getHeight() + 5);
 
@@ -3588,9 +3614,15 @@ void CommsbusAudioProcessorEditor::resized()
 
     int vgap = inmixactualbounds.getHeight() > 0 ?  6 : 0;
 
-    mPeerContainer->setBounds(Rectangle<int>(0, inmixactualbounds.getBottom() + vgap, std::max(peersminbounds.getWidth(), mMainViewport->getWidth() - 10), std::max(peersminbounds.getHeight() + 5, mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap)));
+    const int receiveHeaderY = inmixactualbounds.getBottom() + vgap;
+    mReceiveHeaderLabel->setBounds(4, receiveHeaderY, fullwidth, sectionHeaderH);
 
-    Rectangle<int> totbounds = mPeerContainer->getBounds().getUnion(inmixactualbounds);
+    mPeerContainer->setBounds(Rectangle<int>(0, receiveHeaderY + sectionHeaderH, fullwidth,
+                                             std::max(peersminbounds.getHeight() + 5,
+                                                      mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap - 2*sectionHeaderH)));
+
+    Rectangle<int> totbounds = mPeerContainer->getBounds().getUnion(inmixactualbounds)
+                                   .getUnion(mTransmitHeaderLabel->getBounds());
     //totbounds.setHeight(totbounds.getHeight());
 
 

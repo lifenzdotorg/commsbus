@@ -9,11 +9,15 @@ using namespace SonoAudio;
 struct DestChannelListItemData : public GenericItemChooserItem::UserData
 {
 public:
-    DestChannelListItemData(const DestChannelListItemData & other) : startIndex(other.startIndex), count(other.count) {}
+    DestChannelListItemData(const DestChannelListItemData & other) : startIndex(other.startIndex), count(other.count), busIndex(other.busIndex) {}
     DestChannelListItemData(int start, int cnt) : startIndex(start), count(cnt) {}
+    // busIndex >= 0 routes the group to that output bus instead of straight out;
+    // -2 means "create a new bus and route to it".
+    DestChannelListItemData(int bus) : startIndex(0), count(0), busIndex(bus) {}
 
     int startIndex;
     int count;
+    int busIndex = -1;
 };
 
 struct CmdListItemData : public GenericItemChooserItem::UserData
@@ -2790,11 +2794,22 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
         processor.getRemotePeerChannelGroupDestStartAndCount(mPeerIndex, changroup, deststart, destcnt);
         destcnt = jmin(totaloutchans, destcnt);
 
+        // Show the bus name when this stream feeds a bus, otherwise the device
+        // output channels it lands on -- so where a stream goes is readable at a
+        // glance without opening the menu.
         String desttext;
-        if (destcnt == 1) {
+        const int assignedBus = processor.getRemotePeerChannelGroupBus(mPeerIndex, changroup);
+        if (assignedBus >= 0) {
+            desttext = processor.getOutputBusName(assignedBus);
+            if (desttext.isEmpty()) desttext << TRANS("Bus") << " " << (assignedBus + 1);
+            pvf->destButton->setTooltip(TRANS("Feeding bus:") + " " + desttext);
+        }
+        else if (destcnt == 1) {
             desttext << deststart + 1;
+            pvf->destButton->setTooltip(TRANS("Straight out to device channel") + " " + desttext);
         } else {
             desttext << deststart + 1 << "-" << deststart+destcnt;
+            pvf->destButton->setTooltip(TRANS("Straight out to device channels") + " " + desttext);
         }
         pvf->destButton->setButtonText(desttext);
 
@@ -4111,10 +4126,40 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
     }
 
 
-    // for each number of channel counts possible (1-chcnt)
     int selindex = -1;
-
     int ind = 1;
+
+    // Receive side: offer the output buses before the raw device channels, since
+    // combining several incoming streams onto one Dante destination is the common
+    // case for a bridge.
+    if (mPeerMode) {
+        const int currentBus = processor.getRemotePeerChannelGroupBus(mPeerIndex, changroup);
+        const int numbuses = processor.getNumOutputBuses();
+
+        items.add(GenericItemChooserItem(TRANS("BUSES:"), {}, nullptr, true, true));
+        ++ind;
+
+        for (int b = 0; b < numbuses; ++b) {
+            OutputBus bus;
+            processor.getOutputBus(b, bus);
+            String nm;
+            nm << bus.name << "  (" << TRANS("out") << " " << bus.destStartIndex + 1;
+            if (bus.destChannels > 1) nm << "-" << bus.destStartIndex + bus.destChannels;
+            nm << ")";
+            items.add(GenericItemChooserItem(nm, Image(), std::make_shared<DestChannelListItemData>(b), false));
+            if (b == currentBus) selindex = ind;
+            ++ind;
+        }
+
+        items.add(GenericItemChooserItem(TRANS("New bus..."), Image(),
+                                         std::make_shared<DestChannelListItemData>(-2), numbuses == 0));
+        ++ind;
+
+        items.add(GenericItemChooserItem(TRANS("DIRECT TO OUTPUT:"), {}, nullptr, true, true));
+        ++ind;
+    }
+
+    // for each number of channel counts possible (1-chcnt)
     for (int cc=chcnt; cc <= jmin( jmax(2, maxchcnt), totalouts); ++cc) {
         for (int i=0; i < totalouts - (cc - 1); ++i) {
             String name;
@@ -4157,7 +4202,24 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
 
         // change src chan stuff
 
-        if (safeThis->mPeerMode) {
+        if (safeThis->mPeerMode && dclitem->busIndex != -1) {
+            int bus = dclitem->busIndex;
+
+            if (bus == -2) {
+                // create a bus named after the next free slot, landing on the
+                // output channel the group was already pointing at
+                int dst = 0, dcnt = 1;
+                safeThis->processor.getRemotePeerChannelGroupDestStartAndCount(safeThis->mPeerIndex, changroup, dst, dcnt);
+                OutputBus nb(TRANS("Bus") + " " + String(safeThis->processor.getNumOutputBuses() + 1), dst, jmax(1, dcnt));
+                bus = safeThis->processor.addOutputBus(nb);
+            }
+
+            if (bus >= 0) {
+                safeThis->processor.setRemotePeerChannelGroupBus(safeThis->mPeerIndex, changroup, bus);
+            }
+        }
+        else if (safeThis->mPeerMode) {
+            safeThis->processor.setRemotePeerChannelGroupBus(safeThis->mPeerIndex, changroup, -1);
             safeThis->processor.setRemotePeerChannelGroupDestStartAndCount(safeThis->mPeerIndex, changroup, dclitem->startIndex, dclitem->count);
         }
         else {

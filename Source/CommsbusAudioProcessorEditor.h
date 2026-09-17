@@ -482,6 +482,11 @@ private:
     std::unique_ptr<Viewport> mInputChannelsViewport;
     std::unique_ptr<ChannelGroupsView> mInputChannelsContainer;
 
+    // Section headers framing the window as a Dante bridge: what we send out
+    // over the WAN on top, what arrives from the far end underneath.
+    std::unique_ptr<Label> mTransmitHeaderLabel;
+    std::unique_ptr<Label> mReceiveHeaderLabel;
+
     int peersHeight = 0;
     bool isNarrow = false;
     bool isReallyNarrow = false;

@@ -20,6 +20,7 @@ static String panDestChannelsKey("pandestchans");
 static String monDestStartKey("mondeststart");
 static String monDestChannelsKey("mondestchans");
 static String sendMainMixKey("sendmainmix");
+static String busAssignKey("busassign");
 static String invertPolarityKey("invertpolarity");
 static String mutedKey("muted");
 
@@ -645,6 +646,7 @@ ValueTree ChannelGroupParams::getValueTree() const
 
 
     channelGroupTree.setProperty(sendMainMixKey, sendMainMix, nullptr);
+    channelGroupTree.setProperty(busAssignKey, busAssign, nullptr);
     channelGroupTree.setProperty(invertPolarityKey, invertPolarity, nullptr);
 
     channelGroupTree.setProperty(nameKey, name, nullptr);
@@ -688,6 +690,7 @@ void ChannelGroupParams::setFromValueTree(const ValueTree & channelGroupTree)
     monDestChannels = channelGroupTree.getProperty(monDestChannelsKey, monDestChannels);
 
     sendMainMix = channelGroupTree.getProperty(sendMainMixKey, sendMainMix);
+    busAssign = channelGroupTree.getProperty(busAssignKey, busAssign);
     invertPolarity = channelGroupTree.getProperty(invertPolarityKey, invertPolarity);
 
     name = channelGroupTree.getProperty(nameKey, name);

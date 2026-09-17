@@ -12,7 +12,7 @@ The fork has diverged from upstream in four deliberate ways. Keep these in mind 
 2. **Direct connection is the default.** The DIRECT tab — commented out upstream — is tab 0 and the default view. The group/rendezvous-server path still exists as a fallback.
 3. **4 independent mono input channel groups by default**, clamped to the device's input count, instead of upstream's single group spanning every input.
 4. **Unattended operation.** Auto-reconnect defaults on, direct peers reconnect themselves, macOS start-at-login is available, and only one instance runs at a time.
-5. **No metronome, file playback or soundboard.** All three were removed outright, along with the mixer strip that carried them. What remains below the input channel strips is nothing — input groups only.
+5. **No metronome, file playback, soundboard or recording.** All removed outright, along with the mixer strip that carried the first three.
 
 Licensed GPLv3 (with an App Store exception — see `LICENSE_EXCEPTION`). Source files carry an SPDX header; `scripts/prependheader.sh` adds it to new files. Upstream authorship (Jesse Chappell) is retained in all headers.
 
@@ -98,6 +98,34 @@ Owns the major sub-views, each its own file pair: `ConnectView`, `OptionsView`, 
 Custom widgets are prefixed `Sono*` — prefer reusing them over raw JUCE widgets.
 
 In `ConnectView::resized()`, wide layouts pull RECENTS out of the tab strip into its own panel. That code looks the tab up **by name** (`getTabNames().indexOf(TRANS("RECENTS"))`), not by index — DIRECT now occupies index 0, and the original hard-coded `removeTab(0)`/`moveTab(2,0)` would move the wrong tab. Keep it name-based if you add tabs.
+
+### Dante bridge model
+
+Commsbus exists to carry Dante audio point-to-point over a WAN: Dante Virtual
+Soundcard presents the Dante network as an ordinary audio device at each end, and
+Commsbus bridges between two such devices. The main window is framed accordingly
+-- **TRANSMIT** (local device inputs going out over the network) above
+**RECEIVE** (streams arriving from the far end going out to the local device).
+The transmit section is always visible; it is not the optional input mixer panel
+it was in SonoBus.
+
+Everything is mono per channel by default: `DEFAULT_MONO_CHANNEL_GROUPS` mono
+input groups each landing on their own output channel, and `panDestChannels` /
+`monDestChannels` default to 1. Stereo pairing is not used in this application.
+
+**Output buses** (`OutputBus`, `MAX_OUTPUT_BUSES`) are the receive-side mixing
+stage. A received channel group either goes straight out to device channels
+(`panDestStartIndex`/`panDestChannels`, the `busAssign == -1` case) or is summed
+into a bus, which applies its own level and lands on its own device channels.
+That is how several incoming streams get combined onto one Dante destination.
+`busAssign` lives on `ChannelGroupParams` so it persists with the group; the
+buses themselves persist under the `OutputBuses` child of the state tree.
+
+In `processBlock` the bus stage sits inside the peer loop: the bus rows of
+`mBusBuffer` are cleared before the loop, assigned groups sum into their row
+instead of panning to `tempBuffer`, and after the loop each bus is mixed into
+`tempBuffer` at its destination with its gain. The bus list is snapshotted under
+`mBusLock` at the top of the block so a UI edit cannot change routing mid-block.
 
 ### Removed subsystems
 

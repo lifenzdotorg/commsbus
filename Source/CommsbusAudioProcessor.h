@@ -31,6 +31,10 @@ typedef MVerb<float> MVerbFloat;
 // Commsbus defaults to this many independent mono input channel groups, clamped
 // to the number of inputs the audio device actually has.
 #define DEFAULT_MONO_CHANNEL_GROUPS 4
+
+// Output buses available on the receive side for combining incoming streams
+// before they go out to the audio device (Dante Virtual Soundcard).
+#define MAX_OUTPUT_BUSES 16
 #define DEFAULT_SERVER_PORT 10998
 #define DEFAULT_SERVER_HOST "aoo.sonobus.net"
 
@@ -51,6 +55,32 @@ struct AooServerConnectionInfo
     int    serverPort;
     
     int64 timestamp; // milliseconds since 1970
+};
+
+/**
+ * A receive-side mixing bus.
+ *
+ * Incoming peer channel groups can either go straight out to device channels or
+ * be assigned to one of these. A bus sums everything assigned to it, applies its
+ * own level, and lands on its own device output channels -- so several remote
+ * streams can be combined and sent to one Dante destination.
+ *
+ * Buses sum to mono internally: this is a comms bridge, not a music mixer, and
+ * everything on the receive side is mono per stream.
+ */
+struct OutputBus
+{
+    OutputBus() {}
+    OutputBus(const juce::String & name_, int destStart, int destCount)
+        : name(name_), destStartIndex(destStart), destChannels(destCount) {}
+
+    juce::String name;
+    float gain = 1.0f;
+    int   destStartIndex = 0;
+    int   destChannels = 1;
+
+    juce::ValueTree getValueTree() const;
+    void setFromValueTree(const juce::ValueTree & v);
 };
 
 struct AooPublicGroupInfo
@@ -545,6 +575,19 @@ public:
     
     bool getAutoReconnectToLast() const { return mAutoReconnectLast.get(); }
 
+    //==============================================================================
+    // Receive-side output buses. See OutputBus.
+    int  getNumOutputBuses() const;
+    bool getOutputBus(int index, OutputBus & retbus) const;
+    void setOutputBus(int index, const OutputBus & bus);
+    int  addOutputBus(const OutputBus & bus);     // returns the new index, or -1 if full
+    bool removeOutputBus(int index);              // assignments to it revert to direct
+    juce::String getOutputBusName(int index) const;
+
+    /** Which bus a received channel group feeds, or -1 for straight out to device channels. */
+    int  getRemotePeerChannelGroupBus(int index, int changroup) const;
+    void setRemotePeerChannelGroupBus(int index, int changroup, int busIndex);
+
     /**
      * Direct (address-based) peers that Commsbus keeps itself connected to,
      * independently of any group/rendezvous server. See AutoConnectManager.
@@ -1025,6 +1068,10 @@ private:
 
 
     AutoConnectManager mAutoConnectManager { *this };
+
+    Array<OutputBus> mOutputBuses;
+    mutable CriticalSection mBusLock;
+    AudioSampleBuffer mBusBuffer;   // one mono row per bus
 
     Array<AooServerConnectionInfo> mRecentConnectionInfos;
     CriticalSection  mRecentsLock;

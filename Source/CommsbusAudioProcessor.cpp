@@ -71,6 +71,12 @@ String CommsbusAudioProcessor::paramInputReverbDamping  ("inreverbdamp");
 String CommsbusAudioProcessor::paramInputReverbPreDelay  ("inreverbpredelay");
 
 static String recentsCollectionKey("RecentConnections");
+static String cbOutputBusesKey("OutputBuses");
+static String cbOutputBusKey("OutputBus");
+static String busNameKey("busname");
+static String busGainKey("busgain");
+static String busDestStartKey("busdeststart");
+static String busDestChansKey("busdestchans");
 static String recentsItemKey("ServerConnectionInfo");
 
 static String extraStateCollectionKey("ExtraState");
@@ -6672,8 +6678,10 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
             for (int i = 0; i < groupCount; ++i) {
                 mInputChannelGroups[i].params.chanStartIndex = i;
                 mInputChannelGroups[i].params.numChannels = 1; // mono
+                mInputChannelGroups[i].params.panDestStartIndex = i;
+                mInputChannelGroups[i].params.panDestChannels = 1;
                 mInputChannelGroups[i].params.monDestStartIndex = 0;
-                mInputChannelGroups[i].params.monDestChannels = jmin(2, outchannels);
+                mInputChannelGroups[i].params.monDestChannels = 1; // mono monitor per group
                 if (mInputChannelGroups[i].params.name.isEmpty()) {
                     mInputChannelGroups[i].params.name = String(i + 1);
                 }
@@ -6924,6 +6932,10 @@ void CommsbusAudioProcessor::ensureBuffers(int numSamples)
     }
     if (sendWorkBuffer.getNumSamples() < numSamples || sendWorkBuffer.getNumChannels() != maxworkbufchans) {
         sendWorkBuffer.setSize(maxworkbufchans, numSamples, false, false, true);
+    }
+    // one mono row per output bus
+    if (mBusBuffer.getNumSamples() < numSamples || mBusBuffer.getNumChannels() != MAX_OUTPUT_BUSES) {
+        mBusBuffer.setSize(MAX_OUTPUT_BUSES, numSamples, false, false, true);
     }
     if (inputPostBuffer.getNumSamples() < numSamples || inputPostBuffer.getNumChannels() != totsendchans) {
         inputPostBuffer.setSize(totsendchans, numSamples, false, false, true);
@@ -7235,7 +7247,20 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         tempBuffer.clear(0, numSamples);
         
         int rindex = 0;
-        
+
+        // Snapshot the buses for this block, so an edit from the UI mid-block
+        // cannot change the routing halfway through.
+        Array<OutputBus> buses;
+        {
+            const ScopedLock bsl (mBusLock);
+            buses = mOutputBuses;
+        }
+        const int numbuses = jmin(buses.size(), MAX_OUTPUT_BUSES);
+
+        for (int b = 0; b < numbuses; ++b) {
+            mBusBuffer.clear(b, 0, numSamples);
+        }
+
         for (auto & remote : mRemotePeers) 
         {
             
@@ -7357,10 +7382,29 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
             {
                 // apply solo muting to the gain here
                 float adjgain = anysubsolo && !remote->chanGroups[i].params.soloed ? 0.0f : tgain;
-                // todo change dest ch target
-                int dstch = remote->chanGroups[i].params.panDestStartIndex;
-                int dstcnt = jmin(totalOutputChannels, remote->chanGroups[i].params.panDestChannels);
-                remote->chanGroups[i].processPan(remote->workBuffer, remote->chanGroups[i].params.chanStartIndex, tempBuffer, dstch, dstcnt, numSamples, adjgain);
+
+                const int busidx = remote->chanGroups[i].params.busAssign;
+
+                if (busidx >= 0 && busidx < numbuses) {
+                    // Sum into the bus row rather than going straight out. The bus
+                    // applies its own level and destination after this loop.
+                    const int srcstart = remote->chanGroups[i].params.chanStartIndex;
+                    const int srcchans = remote->chanGroups[i].params.numChannels;
+                    const float bgain = adjgain * remote->chanGroups[i].params.gain;
+
+                    for (int ch = 0; ch < srcchans; ++ch) {
+                        const int srcch = srcstart + ch;
+                        if (srcch < remote->workBuffer.getNumChannels()) {
+                            mBusBuffer.addFrom(busidx, 0, remote->workBuffer, srcch, 0, numSamples, bgain);
+                        }
+                    }
+                }
+                else {
+                    // todo change dest ch target
+                    int dstch = remote->chanGroups[i].params.panDestStartIndex;
+                    int dstcnt = jmin(totalOutputChannels, remote->chanGroups[i].params.panDestChannels);
+                    remote->chanGroups[i].processPan(remote->workBuffer, remote->chanGroups[i].params.chanStartIndex, tempBuffer, dstch, dstcnt, numSamples, adjgain);
+                }
 
                 if (doreverb) {
                     remote->chanGroups[i].processReverbSend(remote->workBuffer, remote->chanGroups[i].params.chanStartIndex, remote->chanGroups[i].params.numChannels, mainFxBuffer, 0, fxchannels, numSamples, mainReverbEnabled, false, adjgain);
@@ -7369,9 +7413,21 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
             }
 
         }
-        
-        
-        
+
+        // Buses: apply each bus level and land it on its device output channels.
+        for (int b = 0; b < numbuses; ++b) {
+            const auto & bus = buses.getReference(b);
+            const int dststart = bus.destStartIndex;
+            const int dstcnt = jmax(1, bus.destChannels);
+
+            for (int ch = 0; ch < dstcnt; ++ch) {
+                const int dstch = dststart + ch;
+                if (dstch >= 0 && dstch < tempBuffer.getNumChannels() && dstch < totalOutputChannels) {
+                    tempBuffer.addFrom(dstch, 0, mBusBuffer, b, 0, numSamples, bus.gain);
+                }
+            }
+        }
+
         // send out final outputs
         int i=0;
         for (auto & remote : mRemotePeers) 
@@ -7763,6 +7819,17 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
         tempstate.removeChild(recentsTree, nullptr);
     }
 
+    // Commsbus: receive-side buses are configuration and travel with the state.
+    tempstate.removeChild(tempstate.getChildWithName(cbOutputBusesKey), nullptr);
+    {
+        ValueTree busesTree(cbOutputBusesKey);
+        const ScopedLock bsl (mBusLock);
+        for (const auto & b : mOutputBuses) {
+            busesTree.appendChild(b.getValueTree(), nullptr);
+        }
+        tempstate.appendChild(busesTree, nullptr);
+    }
+
     // Commsbus: the configured direct peers travel with the rest of the state, so
     // an installation restores its mesh on launch without any server involvement.
     tempstate.removeChild(tempstate.getChildWithName(AutoConnectManager::directPeersKey), nullptr);
@@ -7865,6 +7932,17 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
                     info.setFromValueTree(child);
                     mRecentConnectionInfos.add(info);
                 }
+            }
+        }
+
+        ValueTree busesTree = mState.state.getChildWithName(cbOutputBusesKey);
+        if (busesTree.isValid()) {
+            const ScopedLock bsl (mBusLock);
+            mOutputBuses.clearQuick();
+            for (int i = 0; i < busesTree.getNumChildren() && i < MAX_OUTPUT_BUSES; ++i) {
+                OutputBus b;
+                b.setFromValueTree(busesTree.getChild(i));
+                mOutputBuses.add(b);
             }
         }
 
@@ -8011,6 +8089,100 @@ void CommsbusAudioProcessor::ServerReconnectTimer::timerCallback()
 
         stopTimer();
     }
+}
+
+//==============================================================================
+ValueTree OutputBus::getValueTree() const
+{
+    ValueTree v(cbOutputBusKey);
+    v.setProperty(busNameKey, name, nullptr);
+    v.setProperty(busGainKey, gain, nullptr);
+    v.setProperty(busDestStartKey, destStartIndex, nullptr);
+    v.setProperty(busDestChansKey, destChannels, nullptr);
+    return v;
+}
+
+void OutputBus::setFromValueTree(const ValueTree & v)
+{
+    name = v.getProperty(busNameKey, name).toString();
+    gain = v.getProperty(busGainKey, gain);
+    destStartIndex = v.getProperty(busDestStartKey, destStartIndex);
+    destChannels = v.getProperty(busDestChansKey, destChannels);
+}
+
+int CommsbusAudioProcessor::getNumOutputBuses() const
+{
+    const ScopedLock sl (mBusLock);
+    return mOutputBuses.size();
+}
+
+bool CommsbusAudioProcessor::getOutputBus(int index, OutputBus & retbus) const
+{
+    const ScopedLock sl (mBusLock);
+    if (!isPositiveAndBelow(index, mOutputBuses.size())) return false;
+    retbus = mOutputBuses.getReference(index);
+    return true;
+}
+
+void CommsbusAudioProcessor::setOutputBus(int index, const OutputBus & bus)
+{
+    const ScopedLock sl (mBusLock);
+    if (!isPositiveAndBelow(index, mOutputBuses.size())) return;
+    mOutputBuses.setUnchecked(index, bus);
+}
+
+int CommsbusAudioProcessor::addOutputBus(const OutputBus & bus)
+{
+    const ScopedLock sl (mBusLock);
+    if (mOutputBuses.size() >= MAX_OUTPUT_BUSES) return -1;
+    mOutputBuses.add(bus);
+    return mOutputBuses.size() - 1;
+}
+
+bool CommsbusAudioProcessor::removeOutputBus(int index)
+{
+    {
+        const ScopedLock sl (mBusLock);
+        if (!isPositiveAndBelow(index, mOutputBuses.size())) return false;
+        mOutputBuses.remove(index);
+    }
+
+    // Anything feeding the removed bus goes back to direct out; anything feeding
+    // a later bus shifts down with it, so assignments stay pointing at the same bus.
+    const ScopedReadLock sl (mCoreLock);
+    for (auto & remote : mRemotePeers) {
+        for (int i = 0; i < remote->numChanGroups; ++i) {
+            auto & ba = remote->chanGroups[i].params.busAssign;
+            if (ba == index) ba = -1;
+            else if (ba > index) --ba;
+        }
+    }
+    return true;
+}
+
+String CommsbusAudioProcessor::getOutputBusName(int index) const
+{
+    const ScopedLock sl (mBusLock);
+    if (!isPositiveAndBelow(index, mOutputBuses.size())) return {};
+    return mOutputBuses.getReference(index).name;
+}
+
+int CommsbusAudioProcessor::getRemotePeerChannelGroupBus(int index, int changroup) const
+{
+    const ScopedReadLock sl (mCoreLock);
+    if (!isPositiveAndBelow(index, mRemotePeers.size())) return -1;
+    auto remote = mRemotePeers.getUnchecked(index);
+    if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return -1;
+    return remote->chanGroups[changroup].params.busAssign;
+}
+
+void CommsbusAudioProcessor::setRemotePeerChannelGroupBus(int index, int changroup, int busIndex)
+{
+    const ScopedReadLock sl (mCoreLock);
+    if (!isPositiveAndBelow(index, mRemotePeers.size())) return;
+    auto remote = mRemotePeers.getUnchecked(index);
+    if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return;
+    remote->chanGroups[changroup].params.busAssign = busIndex;
 }
 
 void CommsbusAudioProcessor::startAutoConnect()

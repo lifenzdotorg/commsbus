@@ -53,9 +53,14 @@ struct ChannelGroupParams
     float centerPanLaw = 0.596f; // center pan attenuation (default -4.5dB)
 
     int panDestStartIndex = 0; // destination channel index
-    int panDestChannels = 2; // destination number of channels
+    int panDestChannels = 1; // destination number of channels (Commsbus: mono by default)
 
     bool sendMainMix = true; // used for remote peers
+
+    // Commsbus: which output bus this group feeds, or -1 to go straight to the
+    // audio device's output channels (panDestStartIndex/panDestChannels).
+    // Only meaningful for received peer groups.
+    int busAssign = -1;
 
     // compressor (only used for 1 or 2 channel groups)
     CompressorParams compressorParams;
@@ -80,7 +85,7 @@ struct ChannelGroupParams
     // monitoring level
     float monitor = 1.0f;
     int monDestStartIndex = 0; // destination channel index
-    int monDestChannels = 2; // destination number of channels
+    int monDestChannels = 1; // destination number of channels (Commsbus: mono by default)
 
     // monitoring delay
     DelayParams monitorDelayParams;

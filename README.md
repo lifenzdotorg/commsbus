@@ -6,9 +6,19 @@ low-latency peer-to-peer audio between machines over a local network or the
 internet.
 
 Where SonoBus is a general-purpose tool that also ships as a DAW plugin,
-Commsbus is built to be one thing and be reliable at it: a fixed set of machines
-that find each other directly, come up on their own after a reboot, and stay
-connected without anyone driving the UI.
+Commsbus is built to be one thing and be reliable at it: carrying **Dante audio
+point-to-point over a WAN**. Dante Virtual Soundcard presents the Dante network
+as an ordinary audio device at each end, and a Commsbus instance at each end
+bridges between them. A fixed set of machines find each other directly, come up
+on their own after a reboot, and stay connected without anyone driving the UI.
+
+The main window is split accordingly:
+
+- **TRANSMIT** (top) -- the local Dante inputs being sent out over the network,
+  one mono channel each, with the channel names you give them.
+- **RECEIVE** (bottom) -- the streams arriving from the far end, each with a
+  level, routed either straight out to a Dante output or into a **bus** that
+  combines several streams before going out to Dante.
 
 ## How it differs from SonoBus
 
@@ -18,6 +28,8 @@ connected without anyone driving the UI.
 | Default connection | Private group via a rendezvous server | **Direct**, peer-to-peer by address |
 | Default input layout | One group spanning every input channel | **4 independent mono channel groups** |
 | Metronome / file playback / soundboard | Included | **Removed** |
+| Recording | Included | **Removed** |
+| Receive-side mixing | Pan/FX per peer | **Level + bus routing only** |
 | After a reboot | Launched by hand | Starts automatically (macOS launch agent) |
 | After a dropout | Reconnected by hand | Reconnected automatically, with backoff |
 | Auto-update | On, pointed at SonoBus releases | Off, pointed at Commsbus releases |
