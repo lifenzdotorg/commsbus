@@ -26,13 +26,11 @@
 #include "VDONinjaView.h"
 
 class RandomSentenceGenerator;
-class WaveformTransportComponent;
 
 class CommsbusAudioProcessorEditor;
 class ChannelGroupsView;
 class MonitorDelayView;
 class ChatView;
-class SoundboardView;
 class LatencyMatchView;
 class SuggestNewGroupView;
 
@@ -50,7 +48,6 @@ public ChangeListener,
 public TextEditor::Listener,
 public ApplicationCommandTarget,
 public AsyncUpdater,
-public FileDragAndDropTarget,
 public GenericItemChooser::Listener,
 public ConnectView::Listener,
 public ChannelGroupsView::Listener,
@@ -124,10 +121,6 @@ public:
 
     // file drop
 
-    bool isInterestedInFileDrag (const StringArray& /*files*/) override;
-    void filesDropped (const StringArray& files, int /*x*/, int /*y*/) override;
-    void fileDragEnter (const StringArray& files, int x, int y) override;
-    void fileDragExit (const StringArray& files) override;
 
     // client listener
     void aooClientConnected(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") override;
@@ -208,7 +201,6 @@ private:
     void updateServerStatusLabel(const String & mesg, bool mainonly=true);
     void updateChannelState(bool force=false);
     bool updatePeerState(bool force=false);
-    void updateTransportState();
     
     void updateOptionsState(bool ignorecheck=false);
 
@@ -217,20 +209,12 @@ private:
 
 
 
-    void openFileBrowser();
     void chooseRecDirBrowser();
 
-    bool loadAudioFromURL(const URL & fileurl);
-    bool updateTransportWithURL(const URL & fileurl);
 
-    class TrimFileJob;
 
-    void trimCurrentAudioFile(bool replaceExisting);
     
-    void trimAudioFile(const String & fname, double startPos, double lenSecs, bool replaceExisting);
-    void trimFinished(const String & trimmedFile);
 
-    void showFilePopupMenu(Component * source);
 
     void showLatencyMatchPrompt(const String & name, float latencyms);
     void showLatencyMatchView(bool show);
@@ -252,7 +236,6 @@ private:
     void showLoadSettingsPreset();
 
     void showChatPanel(bool show, bool allowresize=true);
-    void showSoundboardPanel(bool show, bool allowresize=true);
 
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
@@ -290,7 +273,6 @@ private:
     std::unique_ptr<Label> mMainStatusLabel;
 
     std::unique_ptr<Label> mConnectionTimeLabel;
-    std::unique_ptr<Label> mFileRecordingLabel;
 
     
     std::unique_ptr<TextButton> mPatchbayButton;
@@ -316,20 +298,8 @@ private:
     std::unique_ptr<SonoDrawableButton> mMainRecvMuteButton;
     std::unique_ptr<SonoDrawableButton> mMainPushToTalkButton;
 
-    std::unique_ptr<SonoDrawableButton> mMetConfigButton;
-    std::unique_ptr<SonoDrawableButton> mMetEnableButton;
-    std::unique_ptr<SonoDrawableButton> mMetSendButton;
-    std::unique_ptr<TextButton> mMetSyncButton;
-    std::unique_ptr<TextButton> mMetSyncFileButton;
-    std::unique_ptr<Label> mMetTempoSliderLabel;
-    std::unique_ptr<Slider> mMetTempoSlider;
-    std::unique_ptr<Label> mMetLevelSliderLabel;
-    std::unique_ptr<Slider> mMetLevelSlider;
-    std::unique_ptr<DrawableRectangle> mMetButtonBg;
 
-    std::unique_ptr<DrawableRectangle> mDragDropBg;
 
-    std::unique_ptr<DrawableRectangle> mFileAreaBg;
 
 
     std::unique_ptr<Label> mInGainLabel;
@@ -346,21 +316,11 @@ private:
     uint32 settingsClosedTimestamp = 0;
     int minServerConnectHeight = 0;
 
-    std::unique_ptr<Component> mMetContainer;
 
     std::unique_ptr<Component> mEffectsContainer;
 
 
     std::unique_ptr<SonoDrawableButton> mRecordingButton;
-    std::unique_ptr<SonoDrawableButton> mFileBrowseButton;
-    std::unique_ptr<SonoDrawableButton> mPlayButton;
-    std::unique_ptr<SonoDrawableButton> mSkipBackButton;
-    std::unique_ptr<SonoDrawableButton> mDismissTransportButton;
-    std::unique_ptr<SonoDrawableButton> mLoopButton;
-    std::unique_ptr<SonoDrawableButton> mFileSendAudioButton;
-    std::unique_ptr<SonoDrawableButton> mFileMenuButton;
-    std::unique_ptr<Slider> mPlaybackSlider;
-    std::unique_ptr<WaveformTransportComponent> mWaveformThumbnail;
 
     std::unique_ptr<Drawable> mPeerRecImage;
 
@@ -410,8 +370,6 @@ private:
 
 
     std::unique_ptr<FileChooser> mFileChooser;
-    File  mCurrOpenDir;
-    URL mCurrentAudioFile;
     bool mReloadFile = false;
     
     std::unique_ptr<ThreadPool> mWorkPool;
@@ -429,7 +387,6 @@ private:
     //std::unique_ptr<Component> serverContainer;
     WeakReference<Component> serverCalloutBox;
 
-    WeakReference<Component> metCalloutBox;
     WeakReference<Component> effectsCalloutBox;
 
     WeakReference<Component> monDelayCalloutBox;
@@ -514,13 +471,6 @@ private:
     bool mChatOverlay  = false;
     volatile bool mIgnoreResize = false;
 
-   std::unique_ptr<SoundboardView> mSoundboardView;
-   std::unique_ptr<SonoDrawableButton> mSoundboardButton;
-   std::unique_ptr<ComponentBoundsConstrainer> mSoundboardSizeConstrainer;
-   std::unique_ptr<ResizableEdgeComponent> mSoundboardEdgeResizer;
-   bool mAboutToShowSoundboard = false;
-   bool mSoundboardShowDidResize = false;
-   bool mSoundboardWasVisible = false;
 
     bool peerStateUpdated = false;
     double serverStatusFadeTimestamp = 0;
@@ -632,9 +582,7 @@ private:
     FlexBox toolbarBox;
     FlexBox toolbarTextBox;
     FlexBox outBox;
-    FlexBox transportBox;
     FlexBox transportWaveBox;
-    FlexBox transportVBox;
     FlexBox recBox;
     FlexBox knobButtonBox;    
     FlexBox inMeterBox;
@@ -649,11 +597,6 @@ private:
     FlexBox outputMainBox;
 
 
-    FlexBox metBox;
-    FlexBox metVolBox;
-    FlexBox metTempoBox;
-    FlexBox metSendBox;
-    FlexBox metSendSyncBox;
 
     FlexBox effectsBox;
     FlexBox reverbBox;
@@ -702,12 +645,6 @@ private:
     std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> mWetAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMainSendMuteAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMainRecvMuteAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> mMetTempoAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetSyncAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetSyncFileAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> mMetLevelAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetEnableAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetSendAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mFileSendAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mHearLatencyTestAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mReverbEnableAttachment;

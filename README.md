@@ -17,6 +17,7 @@ connected without anyone driving the UI.
 | Formats | Standalone + VST3 / AU / AAX / LV2 / VSTi | Standalone application only |
 | Default connection | Private group via a rendezvous server | **Direct**, peer-to-peer by address |
 | Default input layout | One group spanning every input channel | **4 independent mono channel groups** |
+| Metronome / file playback / soundboard | Included | **Removed** |
 | After a reboot | Launched by hand | Starts automatically (macOS launch agent) |
 | After a dropout | Reconnected by hand | Reconnected automatically, with backoff |
 | Auto-update | On, pointed at SonoBus releases | Off, pointed at Commsbus releases |

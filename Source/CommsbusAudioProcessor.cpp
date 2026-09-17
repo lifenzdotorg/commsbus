@@ -21,7 +21,6 @@
 #include <algorithm>
 
 #include "LatencyMeasurer.h"
-#include "Metronome.h"
 
 using namespace SonoAudio;
 
@@ -55,15 +54,8 @@ String CommsbusAudioProcessor::paramMainSendMute ("mastsendmute");
 String CommsbusAudioProcessor::paramMainRecvMute ("mastrecvmute");
 String CommsbusAudioProcessor::paramMainInMute ("mastinmute");
 String CommsbusAudioProcessor::paramMainMonitorSolo ("mastmonsolo");
-String CommsbusAudioProcessor::paramMetEnabled ("metenabled");
-String CommsbusAudioProcessor::paramMetGain     ("metgain");
-String CommsbusAudioProcessor::paramMetTempo     ("mettempo");
 String CommsbusAudioProcessor::paramSendChannels    ("sendchannels");
-String CommsbusAudioProcessor::paramSendMetAudio    ("sendmetaudio");
-String CommsbusAudioProcessor::paramSendFileAudio    ("sendfileaudio");
-String CommsbusAudioProcessor::paramSendSoundboardAudio    ("sendsoundboardaudio");
 String CommsbusAudioProcessor::paramHearLatencyTest   ("hearlatencytest");
-String CommsbusAudioProcessor::paramMetIsRecorded   ("metisrecorded");
 String CommsbusAudioProcessor::paramMainReverbEnabled  ("mainreverbenabled");
 String CommsbusAudioProcessor::paramMainReverbLevel  ("nmainreverblevel");
 String CommsbusAudioProcessor::paramMainReverbSize  ("mainreverbsize");
@@ -73,8 +65,6 @@ String CommsbusAudioProcessor::paramMainReverbModel  ("mainreverbmodel");
 String CommsbusAudioProcessor::paramDynamicResampling  ("dynamicresampling");
 String CommsbusAudioProcessor::paramAutoReconnectLast  ("reconnectlast");
 String CommsbusAudioProcessor::paramDefaultPeerLevel  ("defPeerLevel");
-String CommsbusAudioProcessor::paramSyncMetToHost  ("syncMetHost");
-String CommsbusAudioProcessor::paramSyncMetToFilePlayback  ("syncMetFile");
 String CommsbusAudioProcessor::paramInputReverbLevel  ("inreverblevel");
 String CommsbusAudioProcessor::paramInputReverbSize  ("inreverbsize");
 String CommsbusAudioProcessor::paramInputReverbDamping  ("inreverbdamp");
@@ -101,8 +91,6 @@ static String disableShortcutsKey("DisableKeyShortcuts");
 static String peerDisplayModeKey("PeerDisplayMode");
 static String lastChatWidthKey("lastChatWidth");
 static String lastChatShownKey("lastChatShown");
-static String lastSoundboardWidthKey("lastSoundboardWidth");
-static String lastSoundboardShownKey("lastSoundboardShown");
 static String chatUseFixedWidthFontKey("chatFixedWidthFont");
 static String chatFontSizeOffsetKey("chatFontSizeOffset");
 static String linkMonitoringDelayTimesKey("linkMonDelayTimes");
@@ -128,7 +116,6 @@ static String addressValueKey("value");
 //static String inputEffectsStateKey("InputEffects");
 
 static String inputChannelGroupsStateKey("InputChannelGroups");
-static String extraChannelGroupsStateKey("ExtraChannelGroups");
 static String channelGroupsStateKey("ChannelGroups");
 static String channelGroupsMultiStateKey("MultiChannelGroups");
 static String channelGroupStateKey("ChannelGroup");
@@ -598,7 +585,6 @@ CommsbusAudioProcessor::BusesProperties CommsbusAudioProcessor::getDefaultLayout
 CommsbusAudioProcessor::CommsbusAudioProcessor()
 : AudioProcessor ( getDefaultLayout() ),
 mReconnectTimer(*this),
-soundboardChannelProcessor(std::make_unique<SoundboardChannelProcessor>()),
 mGlobalState("CommsbusGlobalState"),
 mState (*this, &mUndoManager, "CommsbusAoO",
 {
@@ -631,20 +617,7 @@ mState (*this, &mUndoManager, "CommsbusAoO",
                                           [](const String& s) -> float { return s.getFloatValue()*1e-3f; }),
     std::make_unique<AudioParameterChoice>(ParameterID(paramSendChannels, 1), TRANS ("Send Channels"), StringArray({ "Match # Inputs", "Send Mono", "Send Stereo"}), mSendChannels.get()),
 
-    std::make_unique<AudioParameterBool>(ParameterID(paramMetEnabled, 1), TRANS ("Metronome Enabled"), mMetEnabled.get()),
-    std::make_unique<AudioParameterBool>(ParameterID(paramSendMetAudio, 1), TRANS ("Send Metronome Audio"), mSendMet.get()),
-    std::make_unique<AudioParameterFloat>(ParameterID(paramMetGain, 1),     TRANS ("Metronome Gain"),    NormalisableRange<float>(0.0, 1.0, 0.0, 0.5), mMetGain.get(), "", AudioProcessorParameter::genericParameter,
-                                          [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); },
-                                          [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
-
-    std::make_unique<AudioParameterFloat>(ParameterID(paramMetTempo, 1),     TRANS ("Metronome Tempo"),    NormalisableRange<float>(10.0, 400.0, 1, 0.5), mMetTempo.get(), "", AudioProcessorParameter::genericParameter,
-                                          [](float v, int maxlen) -> String { return String(v) + " bpm"; },
-                                          [](const String& s) -> float { return s.getFloatValue(); }),
-
-    std::make_unique<AudioParameterBool>(ParameterID(paramSendFileAudio, 1), TRANS ("Send Playback Audio"), mSendPlaybackAudio.get()),
-    std::make_unique<AudioParameterBool>(ParameterID(paramSendSoundboardAudio, 1), TRANS ("Send Soundboard Audio"), mSendSoundboardAudio.get()),
     std::make_unique<AudioParameterBool>(ParameterID(paramHearLatencyTest, 1), TRANS ("Hear Latency Test"), mHearLatencyTest.get()),
-    std::make_unique<AudioParameterBool>(ParameterID(paramMetIsRecorded, 1), TRANS ("Record Metronome to File"), mMetIsRecorded.get()),
     std::make_unique<AudioParameterBool>(ParameterID(paramMainReverbEnabled, 1), TRANS ("Main Reverb Enabled"), mMainReverbEnabled.get()),
     std::make_unique<AudioParameterFloat>(ParameterID(paramMainReverbLevel, 1),     TRANS ("Main Reverb Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.4), mMainReverbLevel.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); }, 
@@ -674,7 +647,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     std::make_unique<AudioParameterFloat>(ParameterID(paramDefaultPeerLevel, 1),     TRANS ("Default User Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), mDefUserLevel.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); },
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
-    std::make_unique<AudioParameterBool>(ParameterID(paramSyncMetToHost, 1), TRANS ("Sync to Host"), false),
     std::make_unique<AudioParameterFloat>(ParameterID(paramInputReverbLevel, 1),     TRANS ("Input Reverb Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.4), mInputReverbLevel.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); },
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
@@ -687,7 +659,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     std::make_unique<AudioParameterFloat>(ParameterID(paramInputReverbPreDelay, 1),     TRANS ("Input Reverb Pre-Delay Time"),    NormalisableRange<float>(0.0, 100.0, 1.0, 1.0), mInputReverbPreDelay.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return String(v, 0) + " ms"; },
                                           [](const String& s) -> float { return s.getFloatValue(); }),
-    std::make_unique<AudioParameterBool>(ParameterID(paramSyncMetToFilePlayback, 1), TRANS ("Sync Met to File Playback"), false),
 
 })
 {
@@ -702,14 +673,7 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     mState.addParameterListener (paramDefaultSendQual, this);
     mState.addParameterListener (paramMainSendMute, this);
     mState.addParameterListener (paramMainRecvMute, this);
-    mState.addParameterListener (paramMetEnabled, this);
-    mState.addParameterListener (paramMetGain, this);
-    mState.addParameterListener (paramMetTempo, this);
-    mState.addParameterListener (paramSendMetAudio, this);
-    mState.addParameterListener (paramSendFileAudio, this);
-    mState.addParameterListener (paramSendSoundboardAudio, this);
     mState.addParameterListener (paramHearLatencyTest, this);
-    mState.addParameterListener (paramMetIsRecorded, this);
     mState.addParameterListener (paramMainReverbEnabled, this);
     mState.addParameterListener (paramMainReverbSize, this);
     mState.addParameterListener (paramMainReverbLevel, this);
@@ -722,8 +686,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     mState.addParameterListener (paramMainInMute, this);
     mState.addParameterListener (paramMainMonitorSolo, this);
     mState.addParameterListener (paramDefaultPeerLevel, this);
-    mState.addParameterListener (paramSyncMetToHost, this);
-    mState.addParameterListener (paramSyncMetToFilePlayback, this);
     mState.addParameterListener (paramInputReverbSize, this);
     mState.addParameterListener (paramInputReverbLevel, this);
     mState.addParameterListener (paramInputReverbDamping, this);
@@ -778,27 +740,11 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     mDefaultAudioFormatParam = mState.getParameter(paramDefaultSendQual);
 
     const bool isplugin = false; // Commsbus is a standalone application only
-    if (isplugin) {
-        // default dry to 1.0 if plugin
-        mDry = 1.0;
-        mSendChannels = 0; // match inputs default for plugin
-        mSyncMetToHost = true;
-    } else {
-        mDry = 0.0;
-        mSyncMetToHost = false;
-    }
+    mDry = 0.0;
 
     mState.getParameter(paramDry)->setValue(mDry.get());
     mState.getParameter(paramSendChannels)->setValue(mState.getParameter(paramSendChannels)->convertTo0to1(mSendChannels.get()));
 
-    mTempoParameter = mState.getParameter(paramMetTempo);
-    
-    mMetronome = std::make_unique<SonoAudio::Metronome>();
-    
-    mMetronome->loadBarSoundFromBinaryData(BinaryData::bar_click_wav, BinaryData::bar_click_wavSize);
-    mMetronome->loadBeatSoundFromBinaryData(BinaryData::beat_click_wav, BinaryData::beat_click_wavSize);
-    mMetronome->setTempo(100.0);
-    
     mMainReverb = std::make_unique<Reverb>();
     mMainReverbParams.dryLevel = 0.0f;
     mMainReverbParams.wetLevel = mMainReverbLevel.get() * 0.5f;
@@ -816,24 +762,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
         mInputChannelGroups[i].params.setToDefaults(isplugin);
     }
 
-    mMetChannelGroup.params.name = TRANS("Metronome");
-    mMetChannelGroup.params.numChannels = 1;
-
-    mRecMetChannelGroup.params.name = TRANS("Metronome");
-    mRecMetChannelGroup.params.numChannels = 1;
-
-    mFilePlaybackChannelGroup.params.name = TRANS("File Playback");
-    mFilePlaybackChannelGroup.params.numChannels = 2;
-
-    mRecFilePlaybackChannelGroup.params.name = TRANS("File Playback");
-    mRecFilePlaybackChannelGroup.params.numChannels = 2;
-
-
-    mTransportSource.addChangeListener(this);
-    
-    // audio setup
-    mFormatManager.registerBasicFormats();    
-    
     initializeAoo();
 
     mFreshInit = false; // need to ensure this before loaddefaultpluginstate
@@ -853,9 +781,6 @@ mState (*this, &mUndoManager, "CommsbusAoO",
 
 CommsbusAudioProcessor::~CommsbusAudioProcessor()
 {
-    mTransportSource.setSource(nullptr);
-    mTransportSource.removeChangeListener(this);
-
     cleanupAoo();
 }
 
@@ -1634,136 +1559,6 @@ bool CommsbusAudioProcessor::getRemotePeerEffectsActive(int index, int changroup
     return false;
 
 
-}
-
-
-void CommsbusAudioProcessor::setMetronomeMonitorDelayParams(SonoAudio::DelayParams & params)
-{
-    mMetChannelGroup.params.monitorDelayParams = params;
-    //mInputChannelGroups[changroup].monitorDelayParamsChanged = true;
-    // commit them now
-    mMetChannelGroup.commitMonitorDelayParams();
-
-    mRecMetChannelGroup.params.monitorDelayParams = params;
-    mRecMetChannelGroup.commitMonitorDelayParams();
-}
-
-bool CommsbusAudioProcessor::getMetronomeMonitorDelayParams(SonoAudio::DelayParams & retparams)
-{
-    retparams = mMetChannelGroup.params.monitorDelayParams;
-    return true;
-}
-
-void CommsbusAudioProcessor::setMetronomeChannelDestStartAndCount(int start, int count)
-{
-    mMetChannelGroup.params.monDestStartIndex = start;
-    mMetChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
-    mMetChannelGroup.commitMonitorDelayParams(); // need to do this too
-
-    mRecMetChannelGroup.params.monDestStartIndex = start;
-    mRecMetChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
-    mRecMetChannelGroup.commitMonitorDelayParams(); // need to do this too
-}
-
-bool CommsbusAudioProcessor::getMetronomeChannelDestStartAndCount(int & retstart, int & retcount)
-{
-    retstart = mMetChannelGroup.params.monDestStartIndex;
-    retcount = mMetChannelGroup.params.monDestChannels;
-    return true;
-}
-
-
-void CommsbusAudioProcessor::setMetronomePan(float pan)
-{
-    mMetChannelGroup.params.pan[0] = pan;
-    mRecMetChannelGroup.params.pan[0] = pan;
-}
-
-float CommsbusAudioProcessor::getMetronomePan() const
-{
-    return mMetChannelGroup.params.pan[0];
-}
-
-void CommsbusAudioProcessor::setMetronomeGain(float gain)
-{
-    mState.getParameter(paramMetGain)->setValueNotifyingHost(mState.getParameter(paramMetGain)->convertTo0to1(gain));
-}
-
-float CommsbusAudioProcessor::getMetronomeGain() const
-{
-    return mMetGain.get();
-}
-
-void CommsbusAudioProcessor::setMetronomeMonitor(float mgain)
-{
-    mMetChannelGroup.params.monitor = mgain;
-}
-
-float CommsbusAudioProcessor::getMetronomeMonitor() const
-{
-    return mMetChannelGroup.params.monitor;
-}
-
-
-
-void CommsbusAudioProcessor::setFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & params)
-{
-    mFilePlaybackChannelGroup.params.monitorDelayParams = params;
-    //mInputChannelGroups[changroup].monitorDelayParamsChanged = true;
-    // commit them now
-    mFilePlaybackChannelGroup.commitMonitorDelayParams();
-
-    mRecFilePlaybackChannelGroup.params.monitorDelayParams = params;
-    mRecFilePlaybackChannelGroup.commitMonitorDelayParams();
-
-}
-
-bool CommsbusAudioProcessor::getFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & retparams)
-{
-    retparams = mFilePlaybackChannelGroup.params.monitorDelayParams;
-    return true;
-}
-
-void CommsbusAudioProcessor::setFilePlaybackDestStartAndCount(int start, int count)
-{
-    mFilePlaybackChannelGroup.params.monDestStartIndex = start;
-    mFilePlaybackChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
-    mFilePlaybackChannelGroup.commitMonitorDelayParams(); // need to do this too
-
-    mRecFilePlaybackChannelGroup.params.monDestStartIndex = start;
-    mRecFilePlaybackChannelGroup.params.monDestChannels = std::max(1, std::min(count, MAX_CHANNELS));
-    mRecFilePlaybackChannelGroup.commitMonitorDelayParams(); // need to do this too
-}
-
-bool CommsbusAudioProcessor::getFilePlaybackDestStartAndCount(int & retstart, int & retcount)
-{
-    retstart = mFilePlaybackChannelGroup.params.monDestStartIndex;
-    retcount = mFilePlaybackChannelGroup.params.monDestChannels;
-    return true;
-}
-
-void CommsbusAudioProcessor::setFilePlaybackGain(float gain)
-{
-    mFilePlaybackChannelGroup.params.gain = gain;
-    mRecFilePlaybackChannelGroup.params.gain = gain;
-    //mTransportSource.setGain(gain);
-}
-
-float CommsbusAudioProcessor::getFilePlaybackGain() const
-{
-    return mFilePlaybackChannelGroup.params.gain;
-    //return mTransportSource.getGain();
-}
-
-void CommsbusAudioProcessor::setFilePlaybackMonitor(float mgain)
-{
-    mFilePlaybackChannelGroup.params.monitor = mgain;
-    mRecFilePlaybackChannelGroup.params.monitor = mgain;
-}
-
-float CommsbusAudioProcessor::getFilePlaybackMonitor() const
-{
-    return mFilePlaybackChannelGroup.params.monitor;
 }
 
 
@@ -5216,17 +5011,6 @@ void CommsbusAudioProcessor::updateRemotePeerSendChannels(int index, RemotePeer 
         for (int cgi=0; cgi < mInputChannelGroupCount && cgi < MAX_CHANGROUPS ; ++cgi) {
             totinchans += mInputChannelGroups[cgi].params.numChannels;
         }
-        // met and file and soundboard
-        if (mSendMet.get()) {
-            totinchans += 1;
-        }
-        if (mSendPlaybackAudio.get()) {
-            totinchans += mFilePlaybackChannelGroup.params.numChannels;
-        }
-        if (mSendSoundboardAudio.get()) {
-            totinchans += soundboardChannelProcessor->getNumberOfChannels();
-        }
-
         newchancnt = isAnythingRoutedToPeer(index) ? getMainBusNumOutputChannels() :  remote->nominalSendChannels <= 0 ? totinchans : remote->nominalSendChannels;
     }
     else {
@@ -5247,29 +5031,6 @@ void CommsbusAudioProcessor::updateRemotePeerSendChannels(int index, RemotePeer 
     }
 }
 
-void CommsbusAudioProcessor::changeListenerCallback (ChangeBroadcaster* source)
-{
-    if (source == &mTransportSource) {
-        if (!mTransportSource.isPlaying() && mTransportSource.getCurrentPosition() >= mTransportSource.getLengthInSeconds()) {
-            // at end, return to start
-            mTransportSource.setPosition(0.0);
-        }
-
-#if 0
-        if (mSendChannels.get() == 0) {
-            if (mTransportSource.isPlaying() && mSendPlaybackAudio.get()) {
-                // override sending
-                int srcchans = mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-                setRemotePeerOverrideSendChannelCount(-1, jmax(getMainBusNumInputChannels(), srcchans));
-            }
-            else if (!mTransportSource.isPlaying()) {
-                // remove override
-                setRemotePeerOverrideSendChannelCount(-1, -1);
-            }
-        }
-#endif
-    }
-}
 
 void CommsbusAudioProcessor::setRemotePeerBufferTime(int index, float bufferMs)
 {
@@ -6377,25 +6138,6 @@ ValueTree CommsbusAudioProcessor::getSendUserFormatLayoutTree()
 
             chstart += tmpgrp.numChannels;
         }
-        // add met and file playback and soundboard if necessary
-        if (mSendMet.get()) {
-            ChannelGroupParams tmpgrp = mMetChannelGroup.params;
-            tmpgrp.chanStartIndex = chstart;
-            fmttree.appendChild(tmpgrp.getChannelLayoutValueTree(), nullptr);
-            chstart += tmpgrp.numChannels;
-        }
-        if (mSendPlaybackAudio.get()) {
-            ChannelGroupParams tmpgrp = mFilePlaybackChannelGroup.params;
-            tmpgrp.chanStartIndex = chstart;
-            fmttree.appendChild(tmpgrp.getChannelLayoutValueTree(), nullptr);
-            chstart += tmpgrp.numChannels;
-        }
-        if (mSendSoundboardAudio.get()) {
-            ChannelGroupParams tmpgrp = soundboardChannelProcessor->getChannelGroupParams();
-            tmpgrp.chanStartIndex = chstart;
-            fmttree.appendChild(tmpgrp.getChannelLayoutValueTree(), nullptr);
-            chstart += tmpgrp.numChannels;
-        }
     }
 
     return fmttree;
@@ -6573,16 +6315,6 @@ void CommsbusAudioProcessor::parameterChanged (const String &parameterID, float 
         // for now just apply it to the first input channel group
         //mInputChannelGroups[0].gain = newValue;
     }
-    else if (parameterID == paramMetGain) {
-        mMetGain = newValue;
-        //mMetChannelGroup.params.gain = newValue;
-    }
-    else if (parameterID == paramMetTempo) {
-        mMetTempo = newValue;
-    }
-    else if (parameterID == paramMetEnabled) {
-        mMetEnabled = newValue > 0;
-    }
     else if (parameterID == paramDynamicResampling) {
         mDynamicResampling = newValue > 0;
         updateDynamicResampling();
@@ -6592,12 +6324,6 @@ void CommsbusAudioProcessor::parameterChanged (const String &parameterID, float 
     }
     else if (parameterID == paramDefaultPeerLevel) {
         mDefUserLevel = newValue;
-    }
-    else if (parameterID == paramSyncMetToHost) {
-        mSyncMetToHost = newValue > 0;
-    }
-    else if (parameterID == paramSyncMetToFilePlayback) {
-        mSyncMetStartToPlayback = newValue > 0;
     }
     else if (parameterID == paramSendChannels) {
         mSendChannels = (int) newValue;
@@ -6683,32 +6409,8 @@ void CommsbusAudioProcessor::parameterChanged (const String &parameterID, float 
         mInputReverb.setParameter(MVerbFloat::PREDELAY, jmap(mInputReverbPreDelay.get(), 0.0f, 100.0f, 0.0f, 0.5f)); // takes 0->1  where = 200ms
     }
 
-    else if (parameterID == paramSendFileAudio) {
-        mSendPlaybackAudio = newValue > 0;
-
-#if 0
-        if (mTransportSource.isPlaying() && mSendPlaybackAudio.get()) {
-            // override sending
-            int srcchans = mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-            setRemotePeerOverrideSendChannelCount(-1, jmax(getMainBusNumInputChannels(), srcchans)); // should be something different?
-        }
-        else if (!mSendPlaybackAudio.get()) {
-            // remove override
-            setRemotePeerOverrideSendChannelCount(-1, -1); 
-        }
-#endif
-    }
-    else if (parameterID == paramSendSoundboardAudio) {
-        mSendSoundboardAudio = newValue > 0;
-    }
     else if (parameterID == paramHearLatencyTest) {
         mHearLatencyTest = newValue > 0;
-    }
-    else if (parameterID == paramMetIsRecorded) {
-        mMetIsRecorded = newValue > 0;
-    }
-    else if (parameterID == paramSendMetAudio) {
-        mSendMet = newValue > 0;
     }
     else if (parameterID == paramMainInMute) {
         mMainInMute = newValue > 0;
@@ -6918,7 +6620,6 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
 
     const ScopedReadLock sl (mCoreLock);        
     
-    mMetronome->setSampleRate(sampleRate);
     mMainReverb->setSampleRate(sampleRate);
     mMReverb.setSampleRate(sampleRate);
     mInputReverb.setSampleRate(sampleRate);
@@ -6972,9 +6673,6 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     mMainReverbParams.roomSize = jmap(mMainReverbSize.get(), 0.55f, 1.0f);
     mMainReverb->setParameters(mMainReverbParams);
 
-
-
-    mTransportSource.prepareToPlay(currSamplesPerBlock, getSampleRate());
 
     //mAooSource->set_format(fmt->header);
     setupSourceFormat(0, mAooDummySource.get());
@@ -7032,25 +6730,9 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     meterRmsWindow = sampleRate * METER_RMS_SEC / currSamplesPerBlock;
 
     int totsendchans = 0;
-    int fileplaychans = mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-    int soundboardchans = soundboardChannelProcessor->getFileSourceNumberOfChannels();
-
-    soundboardChannelProcessor->prepareToPlay(sampleRate, meterRmsWindow, currSamplesPerBlock);
 
     for (int cgi=0; cgi < mInputChannelGroupCount && cgi < MAX_CHANGROUPS ; ++cgi) {
         totsendchans += mInputChannelGroups[cgi].params.numChannels;
-    }
-    // plus a possible metronome send
-    if (mSendMet.get()) {
-        totsendchans += 1;
-    }
-    if (mSendPlaybackAudio.get()) {
-        // plus a possible file sending
-        totsendchans += fileplaychans;
-    }
-    if (mSendSoundboardAudio.get()) {
-        // plus a possible soundboard sending
-        totsendchans += soundboardchans;
     }
 
     int realsendchans = mSendChannels.get() <= 0 ? totsendchans : mSendChannels.get();
@@ -7059,8 +6741,6 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     inputMeterSource.resize (inchannels, meterRmsWindow);
     outputMeterSource.resize (outchannels, meterRmsWindow);
     postinputMeterSource.resize (totsendchans, meterRmsWindow);
-    metMeterSource.resize (1, 2*meterRmsWindow);
-    filePlaybackMeterSource.resize (fileplaychans, meterRmsWindow);
 
     if (sendMeterSource.getNumChannels() < realsendchans) {
         sendMeterSource.resize (realsendchans, meterRmsWindow);
@@ -7070,12 +6750,6 @@ void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
 
     
     ensureBuffers(samplesPerBlock);
-
-
-    mMetChannelGroup.init(sampleRate);
-    mFilePlaybackChannelGroup.init(sampleRate);
-    mRecMetChannelGroup.init(sampleRate);
-    mRecFilePlaybackChannelGroup.init(sampleRate);
 
 
     if (lrintf(mPrevSampleRate) != lrintf(sampleRate) || blocksizechanged) {
@@ -7186,8 +6860,6 @@ void CommsbusAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
-    mTransportSource.releaseResources();
-    soundboardChannelProcessor->releaseResources();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -7237,27 +6909,7 @@ void CommsbusAudioProcessor::ensureBuffers(int numSamples)
     }
     selfrecchans = totsendchans;
 
-    // plus a possible metronome send
-    if (mSendMet.get()) {
-        totsendchans += 1;
-    }
-    int fileplaychans = mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-    int fileplaymaxchans = jmax(maxchans, fileplaychans);
-    if (mSendPlaybackAudio.get()) {
-        // plus a possible file sending
-        totsendchans += fileplaychans;
-    }
-
     meterRmsWindow = getSampleRate() * METER_RMS_SEC / currSamplesPerBlock;
-
-    int soundboardplaychans = soundboardChannelProcessor->getFileSourceNumberOfChannels();
-
-    soundboardChannelProcessor->ensureBuffers(numSamples, maxchans, meterRmsWindow);
-
-    if (mSendSoundboardAudio.get()) {
-        // plus a possible soundboard sending
-        totsendchans += soundboardplaychans;
-    }
 
     bool needpeersendupdate = false;
     if (mActiveSendChannels != totsendchans) {
@@ -7273,11 +6925,6 @@ void CommsbusAudioProcessor::ensureBuffers(int numSamples)
     if (sendMeterSource.getNumChannels() < realsendchans) {
         sendMeterSource.resize (realsendchans, meterRmsWindow);
     }
-
-    if (filePlaybackMeterSource.getNumChannels() < fileplaychans) {
-        filePlaybackMeterSource.resize (fileplaychans, meterRmsWindow);
-    }
-
 
     auto maxworkbufchans = jmax(maxchans, totsendchans);
 
@@ -7308,12 +6955,6 @@ void CommsbusAudioProcessor::ensureBuffers(int numSamples)
     if (inputPostBuffer.getNumSamples() < numSamples || inputPostBuffer.getNumChannels() != totsendchans) {
         inputPostBuffer.setSize(totsendchans, numSamples, false, false, true);
         inputPreBuffer.setSize(totsendchans, numSamples, false, false, true);
-    }
-    if (fileBuffer.getNumSamples() < numSamples || fileBuffer.getNumChannels() != fileplaymaxchans) {
-        fileBuffer.setSize(fileplaymaxchans, numSamples, false, false, true);
-    }
-    if (metBuffer.getNumSamples() < numSamples || metBuffer.getNumChannels() != maxchans) {
-        metBuffer.setSize(maxchans, numSamples, false, false, true);
     }
     if (mainFxBuffer.getNumSamples() < numSamples || mainFxBuffer.getNumChannels() != maxchans) {
         mainFxBuffer.setSize(maxchans, numSamples, false, false, true);
@@ -7360,9 +7001,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     float inmonPan2 = mInMonPan2.get();
 
     int sendChans = mSendChannels.get();
-    bool sendfileaudio = mSendPlaybackAudio.get();
-    bool sendsoundboardaudio = mSendSoundboardAudio.get();
-    bool sendmet = mSendMet.get();
 
     bool userwritingpossible = userWritingPossible.load();
     bool writingpossible = writingPossible.load();
@@ -7397,19 +7035,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     {
         totsendchans += mInputChannelGroups[i].params.numChannels;
     }
-    // plus a possible metronome send
-    if (sendmet) {
-        totsendchans += 1;
-    }
-    if (sendfileaudio) {
-        // plus a possible file sending
-        totsendchans += mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-    }
-    if (sendsoundboardaudio) {
-        // plus a possible soundboard sending
-        totsendchans += soundboardChannelProcessor->getFileSourceNumberOfChannels();
-    }
-
     int realsendchans = sendChans <= 0 ? totsendchans :sendChans;
 
 
@@ -7419,30 +7044,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         ensureBuffers(numSamples);
     }
 
-    double useBpm = mMetTempo.get();
-    bool syncmethost = mSyncMetToHost.get();
-    bool syncmetplayback = mSyncMetStartToPlayback.get();
-
-    AudioPlayHead * playhead = getPlayHead();
-    Optional<AudioPlayHead::PositionInfo> rposInfo;
-
-    if (playhead) {
-        rposInfo = playhead->getPosition();
-    }
-
-    bool hostPlaying = rposInfo && rposInfo->getIsPlaying();
-    auto hostBpm = rposInfo->getBpm();
-    if (hostBpm && *hostBpm > 0.0) {
-        useBpm = *hostBpm;
-    }
-
-    if (syncmethost) {
-        if (rposInfo && fabs(useBpm - mMetTempo.get()) > 0.001) {
-            mMetTempo = useBpm;
-            mTempoParameter->setValueNotifyingHost(mTempoParameter->convertTo0to1(mMetTempo.get()));
-        }
-    }
-    
     // main bus only
     
     for (auto i = mainBusInputChannels; i < mainBusOutputChannels; ++i) {
@@ -7606,9 +7207,7 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         srcstart += mInputChannelGroups[i].params.numChannels;
     }
 
-    // for multichannel send, met and file playback and soundboard follow the last input channel
-    auto metstartch = srcstart;
-    auto filestartch = sendmet ? metstartch + 1 : srcstart;
+    // for multichannel send, groups follow the last input channel
 
     // write out self-only output bus XXXX FIXME
     /*
@@ -7623,150 +7222,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         }
     }
      */
-
-    
-    // file playback goes to everyone
-
-    bool hasfiledata = false;
-    double transportPos = mTransportSource.getCurrentPosition();
-    int fileChannels = mCurrentAudioFileSource ? mCurrentAudioFileSource->getAudioFormatReader()->numChannels : 2;
-
-    if (mTransportSource.getTotalLength() > 0)
-    {
-        AudioSourceChannelInfo info (&fileBuffer, 0, numSamples);
-        mTransportSource.getNextAudioBlock (info);
-        hasfiledata = true;
-
-        filePlaybackMeterSource.measureBlock(fileBuffer);
-
-        int srcchans = fileChannels;
-        mFilePlaybackChannelGroup.params.numChannels = srcchans;
-        mFilePlaybackChannelGroup.commitMonitorDelayParams(); // need to do this too
-
-        mRecFilePlaybackChannelGroup.params.numChannels = srcchans;
-        mRecFilePlaybackChannelGroup.commitMonitorDelayParams(); // need to do this too
-
-        if (sendfileaudio) {
-
-            //add to main buffer for going out, mix as appropriate depending on how many channels being sent
-            if (sendPanChannels == 1) {
-                float fgain = sendPanChannels == 1 && srcchans > 0 ? (1.0f/std::max(1.0f, (float)(srcchans))): 1.0f;
-                fgain *= mFilePlaybackChannelGroup.params.gain;
-                auto lastfgain = _lastfplaygain;
-
-                for (int channel = 0; channel < srcchans; ++channel) {
-                    //sendWorkBuffer.addFrom(0, 0, fileBuffer, channel, 0, numSamples, fgain);
-                    sendWorkBuffer.addFromWithRamp(0, 0, fileBuffer.getReadPointer(channel), numSamples, fgain, lastfgain);
-                }
-
-                _lastfplaygain = fgain;
-            }
-            else if (sendPanChannels > 2){
-                // straight-thru
-
-                // copy straight-thru
-                // find file channels TODO
-                auto filech = filestartch; // XXX
-                //sendWorkBuffer.addFrom (filech, 0, fileBuffer, 0, 0, numSamples);
-                auto fgain = mFilePlaybackChannelGroup.params.gain;
-                auto lastfgain = _lastfplaygain;
-
-                for (int channel = 0; channel < srcchans && filech < sendWorkBuffer.getNumChannels(); ++channel) {
-                    //sendWorkBuffer.addFrom(filech, 0, fileBuffer, channel, 0, numSamples);
-                    sendWorkBuffer.addFromWithRamp(filech, 0, fileBuffer.getReadPointer(channel), numSamples, fgain, lastfgain);
-                    ++filech;
-                }
-
-                _lastfplaygain = fgain;
-            }
-            else if (sendPanChannels == 2) {
-                // change dest ch target
-                int dstch = mFilePlaybackChannelGroup.params.panDestStartIndex;  // todo change dest ch target
-                int dstcnt = jmin(sendPanChannels, mFilePlaybackChannelGroup.params.panDestChannels);
-                auto fgain = mFilePlaybackChannelGroup.params.gain;
-
-                mFilePlaybackChannelGroup.processPan(fileBuffer, 0, sendWorkBuffer, dstch, dstcnt, numSamples, fgain);
-
-                _lastfplaygain = fgain;
-            }
-        }
-
-    }
-
-    bool hassoundboarddata = soundboardChannelProcessor->processAudioBlock(numSamples);
-    if (hassoundboarddata && sendsoundboardaudio) {
-        int startChannel = sendfileaudio ? filestartch + fileChannels : filestartch;
-        soundboardChannelProcessor->sendAudioBlock(sendWorkBuffer, numSamples, sendPanChannels, startChannel);
-    }
-
-    // process metronome
-    bool metenabled = mMetEnabled.get();
-    float metgain = mMetGain.get();
-    double mettempo = mMetTempo.get();
-    bool metrecorded = mMetIsRecorded.get();
-    bool dometfilesyncstart = syncmetplayback && mTransportWasPlaying != mTransportSource.isPlaying();
-    bool syncmet = (syncmethost && hostPlaying) || (syncmetplayback && mTransportSource.isPlaying());
-
-    if (dometfilesyncstart) {
-        metenabled = mTransportSource.isPlaying();
-        mMetEnabled = metenabled;
-        // notify host
-        mState.getParameter(paramMetEnabled)->setValueNotifyingHost(metenabled ? 1.0f : 0.0f);
-    }
-
-    if (metenabled != mLastMetEnabled) {
-        if (metenabled) {
-            mMetronome->setGain(metgain, true);
-            if (!syncmet) {
-                mMetronome->resetRelativeStart();
-            }
-        } else {
-            metgain = 0.0f;
-            mMetronome->setGain(0.0f);
-        }
-    }
-    if (mLastMetEnabled || metenabled) {
-        metBuffer.clear(0, numSamples);
-        mMetronome->setGain(metgain);
-        mMetronome->setTempo(mettempo);
-        double beattime = 0.0;
-        if (syncmethost && hostPlaying && rposInfo->getPpqPosition()) {
-            beattime = *rposInfo->getPpqPosition();
-        }
-        else if (syncmetplayback && mTransportSource.isPlaying()) {
-            beattime = (mettempo / 60.0) * transportPos;
-        }
-        mMetronome->processMix(numSamples, metBuffer.getWritePointer(0), metBuffer.getWritePointer(mainBusOutputChannels > 1 ? 1 : 0), beattime, !syncmet);
-
-        //
-
-        metMeterSource.measureBlock(metBuffer);
-
-        if (sendmet) {
-
-            if (sendPanChannels > 2) {
-                // copy straight-thru
-                // find Met channel TODO
-                int metch = metstartch;
-                sendWorkBuffer.addFrom (metch, 0, metBuffer, 0, 0, numSamples);
-            }
-            else {
-                // change dest ch target
-                int dstch = mMetChannelGroup.params.panDestStartIndex;  // todo change dest ch target
-                int dstcnt = jmin(sendPanChannels, mMetChannelGroup.params.panDestChannels);
-
-                mMetChannelGroup.processPan(metBuffer, 0, sendWorkBuffer, dstch, dstcnt, numSamples, 1.0f);
-            }
-
-
-            //add to main buffer for going out
-            //for (int channel = 0; channel < mainBusOutputChannels; ++channel) {
-            //    sendWorkBuffer.addFrom(channel, 0, metBuffer, channel, 0, numSamples);
-            //}
-        }
-    }
-    mLastMetEnabled = metenabled;
-
 
     // process and mix in input reverb into sendworkbuffer (if sending mono or stereo)
     if (doinreverb) {
@@ -8238,32 +7693,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         }
     }
 
-    // add from file playback buffer
-    if (hasfiledata) {
-
-        int dstch = mFilePlaybackChannelGroup.params.monDestStartIndex;
-        int dstcnt = jmin(totalOutputChannels, mFilePlaybackChannelGroup.params.monDestChannels);
-        auto fgain = mFilePlaybackChannelGroup.params.gain;
-
-        // process the monitor part of the metchannelgroup
-        mFilePlaybackChannelGroup.processMonitor(fileBuffer, 0, buffer, dstch, dstcnt, numSamples, fgain);
-    }
-
-    if (hassoundboarddata) {
-        soundboardChannelProcessor->processMonitor(buffer, numSamples, totalOutputChannels);
-    }
-
-    if (metenabled) {
-        int dstch = mMetChannelGroup.params.monDestStartIndex;
-        int dstcnt = jmin(totalOutputChannels, mMetChannelGroup.params.monDestChannels);
-        auto fgain = mMetChannelGroup.params.gain;
-
-
-        // process the monitor part of the metchannelgroup
-        mMetChannelGroup.processMonitor(metBuffer, 0, buffer, dstch, dstcnt, numSamples, fgain);
-    }
-
-
     // apply wet (output) gain to original buf, main bus only
     if (fabsf(wetnow - mLastWet) > 0.00001) {
         for (int channel = 0; channel < mainBusOutputChannels; ++channel) {
@@ -8331,27 +7760,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
                     }
                 }
 
-                if (hasfiledata) {
-                    int dstch = mRecFilePlaybackChannelGroup.params.monDestStartIndex;
-                    int dstcnt = jmin(totalOutputChannels, mRecFilePlaybackChannelGroup.params.monDestChannels);
-                    auto fgain = mRecFilePlaybackChannelGroup.params.gain * wetnow;
-                    // process the monitor part of the metchannelgroup
-                    mRecFilePlaybackChannelGroup.processMonitor(fileBuffer, 0, workBuffer, dstch, dstcnt, numSamples, fgain);
-                }
-
-                if (hassoundboarddata) {
-                    soundboardChannelProcessor->processMonitor(workBuffer, numSamples, totalOutputChannels, wetnow);
-                }
-
-                if (metenabled && metrecorded) {
-                    int dstch = mRecMetChannelGroup.params.monDestStartIndex;
-                    int dstcnt = jmin(totalOutputChannels, mRecMetChannelGroup.params.monDestChannels);
-                    auto fgain = mRecMetChannelGroup.params.gain * wetnow;
-
-                    // process the monitor part of the metchannelgroup
-                    mRecMetChannelGroup.processMonitor(metBuffer, 0, workBuffer, dstch, dstcnt, numSamples, fgain);
-                }
-
                 if (activeMixMinusWriter.load() != nullptr) {
                     activeMixMinusWriter.load()->write (workBuffer.getArrayOfReadPointers(), numSamples);
                 }
@@ -8416,7 +7824,6 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     mLastInMonMonoPan = inmonMonoPan;
     mAnythingSoloed =  anysoloed;
 
-    mTransportWasPlaying = mTransportSource.isPlaying();
 }
 
 //==============================================================================
@@ -8553,8 +7960,6 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(lastChatShownKey, mLastChatShown, nullptr);
     extraTree.setProperty(chatFontSizeOffsetKey, var((int)mChatFontSizeOffset), nullptr);
     extraTree.setProperty(chatUseFixedWidthFontKey, mChatUseFixedWidthFont, nullptr);
-    extraTree.setProperty(lastSoundboardWidthKey, var((int)mLastSoundboardWidth), nullptr);
-    extraTree.setProperty(lastSoundboardShownKey, mLastSoundboardShown, nullptr);
     extraTree.setProperty(linkMonitoringDelayTimesKey, mLinkMonitoringDelayTimes, nullptr);
     extraTree.setProperty(lastUsernameKey, mCurrentUsername, nullptr);
     extraTree.setProperty(langOverrideCodeKey, mLangOverrideCode, nullptr);
@@ -8578,22 +7983,6 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     else {
         tempstate.removeChild(inputChannelGroupsTree, nullptr);
     }
-
-    
-    ValueTree extraChannelGroupsTree = tempstate.getOrCreateChildWithName(extraChannelGroupsStateKey, nullptr);
-    extraChannelGroupsTree.removeAllChildren(nullptr);
-    
-    auto fpcg = mFilePlaybackChannelGroup.params.getValueTree();
-    fpcg.setProperty("chgID", "filepb", nullptr);
-    extraChannelGroupsTree.appendChild(fpcg, nullptr);
-
-    auto metcg = mMetChannelGroup.params.getValueTree();
-    metcg.setProperty("chgID", "met", nullptr);
-    extraChannelGroupsTree.appendChild(metcg, nullptr);
-
-    auto sbcg = soundboardChannelProcessor->getChannelGroupParams().getValueTree();
-    sbcg.setProperty("chgID", "soundboard", nullptr);
-    extraChannelGroupsTree.appendChild(sbcg, nullptr);
 
     
     ValueTree peerCacheTree = tempstate.getOrCreateChildWithName(peerStateCacheMapKey, nullptr);
@@ -8726,8 +8115,6 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             setPeerDisplayMode((PeerDisplayMode)(int)extraTree.getProperty(peerDisplayModeKey, (int)mPeerDisplayMode));
             setLastChatWidth((int)extraTree.getProperty(lastChatWidthKey, (int)mLastChatWidth));
             setLastChatShown(extraTree.getProperty(lastChatShownKey, mLastChatShown));
-            setLastSoundboardWidth((int)extraTree.getProperty(lastSoundboardWidthKey, (int)mLastSoundboardWidth));
-            setLastSoundboardShown(extraTree.getProperty(lastSoundboardShownKey, mLastSoundboardShown));
             mCurrentUsername = extraTree.getProperty(lastUsernameKey, mCurrentUsername);
             mLangOverrideCode = extraTree.getProperty(langOverrideCodeKey, mLangOverrideCode);
             mUseUniversalFont = extraTree.getProperty(useUnivFontKey, mUseUniversalFont);
@@ -8767,42 +8154,11 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             }
         }
 
-        ValueTree extraChannelGroupsTree = mState.state.getChildWithName(extraChannelGroupsStateKey);
-        if (extraChannelGroupsTree.isValid()) {
-            
-            for (auto channelGroupTree : extraChannelGroupsTree) {
-                if (!channelGroupTree.isValid()) continue;
-                
-                auto cid = channelGroupTree.getProperty("chgID");
-
-                ChannelGroupParams params;
-                params.setFromValueTree(channelGroupTree);
-
-                if (cid == "filepb") {
-                    mFilePlaybackChannelGroup.params = params;
-                    mFilePlaybackChannelGroup.commitAllParams();
-                    mRecFilePlaybackChannelGroup.params = params;
-                    mRecFilePlaybackChannelGroup.commitAllParams();
-                }
-                else if (cid == "met") {
-                    mMetChannelGroup.params = params;
-                    mMetChannelGroup.commitAllParams();
-                    mRecMetChannelGroup.params = params;
-                    mRecMetChannelGroup.commitAllParams();
-                } else if (cid == "soundboard") {
-                    soundboardChannelProcessor->setChannelGroupParams(params);
-                }
-            }
-        }
-
         
         if (includecache) {
             loadPeerCacheFromState();
         }
         
-        // don't recover the metronome enable state, always default it to off
-        mState.getParameter(paramMetEnabled)->setValueNotifyingHost(0.0f);
-
         // don't recover the recv mute either (actually recover it after all)
         //mState.getParameter(paramMainRecvMute)->setValueNotifyingHost(0.0f);
 
@@ -9621,83 +8977,6 @@ bool CommsbusAudioProcessor::isRecordingToFile()
             || userWritingPossible.load()
             );
 }
-
-void CommsbusAudioProcessor::clearTransportURL()
-{
-    // unload the previous file source and delete it..
-    mTransportSource.stop();
-    mTransportSource.setSource (nullptr);
-    mCurrentAudioFileSource.reset();
-    mCurrTransportURL = URL();
-}
-
-bool CommsbusAudioProcessor::loadURLIntoTransport (const URL& audioURL)
-{
-    if (!mDiskThread.isThreadRunning()) {
-        mDiskThread.startThread (Thread::Priority::normal);
-    }
-
-    // unload the previous file source and delete it..
-    clearTransportURL();
-    
-    AudioFormatReader* reader = nullptr;
-    
-#if ! (JUCE_IOS || JUCE_ANDROID)
-    if (audioURL.isLocalFile())
-    {
-        reader = mFormatManager.createReaderFor (audioURL.getLocalFile());
-    }
-    else
-#endif
-    {
-        if (reader == nullptr) {
-#if JUCE_ANDROID
-            auto doc = AndroidDocument::fromDocument(audioURL);
-            if (!doc.hasValue()) {
-                DBG("Fallback to from file for audiourl: " << audioURL.toString(false));
-                doc = AndroidDocument::fromFile(audioURL.getLocalFile());
-            }
-
-            if (doc.hasValue()) {
-                if (doc.getInfo().canRead()) {
-
-                    DBG("Opening Android doc: " << doc.getUrl().toString(false));
-                    if (auto istr = doc.createInputStream()) {
-                        reader = mFormatManager.createReaderFor (std::move(istr));
-                    }
-                }
-                else {
-                    DBG("No permission to read android doc with URL: " << audioURL.toString(false));
-                }
-            }
-#else
-            reader = mFormatManager.createReaderFor (audioURL.createInputStream(URL::InputStreamOptions(URL::ParameterHandling::inAddress)));
-#endif
-        }
-    }
-
-
-    if (reader != nullptr)
-    {
-        mCurrTransportURL = URL(audioURL);
-
-        mCurrentAudioFileSource.reset (new AudioFormatReaderSource (reader, true));
-
-        mTransportSource.prepareToPlay(currSamplesPerBlock, getSampleRate());
-
-        // ..and plug it into our transport source
-        mTransportSource.setSource (mCurrentAudioFileSource.get(),
-                                    65536,                   // tells it to buffer this many samples ahead
-                                    &mDiskThread,                 // this is the background thread to use for reading-ahead
-                                    reader->sampleRate,     // allows for sample rate correction
-                                    reader->numChannels);
-
-        return true;
-    }
-
-    return false;
-}
-
 
 #pragma Effects
 

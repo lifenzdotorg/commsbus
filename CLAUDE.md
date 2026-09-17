@@ -11,7 +11,8 @@ The fork has diverged from upstream in four deliberate ways. Keep these in mind 
 1. **Standalone application only.** The VST3 / AU / AAX / LV2 / VSTi plugin targets were removed. `juce_add_plugin` is still used (the JUCE standalone wrapper is built on it) but `Standalone` is the only format.
 2. **Direct connection is the default.** The DIRECT tab — commented out upstream — is tab 0 and the default view. The group/rendezvous-server path still exists as a fallback.
 3. **4 independent mono input channel groups by default**, clamped to the device's input count, instead of upstream's single group spanning every input.
-4. **Unattended operation.** Auto-reconnect defaults on, direct peers reconnect themselves, and macOS start-at-login is available.
+4. **Unattended operation.** Auto-reconnect defaults on, direct peers reconnect themselves, macOS start-at-login is available, and only one instance runs at a time.
+5. **No metronome, file playback or soundboard.** All three were removed outright, along with the mixer strip that carried them. What remains below the input channel strips is nothing — input groups only.
 
 Licensed GPLv3 (with an App Store exception — see `LICENSE_EXCEPTION`). Source files carry an SPDX header; `scripts/prependheader.sh` adds it to new files. Upstream authorship (Jesse Chappell) is retained in all headers.
 
@@ -97,6 +98,17 @@ Owns the major sub-views, each its own file pair: `ConnectView`, `OptionsView`, 
 Custom widgets are prefixed `Sono*` — prefer reusing them over raw JUCE widgets.
 
 In `ConnectView::resized()`, wide layouts pull RECENTS out of the tab strip into its own panel. That code looks the tab up **by name** (`getTabNames().indexOf(TRANS("RECENTS"))`), not by index — DIRECT now occupies index 0, and the original hard-coded `removeTab(0)`/`moveTab(2,0)` would move the wrong tab. Keep it name-based if you add tabs.
+
+### Removed subsystems
+
+The metronome (`Metronome.*`), the file playback transport (`WaveformTransportComponent.h`, `AudioTransportSource`, `loadURLIntoTransport`) and the whole Soundboard subsystem (`Soundboard*.*`, `SampleEditView.*`, `SonoPlaybackProgressButton.*`) are gone, along with ~12 parameters (`paramMet*`, `paramSendFileAudio`, `paramSendSoundboardAudio`, `paramSyncMet*`), their toolbar buttons, menu commands and translation entries.
+
+Two things survived that look like they belong to those features but do not:
+
+- **`BeatToggleGrid.{cpp,h}`** is *not* metronome code — it backs `PatchMatrixView`, the peer send/receive routing matrix. Keep it.
+- **`images/lgc_bar.wav`** is the `LatencyMeasurer` pulse, not a metronome click. It stays in the binary-data list; the actual click samples (`bar_click.wav`, `beat_click.wav`) were removed.
+
+`CommsbusAudioProcessor` no longer derives from `ChangeListener` — the only thing that used it was the transport.
 
 ### Resources and localization
 

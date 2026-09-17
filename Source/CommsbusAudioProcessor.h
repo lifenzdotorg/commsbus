@@ -20,14 +20,9 @@
 
 #include "zitaRev.h"
 
-#include "SoundboardChannelProcessor.h"
 #include "AutoConnectManager.h"
 
 typedef MVerb<float> MVerbFloat;
-
-namespace SonoAudio {
-class Metronome;
-}
 
 
 #define MAX_PEERS 32
@@ -118,7 +113,7 @@ inline bool operator<(const AooServerConnectionInfo& lhs, const AooServerConnect
 //==============================================================================
 /**
 */
-class CommsbusAudioProcessor  : public AudioProcessor, public AudioProcessorValueTreeState::Listener, public ChangeListener
+class CommsbusAudioProcessor  : public AudioProcessor, public AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -187,7 +182,6 @@ public:
     
     int32 getCurrSamplesPerBlock() const { return currSamplesPerBlock; }
     
-    void changeListenerCallback (ChangeBroadcaster* source) override;
 
     static BusesProperties getDefaultLayout();
 
@@ -253,14 +247,7 @@ public:
     static String paramDefaultSendQual;
     static String paramMainSendMute;
     static String paramMainRecvMute;
-    static String paramMetEnabled;
-    static String paramMetGain;
-    static String paramMetTempo;
-    static String paramSendMetAudio;
-    static String paramSendFileAudio;
-    static String paramSendSoundboardAudio;
     static String paramHearLatencyTest;
-    static String paramMetIsRecorded;
     static String paramMainReverbEnabled;
     static String paramMainReverbLevel;
     static String paramMainReverbSize;
@@ -272,8 +259,6 @@ public:
     static String paramMainMonitorSolo;
     static String paramAutoReconnectLast;
     static String paramDefaultPeerLevel;
-    static String paramSyncMetToHost;
-    static String paramSyncMetToFilePlayback;
     static String paramInputReverbLevel;
     static String paramInputReverbSize;
     static String paramInputReverbDamping;
@@ -574,8 +559,6 @@ public:
     void setDefaultAutoresizeBufferMode(AutoNetBufferMode flag);
     AutoNetBufferMode getDefaultAutoresizeBufferMode() const { return (AutoNetBufferMode) defaultAutoNetbufMode; }
     
-    bool getSendingFilePlaybackAudio() const { return mSendPlaybackAudio.get(); }
-
     bool getAutoReconnectToLast() const { return mAutoReconnectLast.get(); }
 
     /**
@@ -587,7 +570,6 @@ public:
     /** Connects to configured direct peers now, and keeps them connected. */
     void startAutoConnect();
 
-    bool getSyncMetToHost() const { return mSyncMetToHost.get(); }
 
     // misc settings
     bool getSlidersSnapToMousePosition() const { return mSliderSnapToMouse; }
@@ -659,9 +641,6 @@ public:
     foleys::LevelMeterSource & getSendMeterSource() { return sendMeterSource; }
     foleys::LevelMeterSource & getOutputMeterSource() { return outputMeterSource; }
 
-    foleys::LevelMeterSource & getFilePlaybackMeterSource() { return filePlaybackMeterSource; }
-    foleys::LevelMeterSource & getMetronomeMeterSource() { return metMeterSource; }
-
     bool isAnythingRoutedToPeer(int index) const;
     
     bool isAnythingSoloed() const { return mAnythingSoloed.get(); }
@@ -724,28 +703,6 @@ public:
     float getInputReverbPreDelay() const { return mInputReverbPreDelay.get(); }
 
 
-    void setMetronomeMonitorDelayParams(SonoAudio::DelayParams & params);
-    bool getMetronomeMonitorDelayParams(SonoAudio::DelayParams & retparams);
-    void setMetronomeChannelDestStartAndCount(int start, int count);
-    bool getMetronomeChannelDestStartAndCount(int & retstart, int & retcount);
-    void setMetronomePan(float pan);
-    float getMetronomePan() const;
-    void setMetronomeGain(float gain);
-    float getMetronomeGain() const;
-    void setMetronomeMonitor(float mgain);
-    float getMetronomeMonitor() const;
-
-
-    void setFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & params);
-    bool getFilePlaybackMonitorDelayParams(SonoAudio::DelayParams & retparams);
-    void setFilePlaybackDestStartAndCount(int start, int count);
-    bool getFilePlaybackDestStartAndCount(int & retstart, int & retcount);
-    void setFilePlaybackGain(float gain);
-    float getFilePlaybackGain() const;
-    void setFilePlaybackMonitor(float mgain);
-    float getFilePlaybackMonitor() const;
-
-
     void setLinkMonitoringDelayTimes(bool flag) { mLinkMonitoringDelayTimes = flag; }
     bool getLinkMonitoringDelayTimes() const { return mLinkMonitoringDelayTimes; }
 
@@ -803,13 +760,6 @@ public:
 
     void sendBlockedInfoMessage(EndpointState *endpoint, bool blocked);
 
-    // playback stuff
-    bool loadURLIntoTransport (const URL& audioURL);
-    void clearTransportURL();
-    URL getCurrentLoadedTransportURL () const { return mCurrTransportURL; }
-    AudioTransportSource & getTransportSource() { return mTransportSource; }
-    AudioFormatManager & getFormatManager() { return mFormatManager; }
-
     // chat
     bool sendChatEvent(const SBChatEvent & event);
     void setLastChatWidth(int width) { mLastChatWidth = width;}
@@ -821,13 +771,6 @@ public:
     void setChatFontSizeOffset(int offset) { mChatFontSizeOffset = offset;}
     int getChatFontSizeOffset() const { return mChatFontSizeOffset; }
     Array<SBChatEvent, CriticalSection> & getAllChatEvents() { return mAllChatEvents; }
-
-    // soundboard
-    void setLastSoundboardWidth(int width) { mLastSoundboardWidth = width; }
-    int getLastSoundboardWidth() const { return mLastSoundboardWidth; }
-    void setLastSoundboardShown(bool shown) { mLastSoundboardShown = shown; }
-    bool getLastSoundboardShown() const { return mLastSoundboardShown; }
-    SoundboardChannelProcessor* getSoundboardProcessor() { return soundboardChannelProcessor.get(); }
 
     void setLastPluginBounds(juce::Rectangle<int> bounds) { mPluginWindowWidth = bounds.getWidth(); mPluginWindowHeight = bounds.getHeight();}
     juce::Rectangle<int> getLastPluginBounds() const { return juce::Rectangle<int>(0,0,mPluginWindowWidth, mPluginWindowHeight); }
@@ -967,8 +910,6 @@ private:
     AudioSampleBuffer sendWorkBuffer;
     AudioSampleBuffer inputPostBuffer;
     AudioSampleBuffer inputPreBuffer;
-    AudioSampleBuffer fileBuffer;
-    AudioSampleBuffer metBuffer;
     AudioSampleBuffer mainFxBuffer;
     AudioSampleBuffer inputRevBuffer;
     AudioSampleBuffer silentBuffer; // only ever has one channel
@@ -987,15 +928,8 @@ private:
     Atomic<bool>   mMainRecvMute    {   false };
     Atomic<bool>   mMainInMute    {   false };
     Atomic<bool>   mMainMonitorSolo    {   false };
-    Atomic<bool>   mMetEnabled  { false };
-    Atomic<bool>   mSendMet  { false };
     Atomic<int>   mSendChannels  { 1 }; // 0 is match inputs, 1 is 1, etc
-    Atomic<float>   mMetGain    { 0.5f };
-    Atomic<double>   mMetTempo    { 100.0f };
-    Atomic<bool>   mSendPlaybackAudio  { false };
-    Atomic<bool>   mSendSoundboardAudio  { false };
     Atomic<bool>   mHearLatencyTest  { false };
-    Atomic<bool>   mMetIsRecorded  { true };
     Atomic<bool>   mMainReverbEnabled  { false };
     Atomic<float>   mMainReverbLevel  { 1.0f };
     Atomic<float>   mMainReverbSize  { 0.15f };
@@ -1005,8 +939,6 @@ private:
     Atomic<bool>   mDynamicResampling  { false };
     Atomic<bool>   mAutoReconnectLast  { true }; // Commsbus: on by default
     Atomic<float>   mDefUserLevel    { 1.0f };
-    Atomic<bool>   mSyncMetToHost  { false };
-    Atomic<bool>   mSyncMetStartToPlayback  { false };
     Atomic<bool>   mReconnectAfterServerLoss  { true };
 
     Atomic<float>   mInputReverbLevel  { 1.0f };
@@ -1020,7 +952,6 @@ private:
     float mLastInMonMonoPan = 0.0f;
     float mLastInMonPan1 = -1.0f;
     float mLastInMonPan2 = 1.0f;
-    bool mLastMetEnabled = false;
     bool mLastMainReverbEnabled = false;
     bool mReverbParamsChanged = false;
     bool mLastHasMainFx = false;
@@ -1036,7 +967,6 @@ private:
     bool mChangingDefaultRecvAudioCodecChangesAll = false;
 
     RangedAudioParameter * mDefaultAutoNetbufModeParam;
-    RangedAudioParameter * mTempoParameter;
 
     int mUseSpecificUdpPort = 0;
 
@@ -1071,8 +1001,6 @@ private:
     // chat message storage, thread-safe
     SBChatEventList mAllChatEvents;
 
-    int mLastSoundboardWidth = 250;
-    bool mLastSoundboardShown = false;
 
     int mPluginWindowWidth = 800;
     int mPluginWindowHeight = 600;
@@ -1089,8 +1017,6 @@ private:
     foleys::LevelMeterSource postinputMeterSource;
     foleys::LevelMeterSource sendMeterSource;
     foleys::LevelMeterSource outputMeterSource;
-    foleys::LevelMeterSource filePlaybackMeterSource;
-    foleys::LevelMeterSource metMeterSource;
 
     // AOO stuff
     aoo::isource::pointer mAooDummySource;
@@ -1214,14 +1140,9 @@ private:
 
 
     // met and playback channel groups
-    SonoAudio::ChannelGroup  mMetChannelGroup;
-    SonoAudio::ChannelGroup  mFilePlaybackChannelGroup;
 
-    float _lastfplaygain = 0.0f;
 
     // and a replicant one for recording purposes
-    SonoAudio::ChannelGroup  mRecMetChannelGroup;
-    SonoAudio::ChannelGroup  mRecFilePlaybackChannelGroup;
 
     
     // recording stuff
@@ -1254,18 +1175,8 @@ private:
     std::atomic<AudioFormatWriter::ThreadedWriter*> activeSelfWriters[MAX_CHANGROUPS] { nullptr };
 
     // playing stuff
-    AudioTransportSource mTransportSource;
-    std::unique_ptr<AudioFormatReaderSource> mCurrentAudioFileSource;
-    AudioFormatManager mFormatManager;
-    TimeSliceThread mDiskThread  { "audio file reader" };
-    URL mCurrTransportURL;
-    bool mTransportWasPlaying = false;
 
-    // soundboard
-    std::unique_ptr<SoundboardChannelProcessor> soundboardChannelProcessor;
 
-    // metronome
-    std::unique_ptr<SonoAudio::Metronome> mMetronome;
    
     // misc
     bool mSliderSnapToMouse = true;

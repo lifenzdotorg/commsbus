@@ -236,8 +236,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/LevelMeterLookAndFeelMethods.h
         Source/LocalLatencyMeasurer.h
         Source/MVerb.h
-        Source/Metronome.cpp
-        Source/Metronome.h
         Source/MonitorDelayView.h
         Source/OptionsView.cpp
         Source/OptionsView.h
@@ -252,8 +250,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/RunCumulantor.cpp
         Source/RunCumulantor.h
         Source/RunningCumulant.h
-        Source/SampleEditView.cpp
-        Source/SampleEditView.h
         Source/SonoCallOutBox.cpp
         Source/SonoCallOutBox.h
         Source/SonoChoiceButton.cpp
@@ -264,26 +260,11 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/SonoLookAndFeel.h
         Source/SonoMultiStateDrawableButton.cpp
         Source/SonoMultiStateDrawableButton.h
-        Source/SonoPlaybackProgressButton.cpp
-        Source/SonoPlaybackProgressButton.h
         Source/SonoStandaloneFilterApp.cpp
         Source/SonoStandaloneFilterWindow.h
         Source/SonoTextButton.cpp
         Source/SonoTextButton.h
         Source/SonoUtility.h
-        Source/Soundboard.cpp
-        Source/Soundboard.h
-        Source/SoundboardButtonColors.h
-        Source/SoundboardChannelProcessor.cpp
-        Source/SoundboardChannelProcessor.h
-        Source/SoundboardEditView.cpp
-        Source/SoundboardEditView.h
-        Source/SoundboardProcessor.cpp
-        Source/SoundboardProcessor.h
-        Source/SoundboardView.cpp
-        Source/SoundboardView.h
-        Source/SoundSampleButtonColourPicker.cpp
-        Source/SoundSampleButtonColourPicker.h
         Source/CommsbusAudioProcessorEditor.cpp
         Source/CommsbusAudioProcessorEditor.h
         Source/CommsbusAudioProcessor.cpp
@@ -294,7 +275,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/VDONinjaView.h
         Source/VersionInfo.cpp
         Source/VersionInfo.h
-        Source/WaveformTransportComponent.h
         Source/faustCompressor.h
         Source/faustExpander.h
         Source/faustLimiter.h
@@ -442,8 +422,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/arrow-up-narrow.svg
         images/arrow-down-narrow.svg
         images/dots.svg
-        images/bar_click.wav
-        images/beat_click.wav
         images/chat.svg
         images/chat_dots.svg
         images/checkmark.svg
@@ -478,7 +456,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/list_icon1.png
         images/loop_icon.svg
         images/loop_off_icon.png
-        images/met.svg
         images/mic.svg
         images/mic_disabled.svg
         images/mic_pointing.svg
@@ -517,7 +494,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/skipforward_icon.svg
         images/commsbus_logo_96.png
         images/commsbus_title_small.png
-        images/soundboard.svg
         images/speaker.svg
         images/speaker_disabled.svg
         images/speaker_disabled_grey.svg
@@ -525,7 +501,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/toggle.svg
         images/triangle_disclosure.svg
         images/triangle_disclosure_right.svg
-        images/urei_main.wav
         images/videocam-outline.svg
         images/x_icon.svg
     )

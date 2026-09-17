@@ -191,10 +191,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     //mOptionsHearLatencyButton->addListener(this);
     //mHearLatencyTestAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (p.getValueTreeState(), CommsbusAudioProcessor::paramHearLatencyTest, *mOptionsHearLatencyButton);
 
-    mOptionsMetRecordedButton = std::make_unique<ToggleButton>(TRANS("Metronome output recorded in full mix"));
-    mOptionsMetRecordedButton->addListener(this);
-    mMetRecordedAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (processor.getValueTreeState(), CommsbusAudioProcessor::paramMetIsRecorded, *mOptionsMetRecordedButton);
-
     mOptionsRecFinishOpenButton = std::make_unique<ToggleButton>(TRANS("Open finished recording for playback"));
     mOptionsRecFinishOpenButton->addListener(this);
 
@@ -400,7 +396,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
 
 
 
-    mRecOptionsComponent->addAndMakeVisible(mOptionsMetRecordedButton.get());
     mRecOptionsComponent->addAndMakeVisible(mOptionsRecFinishOpenButton.get());
     mRecOptionsComponent->addAndMakeVisible(mOptionsRecFilesStaticLabel.get());
     mRecOptionsComponent->addAndMakeVisible(mOptionsRecMixButton.get());
@@ -864,12 +859,6 @@ void OptionsView::updateLayout()
 
     // record options
 
-    optionsMetRecordBox.items.clear();
-    optionsMetRecordBox.flexDirection = FlexBox::Direction::row;
-    optionsMetRecordBox.items.add(FlexItem(10, 12));
-
-    optionsMetRecordBox.items.add(FlexItem(minButtonWidth, minitemheight, *mOptionsMetRecordedButton).withMargin(0).withFlex(1));
-
     int indentw = 40;
 
     optionsRecordDirBox.items.clear();
@@ -935,7 +924,6 @@ void OptionsView::updateLayout()
     recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecSelfBox).withMargin(2).withFlex(0));
     recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecOthersBox).withMargin(2).withFlex(0));
     recOptionsBox.items.add(FlexItem(4, 4));
-    recOptionsBox.items.add(FlexItem(100, minpassheight, optionsMetRecordBox).withMargin(2).withFlex(0));
     recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordSelfPostFxBox).withMargin(2).withFlex(0));
     recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordSilentSelfMuteBox).withMargin(2).withFlex(0));
     recOptionsBox.items.add(FlexItem(100, minpassheight, optionsRecordFinishBox).withMargin(2).withFlex(0));

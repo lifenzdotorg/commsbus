@@ -128,7 +128,6 @@ protected:
     std::unique_ptr<ToggleButton> mOptionsChangeAllFormatButton;
 
     std::unique_ptr<ToggleButton> mOptionsHearLatencyButton;
-    std::unique_ptr<ToggleButton> mOptionsMetRecordedButton;
     std::unique_ptr<ToggleButton> mOptionsDynamicResamplingButton;
     std::unique_ptr<ToggleButton> mOptionsOverrideSamplerateButton;
     std::unique_ptr<ToggleButton> mOptionsShouldCheckForUpdateButton;
@@ -194,7 +193,6 @@ protected:
     FlexBox optionsRecSelfBox;
     FlexBox optionsRecMixMinusBox;
     FlexBox optionsRecOthersBox;
-    FlexBox optionsMetRecordBox;
     FlexBox optionsRecordDirBox;
     FlexBox optionsRecordSelfPostFxBox;
     FlexBox optionsRecordSilentSelfMuteBox;
@@ -215,7 +213,6 @@ protected:
     String mActiveLanguageCode;
 
 
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetRecordedAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mDynamicResamplingAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mAutoReconnectAttachment;
     std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> mBufferTimeAttachment;

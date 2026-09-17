@@ -424,9 +424,6 @@ protected:
     OwnedArray<ChannelGroupView> mChannelViews;
     std::unique_ptr<ChannelGroupView> mMainChannelView; // used for peers
 
-    std::unique_ptr<ChannelGroupView> mFileChannelView; // used for input
-    std::unique_ptr<ChannelGroupView> mMetChannelView; // used for input
-    std::unique_ptr<ChannelGroupView> mSoundboardChannelView; // used for init
 
 
     std::unique_ptr<ChannelGroupEffectsView> mEffectsView;
@@ -443,15 +440,10 @@ protected:
 
     std::unique_ptr<DrawableRectangle> mInsertLine;
     std::unique_ptr<DrawableImage> mDragDrawable;
-    std::unique_ptr<DrawableRectangle> mMetFileBg;
 
 
     std::unique_ptr<BubbleMessageComponent> popTip;
 
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mMetSendAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mFileSendAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> mSoundboardSendAttachment;
-    std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> mMetLevelAttachment;
 
 
     WeakReference<Component> effectsCalloutBox;
