@@ -90,6 +90,31 @@ when the build completes. If you would rather have an Xcode project to look
 at, use `./setupcmakexcode.sh` instead and use the Xcode project that gets
 produced at `buildXcode/Commsbus.xcodeproj`.
 
+#### Code signing, and why it matters
+
+macOS grants microphone and local-network access per *code-signing identity*,
+not per application path. JUCE leaves the built app ad-hoc "linker-signed",
+whose identity is the exact binary hash — so every rebuild looks like a brand
+new application and macOS asks for every permission again.
+
+The build therefore re-signs the app bundle, using the first
+`Developer ID Application` identity it finds in your keychain. Grants then
+survive rebuilds. To pick a different one:
+
+```
+cmake -DCOMMSBUS_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ...
+```
+
+Pass `"-"` for plain ad-hoc signing, or `OFF` to leave JUCE's signature alone.
+
+**If you have no Developer ID**, a self-signed certificate works just as well on
+your own machine — what matters is that the identity is *stable*, not that it is
+trusted. In Keychain Access choose *Certificate Assistant → Create a
+Certificate…*, name it, set the identity type to *Self Signed Root* and the
+certificate type to *Code Signing*, then build with
+`-DCOMMSBUS_CODESIGN_IDENTITY="<that name>"`. You will still need a Developer ID
+to distribute the app to anyone else.
+
 ### On Windows
 
 You will need [CMake](https://cmake.org) >= 3.15, and  Visual Studio 2017

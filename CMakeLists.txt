@@ -84,6 +84,38 @@ juce_add_modules(deps/ff_meters)
 
 set (FormatsToBuild Standalone)
 
+# macOS grants microphone and local-network permission per code-signing identity.
+# JUCE's build leaves the app ad-hoc "linker-signed", whose identity is the exact
+# binary hash -- so every rebuild looks like a brand new app and macOS asks for
+# every permission again. Signing each build with a stable identity (a Developer
+# ID, or any self-signed codesigning certificate) makes those grants stick.
+#
+# Auto-detected from the keychain; override with
+#   cmake -DCOMMSBUS_CODESIGN_IDENTITY="..."  (or "-" for plain ad-hoc,
+#   or OFF to leave JUCE's linker signature alone).
+if (APPLE)
+    set (COMMSBUS_CODESIGN_IDENTITY "" CACHE STRING
+         "macOS codesigning identity for the app bundle (empty = auto-detect a Developer ID)")
+
+    if (COMMSBUS_CODESIGN_IDENTITY STREQUAL "")
+        execute_process (COMMAND security find-identity -v -p codesigning
+                         OUTPUT_VARIABLE CommsbusIdentities
+                         ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+        string (REGEX MATCH "\"(Developer ID Application: [^\"]+)\"" CommsbusIdMatch "${CommsbusIdentities}")
+        if (CMAKE_MATCH_1)
+            set (COMMSBUS_CODESIGN_IDENTITY "${CMAKE_MATCH_1}" CACHE STRING
+                 "macOS codesigning identity for the app bundle" FORCE)
+            message (STATUS "Commsbus: signing with \"${COMMSBUS_CODESIGN_IDENTITY}\"")
+        else()
+            message (STATUS "Commsbus: no Developer ID found; the app stays ad-hoc signed "
+                            "and macOS will re-ask for microphone/network permission after every build. "
+                            "See README for how to make a self-signed certificate.")
+        endif()
+    elseif (COMMSBUS_CODESIGN_IDENTITY)
+        message (STATUS "Commsbus: signing with \"${COMMSBUS_CODESIGN_IDENTITY}\"")
+    endif()
+endif()
+
 # Commsbus is a standalone application only. The VST3/AU/AAX/LV2/VST2 plugin
 # formats that upstream SonoBus builds were deliberately removed -- see
 # CLAUDE.md. juce_add_plugin is still used because the JUCE standalone wrapper
@@ -93,6 +125,8 @@ set (MacPList "<plist version=\"1.0\">
 <dict>
 <key>CFBundleVersion</key>
 <string>${BUILDVERSION}</string>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Commsbus sends and receives audio directly to and from other Commsbus instances on your network.</string>
 <key>CFBundleURLTypes</key>
 <array>
      <dict>
@@ -560,7 +594,20 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
             juce::juce_recommended_lto_flags
         #   juce::juce_recommended_warning_flags
         )
-            
+
+    # Re-sign over JUCE's ad-hoc linker signature so permission grants persist
+    # across rebuilds. Release builds are signed again by release/codesign.sh
+    # with a secure timestamp for notarization.
+    if (APPLE AND COMMSBUS_CODESIGN_IDENTITY AND "Standalone" IN_LIST formats)
+        add_custom_command (TARGET "${target_name}_Standalone" POST_BUILD
+            COMMAND codesign --force --options=runtime --timestamp=none
+                    --entitlements "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Commsbus-mac.entitlements"
+                    --sign "${COMMSBUS_CODESIGN_IDENTITY}"
+                    "$<TARGET_BUNDLE_DIR:${target_name}_Standalone>"
+            COMMENT "Code signing ${product_name}.app"
+            VERBATIM)
+    endif()
+
 endfunction()
 
 # most of the targets

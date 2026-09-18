@@ -177,6 +177,34 @@ Two things survived that look like they belong to those features but do not:
 
 Images, fonts, click samples and translations are compiled in via `juce_add_binary_data(Commsbus_SBData ...)` in `CMakeLists.txt` — **a new asset in `images/` or `localization/` is invisible until added to that list**. Translations are JUCE `LocalisedStrings` files `localization/localized_<lang>.txt`, loaded by resource name in `CommsbusAudioProcessorEditor.cpp`; a same-named file in the user settings folder wins, so translations can be tested without rebuilding. Changing an English source string orphans its translation key in all 11 files — update or remove them together. `localization/tsv/tsvtostrings.py` converts a spreadsheet export (it is Python 2).
 
+## macOS code signing and permissions
+
+macOS grants microphone and local-network access **per code-signing identity**,
+not per path. JUCE's build leaves the app ad-hoc "linker-signed", whose
+designated requirement is the exact binary hash -- so every rebuild looks like a
+different app and every permission is asked for again.
+
+`CMakeLists.txt` therefore re-signs the app bundle as a POST_BUILD step with
+`COMMSBUS_CODESIGN_IDENTITY`, auto-detected at configure time from the first
+`Developer ID Application` identity in the keychain. That gives a designated
+requirement keyed to the certificate and bundle id rather than a hash, so grants
+survive rebuilds. Override it with
+`cmake -DCOMMSBUS_CODESIGN_IDENTITY="..."`, `"-"` for plain ad-hoc, or `OFF` to
+leave JUCE's signature alone. With no Developer ID available, a self-signed
+codesigning certificate from Keychain Access works just as well *on that machine*
+-- what matters is that the identity is stable, not that it is trusted.
+
+Signing uses hardened runtime (`--options=runtime`) and
+`scripts/Commsbus-mac.entitlements`, which carries
+`com.apple.security.device.audio-input` -- without that entitlement the hardened
+runtime denies microphone access outright. `release/codesign.sh` signs again with
+a secure timestamp for notarization; it signs the app only, since the plugin
+formats were removed.
+
+`NSMicrophoneUsageDescription` and `NSLocalNetworkUsageDescription` are both in
+the merged plist (`MacPList` in `CMakeLists.txt`). Changing the bundle id, the
+signing identity or the team resets every grant.
+
 ## Auto-update
 
 `VersionInfo.cpp` points at `lifenzdotorg/commsbus` releases, **not** upstream — pointing it at `sonosaurus/sonobus` would offer to install SonoBus over a Commsbus install. The check also defaults **off** (`shouldCheckForNewVersion` in `SonoStandaloneFilterWindow.h`), since Commsbus is meant to run unattended.
