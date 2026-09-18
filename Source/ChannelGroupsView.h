@@ -409,7 +409,6 @@ protected:
     void showPopTip(const String & message, int timeoutMs, Component * target, int maxwidth);
     void showEffects(int index, bool flag, Component * fromView=nullptr);
     void showMonitorEffects(int index, bool flag, Component * fromView=nullptr);
-    void showInputReverbView(bool flag, Component * fromView=nullptr);
 
     int getChanGroupFromIndex(int index);
     juce::Rectangle<int> getBoundsForChanGroup(int chgroup);
@@ -428,14 +427,12 @@ protected:
 
     std::unique_ptr<ChannelGroupEffectsView> mEffectsView;
     std::unique_ptr<ChannelGroupMonitorEffectsView> mMonEffectsView;
-    std::unique_ptr<ChannelGroupReverbEffectsView> mInputReverbView;
 
 
 
     std::unique_ptr<Slider> mInGainSlider;
     std::unique_ptr<TextButton> mAddButton;
     std::unique_ptr<TextButton> mClearButton;
-    std::unique_ptr<TextButton> mInReverbButton;
     std::unique_ptr<TextButton> mMonDelayButton;
 
     std::unique_ptr<DrawableRectangle> mInsertLine;
@@ -448,7 +445,6 @@ protected:
 
     WeakReference<Component> effectsCalloutBox;
     WeakReference<Component> monEffectsCalloutBox;
-    WeakReference<Component> inReverbCalloutBox;
 
     FlexBox channelsBox;
     FlexBox addrowBox;

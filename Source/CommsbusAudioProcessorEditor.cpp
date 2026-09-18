@@ -710,10 +710,17 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
         TRANS("Audio device inputs (Dante) sent out over the network to the far end."));
     mReceiveHeaderLabel = makeSectionHeader(TRANS("RECEIVE"),
         TRANS("Streams arriving from the far end, routed out to the audio device (Dante) directly or via a bus."));
+    mBusesHeaderLabel = makeSectionHeader(TRANS("BUSES"),
+        TRANS("Received streams combined onto a single audio device (Dante) output."));
 
     mMainContainer->addAndMakeVisible(mTransmitHeaderLabel.get());
     mMainContainer->addAndMakeVisible(mReceiveHeaderLabel.get());
+    mMainContainer->addAndMakeVisible(mBusesHeaderLabel.get());
     mInputChannelsContainer->addListener(this);
+
+    mBusesContainer = std::make_unique<BusesView>(processor);
+    mBusesContainer->addListener(this);
+    mMainContainer->addAndMakeVisible(mBusesContainer.get());
 
     //mInputChannelsViewport = std::make_unique<Viewport>();
     //mInputChannelsViewport->setViewedComponent(mInputChannelsContainer.get(), false);
@@ -753,15 +760,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mConnectView->setWantsKeyboardFocus(true);
     mConnectView->updateServerFieldsFromConnectionInfo();
     mConnectView->addComponentListener(this);
-
-    // effects
-    
-    mEffectsButton = std::make_unique<TextButton>("mainfx");
-    mEffectsButton->setButtonText(TRANS("FX"));
-    mEffectsButton->setTitle(TRANS("Main Effects"));
-    mEffectsButton->setLookAndFeel(&smallLNF);
-    mEffectsButton->addListener(this);
-    mEffectsButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.5, 0.7, 0.5));
 
     mBufferMinButton = std::make_unique<SonoDrawableButton>("", DrawableButton::ButtonStyle::ImageFitted);
     std::unique_ptr<Drawable> backimg(Drawable::createFromImageData(BinaryData::reset_buffer_icon_svg, BinaryData::reset_buffer_icon_svgSize));
@@ -947,7 +945,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mTopLevelContainer->addChildComponent(mSetupAudioButton.get());
 
     
-    mTopLevelContainer->addAndMakeVisible(mEffectsButton.get());
     mTopLevelContainer->addAndMakeVisible(mBufferMinButton.get());
 
 
@@ -1208,6 +1205,9 @@ void CommsbusAudioProcessorEditor::channelLayoutChanged(ChannelGroupsView *comp)
 {
     //updateState();
 
+    // a receive row's destination menu can create a bus
+    mBusesContainer->refreshIfBusesChanged();
+
     int sendchval = (int) processor.getSendChannels();
     mSendChannelsChoice->setSelectedId(sendchval, dontSendNotification);
     if (sendchval > 0) {
@@ -1221,8 +1221,16 @@ void CommsbusAudioProcessorEditor::channelLayoutChanged(ChannelGroupsView *comp)
     resized();
 }
 
+void CommsbusAudioProcessorEditor::busLayoutChanged(BusesView *comp)
+{
+    updateLayout();
+    resized();
+}
+
 void CommsbusAudioProcessorEditor::internalSizesChanged(PeersContainerView *comp)
 {
+    mBusesContainer->refreshIfBusesChanged();
+
     resized();
 }
 
@@ -1524,6 +1532,8 @@ void CommsbusAudioProcessorEditor::timerCallback(int timerid)
         bool stateUpdated = updatePeerState();
         
         updateChannelState();
+
+        mBusesContainer->refreshIfBusesChanged();
         
         if (!stateUpdated && (currGroup != processor.getCurrentJoinedGroup()
                               || currConnected != processor.isConnectedToServer()
@@ -1695,13 +1705,6 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
 
     }
     
-    else if (buttonThatWasClicked == mEffectsButton.get()) {
-        if (!effectsCalloutBox) {
-            showEffectsConfig(true);
-        } else {
-            showEffectsConfig(false);
-        }        
-    }
     else if (buttonThatWasClicked == mBufferMinButton.get()) {
         resetJitterBufferForAll();
     }
@@ -2098,58 +2101,6 @@ void CommsbusAudioProcessorEditor::connectWithInfo(const AooServerConnectionInfo
 
 
 
-
-
-void CommsbusAudioProcessorEditor::showEffectsConfig(bool flag)
-{
-    
-    if (flag && effectsCalloutBox == nullptr) {
-        
-        auto wrap = std::make_unique<Viewport>();
-
-        
-        Component* dw = this; 
-        
-#if JUCE_IOS || JUCE_ANDROID
-        const int defWidth = 260; 
-        const int defHeight = 154;
-#else
-        const int defWidth = 260; 
-        const int defHeight = 135;
-#endif
-        
-        
-        wrap->setSize(jmin(defWidth, dw->getWidth() - 20), jmin(defHeight, dw->getHeight() - 24));
-        
-        
-        mEffectsContainer->setBounds(Rectangle<int>(0,0,defWidth,defHeight));
-        
-        wrap->setViewedComponent(mEffectsContainer.get(), false);
-        mEffectsContainer->setVisible(true);
-        
-        effectsBox.performLayout(mEffectsContainer->getLocalBounds());
-
-        auto headbgbounds = mReverbEnabledButton->getBounds().withRight(mReverbModelChoice->getRight()).expanded(2);
-        mReverbHeaderBg->setRectangle (headbgbounds.toFloat());
-
-        
-        Rectangle<int> bounds =  dw->getLocalArea(nullptr, mEffectsButton->getScreenBounds());
-        DBG("callout bounds: " << bounds.toString());
-        effectsCalloutBox = & CallOutBox::launchAsynchronously (std::move(wrap), bounds , dw, false);
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(effectsCalloutBox.get())) {
-            box->setDismissalMouseClicksAreAlwaysConsumed(true);
-        }
-
-        mReverbEnabledButton->grabKeyboardFocus();
-    }
-    else {
-        // dismiss it
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(effectsCalloutBox.get())) {
-            box->dismiss();
-            effectsCalloutBox = nullptr;
-        }
-    }
-}
 
 
 void CommsbusAudioProcessorEditor::showPatchbay(bool flag)
@@ -2735,7 +2686,6 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
     }
 
     mReverbModelChoice->setSelectedId(processor.getMainReverbModel(), dontSendNotification);
-    mEffectsButton->setToggleState(processor.getMainReverbEnabled(), dontSendNotification);
 
 
     if (mReverbEnabledButton->getToggleState()) {
@@ -3533,6 +3483,7 @@ void CommsbusAudioProcessorEditor::resized()
         isNarrow = nownarrow;
         mPeerContainer->setNarrowMode(isNarrow);
         mInputChannelsContainer->setNarrowMode(isNarrow);
+        mBusesContainer->setNarrowMode(isNarrow, true);
         updateLayout();
     }
 
@@ -3596,6 +3547,7 @@ void CommsbusAudioProcessorEditor::resized()
 
     Rectangle<int> peersminbounds = mPeerContainer->getMinimumContentBounds();
     Rectangle<int> inmixminbounds = mInputChannelsContainer->getMinimumContentBounds();
+    Rectangle<int> busesminbounds = mBusesContainer->getMinimumContentBounds();
 
     Rectangle<int> inmixactualbounds = Rectangle<int>(0,0,0,0);
 
@@ -3617,12 +3569,22 @@ void CommsbusAudioProcessorEditor::resized()
     const int receiveHeaderY = inmixactualbounds.getBottom() + vgap;
     mReceiveHeaderLabel->setBounds(4, receiveHeaderY, fullwidth, sectionHeaderH);
 
+    // The buses panel is fixed height and always sits at the bottom of the
+    // receive area, so the peer rows take whatever vertical space is left.
+    const int busesH = busesminbounds.getHeight();
+    const int busesBlockH = busesH + sectionHeaderH + vgap;
+
     mPeerContainer->setBounds(Rectangle<int>(0, receiveHeaderY + sectionHeaderH, fullwidth,
                                              std::max(peersminbounds.getHeight() + 5,
-                                                      mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap - 2*sectionHeaderH)));
+                                                      mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap - 2*sectionHeaderH - busesBlockH)));
+
+    const int busesHeaderY = mPeerContainer->getBottom() + vgap;
+    mBusesHeaderLabel->setBounds(4, busesHeaderY, fullwidth, sectionHeaderH);
+    mBusesContainer->setBounds(Rectangle<int>(0, busesHeaderY + sectionHeaderH, fullwidth, busesH));
 
     Rectangle<int> totbounds = mPeerContainer->getBounds().getUnion(inmixactualbounds)
-                                   .getUnion(mTransmitHeaderLabel->getBounds());
+                                   .getUnion(mTransmitHeaderLabel->getBounds())
+                                   .getUnion(mBusesContainer->getBounds());
     //totbounds.setHeight(totbounds.getHeight());
 
 
@@ -3680,13 +3642,6 @@ void CommsbusAudioProcessorEditor::resized()
 
 
     
-    Component* dw = this; 
-    
-    if (auto * callout = dynamic_cast<CallOutBox*>(effectsCalloutBox.get())) {
-        callout->updatePosition(dw->getLocalArea(nullptr, mEffectsButton->getScreenBounds()), dw->getLocalBounds());
-    }
-
-
     updateSliderSnap();
 
 }
@@ -3800,8 +3755,6 @@ void CommsbusAudioProcessorEditor::updateLayout()
     outputMainBox.flexDirection = FlexBox::Direction::row;
     outputMainBox.items.add(FlexItem(7, 6).withMargin(0).withFlex(0));
     outputMainBox.items.add(FlexItem(toolwidth, minitemheight, *mBufferMinButton).withMargin(0).withFlex(0));
-    outputMainBox.items.add(FlexItem(4, 6).withMargin(0).withFlex(0));
-    outputMainBox.items.add(FlexItem(toolwidth, minitemheight, *mEffectsButton).withMargin(0).withFlex(0));
     outputMainBox.items.add(FlexItem(4, 6).withMargin(0).withFlex(0));
     outputMainBox.items.add(FlexItem(minSliderWidth, minitemheight, outBox).withMargin(0).withFlex(1)); //.withMaxWidth(isNarrow ? 160 : 120));
     outputMainBox.items.add(FlexItem(4, 6).withMargin(0).withFlex(0));

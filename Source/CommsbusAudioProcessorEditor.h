@@ -21,6 +21,7 @@
 #include "ConnectView.h"
 #include "ChannelGroupsView.h"
 #include "PeersContainerView.h"
+#include "BusesView.h"
 #include "OptionsView.h"
 #include "ReverbView.h"
 #include "VDONinjaView.h"
@@ -51,7 +52,8 @@ public AsyncUpdater,
 public GenericItemChooser::Listener,
 public ConnectView::Listener,
 public ChannelGroupsView::Listener,
-public PeersContainerView::Listener
+public PeersContainerView::Listener,
+public BusesView::Listener
 {
 public:
     CommsbusAudioProcessorEditor (CommsbusAudioProcessor&);
@@ -101,6 +103,9 @@ public:
 
     // PeerContainerView
     void internalSizesChanged(PeersContainerView *comp) override;
+
+    // busesview
+    void busLayoutChanged(BusesView *comp) override;
 
     void textEditorReturnKeyPressed (TextEditor&) override;
     void textEditorEscapeKeyPressed (TextEditor&) override;
@@ -161,6 +166,7 @@ public:
 
     ChannelGroupsView * getInputChannelGroupsView() { return mInputChannelsContainer.get(); }
     PeersContainerView * getPeersContainerView() { return mPeerContainer.get(); }
+    BusesView * getBusesView() { return mBusesContainer.get(); }
 
     // if returns true signifies go ahead and quit now, otherwise we'll handle it
     bool requestedQuit();
@@ -184,7 +190,6 @@ private:
 
     void showPatchbay(bool flag);
     void showMetConfig(bool flag);
-    void showEffectsConfig(bool flag);
 
     void showGroupMenu(bool show);
 
@@ -195,8 +200,6 @@ private:
     void showSettings(bool flag);
 
     void showMonitorDelayView(bool flag);
-
-    void showInputReverbView(bool flag);
 
     void updateServerStatusLabel(const String & mesg, bool mainonly=true);
     void updateChannelState(bool force=false);
@@ -325,7 +328,6 @@ private:
 
 
     // effects
-    std::unique_ptr<TextButton> mEffectsButton;
 
     std::unique_ptr<DrawableRectangle> mReverbHeaderBg;
 
@@ -386,7 +388,6 @@ private:
     //std::unique_ptr<Component> serverContainer;
     WeakReference<Component> serverCalloutBox;
 
-    WeakReference<Component> effectsCalloutBox;
 
     WeakReference<Component> monDelayCalloutBox;
 
@@ -482,10 +483,15 @@ private:
     std::unique_ptr<Viewport> mInputChannelsViewport;
     std::unique_ptr<ChannelGroupsView> mInputChannelsContainer;
 
+    // The receive-side mixing stage: several incoming streams summed onto one
+    // Dante destination. Sits under the peer rows that feed it.
+    std::unique_ptr<BusesView> mBusesContainer;
+
     // Section headers framing the window as a Dante bridge: what we send out
     // over the WAN on top, what arrives from the far end underneath.
     std::unique_ptr<Label> mTransmitHeaderLabel;
     std::unique_ptr<Label> mReceiveHeaderLabel;
+    std::unique_ptr<Label> mBusesHeaderLabel;
 
     int peersHeight = 0;
     bool isNarrow = false;

@@ -93,7 +93,7 @@ Owns all audio processing, network state, and persistence.
 
 ### `CommsbusAudioProcessorEditor` (`Source/CommsbusAudioProcessorEditor.{h,cpp}`)
 
-Owns the major sub-views, each its own file pair: `ConnectView`, `OptionsView`, `PeersContainerView` (one row per peer), `ChannelGroupsView` (local input strips), `ChatView`, `SoundboardView`, `LatencyMatchView`, `SampleEditView`, `SuggestNewGroupView`. Effect editors are header-only `*View.h` files sharing `EffectsBaseView.h`.
+Owns the major sub-views, each its own file pair: `ConnectView`, `OptionsView`, `PeersContainerView` (one row per peer), `ChannelGroupsView` (local input strips, and the received strips inside each peer row), `BusesView` (the BUSES panel), `ChatView`, `LatencyMatchView`, `SuggestNewGroupView`. Effect editors are header-only `*View.h` files sharing `EffectsBaseView.h`.
 
 Custom widgets are prefixed `Sono*` — prefer reusing them over raw JUCE widgets.
 
@@ -113,6 +113,31 @@ Everything is mono per channel by default: `DEFAULT_MONO_CHANNEL_GROUPS` mono
 input groups each landing on their own output channel, and `panDestChannels` /
 `monDestChannels` default to 1. Stereo pairing is not used in this application.
 
+The receive strips carry **level only** -- name, mute, level, meter and
+destination. Panning is laid out and made visible in
+`updateLayoutForInput`/`updateInputModeChannelViews` (transmit) but never in
+`updateLayoutForRemotePeer`/`updatePeerModeChannelViews` (receive).
+`ChannelGroupView` still *owns* the pan widgets, because the same class serves
+both sides -- the receive path simply leaves them out of the FlexBox and hidden.
+Do not "restore" them on the receive side.
+
+**No per-channel effects UI on either side.** The `FX` and `M.FX` buttons are
+gone from both the transmit and receive strips, and the `In Reverb` button is
+gone from the transmit header row. `fxButton`/`monfxButton` still exist on
+`ChannelGroupView` but are `setVisible(false)` in all four update paths and are
+in no FlexBox; `mInReverbButton`, `showInputReverbView` and `inReverbCalloutBox`
+were deleted outright. The effects *DSP* (compressor, expander, EQ, limiter,
+reverb send, `ChannelGroupEffectsView` and friends) is still compiled and still
+runs if a `ChannelGroupParams` arrives with an effect enabled -- it is simply
+unreachable from the UI.
+
+The main output `FX` button went the same way: `mEffectsButton`,
+`showEffectsConfig` and `effectsCalloutBox` are deleted, so the global reverb
+panel (`mEffectsContainer`, `mReverbEnabledButton`, `mReverbModelChoice` and the
+reverb knobs) is built in the editor constructor and attached to its APVTS
+parameters but never shown. The `paramMainReverb*` parameters still exist. There
+is now **no effects UI anywhere in the application**.
+
 **Output buses** (`OutputBus`, `MAX_OUTPUT_BUSES`) are the receive-side mixing
 stage. A received channel group either goes straight out to device channels
 (`panDestStartIndex`/`panDestChannels`, the `busAssign == -1` case) or is summed
@@ -120,6 +145,16 @@ into a bus, which applies its own level and lands on its own device channels.
 That is how several incoming streams get combined onto one Dante destination.
 `busAssign` lives on `ChannelGroupParams` so it persists with the group; the
 buses themselves persist under the `OutputBuses` child of the state tree.
+Buses are mono: one summed stream onto one Dante output.
+
+`BusesView` (`Source/BusesView.{h,cpp}`) is the **BUSES** panel at the bottom of
+the receive area -- one row per bus with its name (double-click to rename), how
+many streams feed it, its master level, its output channel and a remove button,
+plus a `+` to add one. A bus can also be created from a receive row's destination
+menu, so `BusesView` does not own the bus list: it polls `getNumOutputBuses()`
+via `refreshIfBusesChanged()` (from the editor's 1s timer, `channelLayoutChanged`
+and `internalSizesChanged`) and rebuilds its rows when the count moves. Removing
+a bus reverts everything feeding it to direct out -- see `removeOutputBus`.
 
 In `processBlock` the bus stage sits inside the peer loop: the bus rows of
 `mBusBuffer` are cleared before the loop, assigned groups sum into their row

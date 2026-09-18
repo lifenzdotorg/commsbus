@@ -211,6 +211,8 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/AutoUpdater.h
         Source/BeatToggleGrid.cpp
         Source/BeatToggleGrid.h
+        Source/BusesView.cpp
+        Source/BusesView.h
         Source/ChannelGroup.cpp
         Source/ChannelGroup.h
         Source/ChannelGroupsView.cpp
