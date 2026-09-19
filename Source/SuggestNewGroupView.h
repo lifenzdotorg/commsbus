@@ -27,7 +27,7 @@ public:
 
     void updatePeerRows(bool force=false);
 
-    std::function<void(const String & group, const String & groupPass, bool isPublic)> connectToGroup;
+    std::function<void(const String & group, const String & groupPass)> connectToGroup;
 
 protected:
 
@@ -49,7 +49,6 @@ protected:
     std::unique_ptr<TextEditor> mGroupEditor;
     std::unique_ptr<Label> mGroupPassStaticLabel;
     std::unique_ptr<TextEditor> mGroupPassEditor;
-    std::unique_ptr<ToggleButton> mPublicToggle;
     std::unique_ptr<TextButton> mRequestButton;
     std::unique_ptr<TextButton> mSelectAllButton;
     std::unique_ptr<TextButton> mSelectNoneButton;
@@ -65,7 +64,6 @@ protected:
     FlexBox matchButtBox;
     FlexBox groupBox;
     FlexBox groupPassBox;
-    FlexBox publicBox;
     FlexBox selButtBox;
 
     std::set<String> selectedPeers;

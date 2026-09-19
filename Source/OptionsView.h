@@ -134,7 +134,6 @@ protected:
     std::unique_ptr<ToggleButton> mOptionsAllowBluetoothInput;
     std::unique_ptr<ToggleButton> mOptionsDisableShortcutButton;
 
-    std::unique_ptr<ToggleButton> mOptionsInputLimiterButton;
     std::unique_ptr<Label> mOptionsDefaultLevelSliderLabel;
     std::unique_ptr<Slider> mOptionsDefaultLevelSlider;
 
@@ -159,7 +158,6 @@ protected:
     FlexBox optionsOverrideSamplerateBox;
     FlexBox optionsCheckForUpdateBox;
     FlexBox optionsChangeAllQualBox;
-    FlexBox optionsInputLimitBox;
     FlexBox optionsAutoReconnectBox;
     FlexBox optionsAutoConnectDirectBox;
     FlexBox optionsStartAtLoginBox;

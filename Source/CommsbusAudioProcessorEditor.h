@@ -133,8 +133,6 @@ public:
     void aooClientLoginResult(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") override;
     void aooClientGroupJoined(CommsbusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") override;
     void aooClientGroupLeft(CommsbusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") override;
-    void aooClientPublicGroupModified(CommsbusAudioProcessor *comp, const String & group, int count, const String & errmesg="") override;
-    void aooClientPublicGroupDeleted(CommsbusAudioProcessor *comp, const String & group,  const String & errmesg="") override;
     void aooClientPeerJoined(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
     void aooClientPeerPendingJoin(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
     void aooClientPeerJoinFailed(CommsbusAudioProcessor *comp, const String & group, const String & user) override;
@@ -145,7 +143,7 @@ public:
     void sbChatEventReceived(CommsbusAudioProcessor *comp, const SBChatEvent & mesg) override;
     void peerRequestedLatencyMatch(CommsbusAudioProcessor *comp, const String & username, float latency) override;
     void peerBlockedInfoChanged(CommsbusAudioProcessor *comp, const String & username, bool blocked) override;
-    void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & groupPass, bool isPublic, const StringArray & others) override;
+    void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & groupPass, const StringArray & others) override;
 
 
     std::function<AudioDeviceManager*()> getAudioDeviceManager; // = []() { return 0; };
@@ -222,7 +220,7 @@ private:
     void showLatencyMatchPrompt(const String & name, float latencyms);
     void showLatencyMatchView(bool show);
 
-    void showSuggestedGroupPrompt(const String & name, const String & group, const String & grouppass, bool ispublic, const StringArray & others);
+    void showSuggestedGroupPrompt(const String & name, const String & group, const String & grouppass, const StringArray & others);
     void showSuggestGroupView(bool show);
 
     void showVDONinjaView(bool show, bool fromVideoButton=true);
@@ -426,8 +424,6 @@ private:
             PeerPendingJoinEvent,
             PeerFailedJoinEvent,
             PeerBlockedJoinEvent,
-            PublicGroupModifiedEvent,
-            PublicGroupDeletedEvent,
             PeerRequestedLatencyMatchEvent,
             PeerBlockedInfoChangedEvent,
             PeerSuggestedNewGroupEvent,
@@ -440,8 +436,8 @@ private:
         ClientEvent(Type type_, const String & group_, bool success_, const String & mesg, const String & user_="", float fval=0.0f) : type(type_), success(success_), message(mesg), user(user_), group(group_), floatVal(fval) {}
         ClientEvent(Type type_, const String & mesg, float val) : type(type_), success(true), message(mesg), floatVal(val) {}
 
-        static ClientEvent makeSuggestedNewGroupEvent(const String & user, const String & group_, const String & passwd, bool ispublic, const StringArray & others) {
-            ClientEvent event(PeerSuggestedNewGroupEvent, group_, ispublic, passwd, user);
+        static ClientEvent makeSuggestedNewGroupEvent(const String & user, const String & group_, const String & passwd, const StringArray & others) {
+            ClientEvent event(PeerSuggestedNewGroupEvent, group_, true, passwd, user);
             event.array = others;
             return event;
         }

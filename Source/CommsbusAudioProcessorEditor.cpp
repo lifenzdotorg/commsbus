@@ -1327,26 +1327,6 @@ void CommsbusAudioProcessorEditor::aooClientGroupLeft(CommsbusAudioProcessor *co
     triggerAsyncUpdate();
 }
 
-void CommsbusAudioProcessorEditor::aooClientPublicGroupModified(CommsbusAudioProcessor *comp, const String & group, int count, const String & errmesg)
-{
-    DBG("Public group add/modified " << group << " count: " << (int)count << "   mesg: " << errmesg);
-    {
-        const ScopedLock sl (clientStateLock);
-        clientEvents.add(ClientEvent(ClientEvent::PublicGroupModifiedEvent, group, true, errmesg));
-    }
-    triggerAsyncUpdate();
-}
-
-void CommsbusAudioProcessorEditor::aooClientPublicGroupDeleted(CommsbusAudioProcessor *comp, const String & group,  const String & errmesg)
-{
-    DBG("Public group delete " << group << "   mesg: " << errmesg);
-    {
-        const ScopedLock sl (clientStateLock);
-        clientEvents.add(ClientEvent(ClientEvent::PublicGroupDeletedEvent, group, true, errmesg));
-    }
-    triggerAsyncUpdate();
-}
-
 
 void CommsbusAudioProcessorEditor::aooClientPeerJoined(CommsbusAudioProcessor *comp, const String & group, const String & user)  
 {
@@ -1438,11 +1418,11 @@ void CommsbusAudioProcessorEditor::peerRequestedLatencyMatch(CommsbusAudioProces
     triggerAsyncUpdate();
 }
 
-void CommsbusAudioProcessorEditor::peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & passwd, bool isPublic, const StringArray & others)
+void CommsbusAudioProcessorEditor::peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & passwd, const StringArray & others)
 {
     {
         const ScopedLock sl (clientStateLock);
-        clientEvents.add( ClientEvent::makeSuggestedNewGroupEvent(username, newgroup,  passwd, isPublic, others));
+        clientEvents.add( ClientEvent::makeSuggestedNewGroupEvent(username, newgroup,  passwd, others));
     }
 
     triggerAsyncUpdate();
@@ -1658,12 +1638,7 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
             mConnectButton->setTextJustification(Justification::centredTop);
             mConnectionTimeLabel->setEnabled(true);
 
-            if (processor.getWatchPublicGroups()) {
-                processor.leaveServerGroup(processor.getCurrentJoinedGroup());
-            }
-            else {
-                processor.disconnectFromServer();
-            }
+            processor.disconnectFromServer();
             updateState();
         }
         else {
@@ -2268,10 +2243,9 @@ void CommsbusAudioProcessorEditor::showSuggestGroupView(bool show)
         if (!mSuggestNewGroupView) {
             mSuggestNewGroupView = std::make_unique<SuggestNewGroupView>(processor);
 
-            mSuggestNewGroupView->connectToGroup = [this] (const String & group, const String & groupPass, bool isPublic) {
+            mSuggestNewGroupView->connectToGroup = [this] (const String & group, const String & groupPass) {
                 currConnectionInfo.groupName = group;
                 currConnectionInfo.groupPassword = groupPass;
-                currConnectionInfo.groupIsPublic = isPublic;
                 connectWithInfo(currConnectionInfo);
             };
         }
@@ -2731,7 +2705,7 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
     if (!currGroup.isEmpty() && currConnected)
     {
         String grouptext;
-        grouptext << (currConnectionInfo.groupIsPublic ? TRANS("[P] ") : "") << currGroup;
+        grouptext << currGroup;
         mMainGroupLabel->setText(grouptext, dontSendNotification);
         String userstr;
 
@@ -2786,7 +2760,7 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
 
         if (processor.getNumberRemotePeers() == 0 /* || !currConnected */ ) {
             String message;
-            message += TRANS("Press Connect button to start.") + "\n\n" + TRANS("Please use headphones if you are using a microphone!");
+            message += TRANS("Press Connect button to start.");
             mMainMessageLabel->setText(message, dontSendNotification);
         } else {
             mMainMessageLabel->setText("", dontSendNotification);
@@ -2976,14 +2950,7 @@ void CommsbusAudioProcessorEditor::handleAsyncUpdate()
                         currConnectionInfo.timestamp = Time::getCurrentTime().toMilliseconds();
                         processor.addRecentServerConnectionInfo(currConnectionInfo);
                         
-                        processor.setWatchPublicGroups(false);
-                        
-                        processor.joinServerGroup(currConnectionInfo.groupName, currConnectionInfo.groupPassword, currConnectionInfo.groupIsPublic);
-                    }
-                    else {
-                        // we've connected but have not specified group, assume we want to see public groups
-                        processor.setWatchPublicGroups(true);
-                        mConnectView->updatePublicGroups();
+                        processor.joinServerGroup(currConnectionInfo.groupName, currConnectionInfo.groupPassword);
                     }
                     
                     mConnectView->updateServerFieldsFromConnectionInfo();
@@ -3085,20 +3052,12 @@ void CommsbusAudioProcessorEditor::handleAsyncUpdate()
             updateLayout();
             resized();
         }
-        else if (ev.type == ClientEvent::PublicGroupModifiedEvent) {
-            mConnectView->updatePublicGroups();
-        }
-        else if (ev.type == ClientEvent::PublicGroupDeletedEvent) {
-            mConnectView->updatePublicGroups();
-        }
         else if (ev.type == ClientEvent::PeerJoinEvent) {
             DBG("Peer " << ev.user << "joined doing full update");
 
-            if (!currConnectionInfo.groupIsPublic) {
-                String mesg;
-                mesg << ev.user << TRANS(" - joined group");
-                mChatView->addNewChatMessage(SBChatEvent(SBChatEvent::SystemType, ev.group, ev.user, "", "", mesg));
-            }
+            String joinmesg;
+            joinmesg << ev.user << TRANS(" - joined group");
+            mChatView->addNewChatMessage(SBChatEvent(SBChatEvent::SystemType, ev.group, ev.user, "", "", joinmesg));
 
             // delay update
             Timer::callAfterDelay(200, [this] {
@@ -3107,11 +3066,9 @@ void CommsbusAudioProcessorEditor::handleAsyncUpdate()
             });
         }
         else if (ev.type == ClientEvent::PeerLeaveEvent) {
-            if (!currConnectionInfo.groupIsPublic) {
-                String mesg;
-                mesg << ev.user << TRANS(" - left group");
-                mChatView->addNewChatMessage(SBChatEvent(SBChatEvent::SystemType, ev.group, ev.user, "", "", mesg));
-            }
+            String leavemesg;
+            leavemesg << ev.user << TRANS(" - left group");
+            mChatView->addNewChatMessage(SBChatEvent(SBChatEvent::SystemType, ev.group, ev.user, "", "", leavemesg));
 
             mPeerContainer->peerLeftGroup(ev.group, ev.user);
 
@@ -3131,7 +3088,7 @@ void CommsbusAudioProcessorEditor::handleAsyncUpdate()
             showLatencyMatchPrompt(ev.message, ev.floatVal);
         }
         else if (ev.type == ClientEvent::PeerSuggestedNewGroupEvent) {
-            showSuggestedGroupPrompt(ev.user, ev.group, ev.message, ev.success, ev.array);
+            showSuggestedGroupPrompt(ev.user, ev.group, ev.message, ev.array);
         }
         else if (ev.type == ClientEvent::PeerBlockedInfoChangedEvent) {
             updatePeerState(true);
@@ -3327,7 +3284,7 @@ void CommsbusAudioProcessorEditor::showLatencyMatchPrompt(const String & name, f
 
 }
 
-void CommsbusAudioProcessorEditor::showSuggestedGroupPrompt(const String &name, const String &group, const String & grouppass, bool ispublic, const StringArray & others)
+void CommsbusAudioProcessorEditor::showSuggestedGroupPrompt(const String &name, const String &group, const String & grouppass, const StringArray & others)
 {
     if (!mSuggestedGroupComponent) {
         mSuggestedGroupComponent = std::make_unique<ApproveComponent>(TRANS("Connect To Group"), TRANS("Ignore"));
@@ -3356,11 +3313,7 @@ void CommsbusAudioProcessorEditor::showSuggestedGroupPrompt(const String &name, 
         mSuggestedGroupComponent->setVisible(true);
 
         String mesg;
-        if (ispublic) {
-            mesg << TRANS("Requested to join a new public group:");
-        } else {
-            mesg << TRANS("Requested to join a new private group:");
-        }
+        mesg << TRANS("Requested to join a new private group:");
 
         mesg << "\n   " <<  TRANS("From: ") << name;
         mesg << "\n   " <<  TRANS("New Group: ") << group;
@@ -3368,11 +3321,10 @@ void CommsbusAudioProcessorEditor::showSuggestedGroupPrompt(const String &name, 
 
         mSuggestedGroupComponent->label.setText(mesg, dontSendNotification);
 
-        mSuggestedGroupComponent->button.onClick = [this,group, grouppass, ispublic]() {
+        mSuggestedGroupComponent->button.onClick = [this,group, grouppass]() {
             // join new group
             currConnectionInfo.groupName = group;
             currConnectionInfo.groupPassword = grouppass;
-            currConnectionInfo.groupIsPublic = ispublic;
             connectWithInfo(currConnectionInfo);
 
             // dismiss it
@@ -3601,7 +3553,10 @@ void CommsbusAudioProcessorEditor::resized()
     mSetupAudioButton->setSize(150, 50);	
 #endif
 	
-    mSetupAudioButton->setCentrePosition(mMainViewport->getX() + 0.5*mMainViewport->getWidth(), mMainViewport->getY() + inmixactualbounds.getHeight() + 45);
+    // Centre the "no audio device" prompt in the RECEIVE area rather than at a
+    // fixed offset below the transmit strip, which now lands on the section header.
+    mSetupAudioButton->setCentrePosition(mMainViewport->getX() + 0.5*mMainViewport->getWidth(),
+                                         mMainViewport->getY() + receiveHeaderY + sectionHeaderH + 45);
     
     mMainMessageLabel->setBounds(mMainViewport->getX() + 10, mSetupAudioButton->getBottom() + 10, mMainViewport->getRight() - mMainViewport->getX() - 20, jmin(120, mMainViewport->getBottom() - (mSetupAudioButton->getBottom() + 10)));
     

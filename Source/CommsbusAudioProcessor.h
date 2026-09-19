@@ -50,7 +50,6 @@ struct AooServerConnectionInfo
     String userPassword;
     String groupName;
     String groupPassword;
-    bool   groupIsPublic = false;
     String serverHost;
     int    serverPort;
     
@@ -82,17 +81,6 @@ struct OutputBus
     juce::ValueTree getValueTree() const;
     void setFromValueTree(const juce::ValueTree & v);
 };
-
-struct AooPublicGroupInfo
-{
-    AooPublicGroupInfo() {}
-
-    String groupName;
-    int    activeCount = 0;
-
-    int64 timestamp = 0; // milliseconds since 1970
-};
-
 
 struct SBChatEvent
 {
@@ -308,13 +296,10 @@ public:
     void setAutoconnectToGroupPeers(bool flag);
     bool getAutoconnectToGroupPeers() const { return mAutoconnectGroupPeers; }
 
-    bool joinServerGroup(const String & group, const String & groupsecret = "", bool isPublic=false);
+    bool joinServerGroup(const String & group, const String & groupsecret = "");
     bool leaveServerGroup(const String & group);
     String getCurrentJoinedGroup() const ;
-    bool setWatchPublicGroups(bool flag);
-    bool getWatchPublicGroups() const { return mWatchPublicGroups; }
 
-    int getPublicGroupInfos(Array<AooPublicGroupInfo> & retarray);
 
     void addRecentServerConnectionInfo(const AooServerConnectionInfo & cinfo);
     void removeRecentServerConnectionInfo(int index);
@@ -686,8 +671,6 @@ public:
         virtual void aooClientLoginResult(CommsbusAudioProcessor *comp, bool success, const String & errmesg="") {}
         virtual void aooClientGroupJoined(CommsbusAudioProcessor *comp, bool success, const String & group,  const String & errmesg="") {}
         virtual void aooClientGroupLeft(CommsbusAudioProcessor *comp, bool success, const String & group, const String & errmesg="") {}
-        virtual void aooClientPublicGroupModified(CommsbusAudioProcessor *comp, const String & group, int count, const String & errmesg="") {}
-        virtual void aooClientPublicGroupDeleted(CommsbusAudioProcessor *comp, const String & group,  const String & errmesg="") {}
         virtual void aooClientPeerPendingJoin(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
         virtual void aooClientPeerJoined(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
         virtual void aooClientPeerJoinFailed(CommsbusAudioProcessor *comp, const String & group, const String & user) {}
@@ -698,7 +681,7 @@ public:
         virtual void sbChatEventReceived(CommsbusAudioProcessor *comp, const SBChatEvent & chatevent) {}
         virtual void peerRequestedLatencyMatch(CommsbusAudioProcessor *comp, const String & username, float latency) {}
         virtual void peerBlockedInfoChanged(CommsbusAudioProcessor *comp, const String & username, bool blocked) {}
-        virtual void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & grouppass, bool isPublic, const StringArray & others) {}
+        virtual void peerSuggestedNewGroup(CommsbusAudioProcessor *comp, const String & username, const String & newgroup, const String & grouppass, const StringArray & others) {}
     };
     
     void addClientListener(ClientListener * l) {
@@ -763,7 +746,7 @@ public:
     void commitLatencyMatch(float latency);
 
     // invite peers to new group stuff
-    void suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames, bool ispublic=false);
+    void suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames);
 
     void sendBlockedInfoMessage(EndpointState *endpoint, bool blocked);
 
@@ -1037,7 +1020,6 @@ private:
     bool mIsConnectedToServer = false;
     String mCurrentJoinedGroup;
     double mSessionConnectionStamp = 0.0;
-    bool mWatchPublicGroups = false;
     String mCurrentUsername;
 
     double mPrevSampleRate = 0.0;
@@ -1095,8 +1077,6 @@ private:
     
     CriticalSection  mRemotesLock;
 
-    std::map<String,AooPublicGroupInfo> mPublicGroupInfos;
-    CriticalSection  mPublicGroupsLock;
 
     
     

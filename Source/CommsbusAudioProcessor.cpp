@@ -1099,13 +1099,6 @@ bool CommsbusAudioProcessor::disconnectFromServer()
         mCurrentJoinedGroup.clear();
     }
 
-    {
-        const ScopedLock sl (mPublicGroupsLock);
-
-        mPublicGroupInfos.clear();
-    }
-
-
 
     return true;
 }
@@ -1153,18 +1146,6 @@ void CommsbusAudioProcessor::removeRecentServerConnectionInfo(int index)
     }
 }
 
-int CommsbusAudioProcessor::getPublicGroupInfos(Array<AooPublicGroupInfo> & retarray)
-{
-    retarray.clearQuick();
-
-    const ScopedLock sl (mPublicGroupsLock);
-    for (auto & item : mPublicGroupInfos) {
-        retarray.add(item.second);
-    }
-    return retarray.size();
-}
-
-
 
 void CommsbusAudioProcessor::setAutoconnectToGroupPeers(bool flag)
 {
@@ -1172,33 +1153,11 @@ void CommsbusAudioProcessor::setAutoconnectToGroupPeers(bool flag)
 }
 
 
-bool CommsbusAudioProcessor::setWatchPublicGroups(bool flag)
+bool CommsbusAudioProcessor::joinServerGroup(const String & group, const String & groupsecret)
 {
     if (!mAooClient) return false;
 
-    mWatchPublicGroups = flag;
-
-    int32_t retval = mAooClient->group_watch_public(flag);
-
-    const ScopedLock sl (mPublicGroupsLock);
-
-    mPublicGroupInfos.clear();
-
-
-    if (retval < 0) {
-        DBG("Error watching public groups: " << retval);
-    }
-
-    return retval >= 0;
-
-}
-
-
-bool CommsbusAudioProcessor::joinServerGroup(const String & group, const String & groupsecret, bool isPublic)
-{
-    if (!mAooClient) return false;
-
-    int32_t retval = mAooClient->group_join(group.toRawUTF8(), groupsecret.toRawUTF8(), isPublic);
+    int32_t retval = mAooClient->group_join(group.toRawUTF8(), groupsecret.toRawUTF8(), false);
     
     if (retval < 0) {
         DBG("Error joining group " << group << " : " << retval);
@@ -2578,7 +2537,7 @@ bool CommsbusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const 
         }
         else if (type == COMMSBUS_MSGTYPE_SUGGESTGROUP) {
             // received from the other side
-            // args: s:username  s:newgroup s:ispublic
+            // args: s:username  s:newgroup
 
             auto it = message.ArgumentsBegin();
             if (message.ArgumentCount() >= 1) {
@@ -2596,7 +2555,6 @@ bool CommsbusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const 
                     auto username = infodata.getProperty("user", "");
                     auto newgroup = infodata.getProperty("group", "");
                     auto grouppass = infodata.getProperty("group_pass", "");
-                    auto ispublic = infodata.getProperty("public", false);
                     auto others = infodata.getProperty("others", {});
                     StringArray otherpeers;
                     if (others.isArray()) {
@@ -2605,7 +2563,7 @@ bool CommsbusAudioProcessor::handleOtherMessage(EndpointState * endpoint, const 
                         }
                     }
 
-                    clientListeners.call(&CommsbusAudioProcessor::ClientListener::peerSuggestedNewGroup, this, username, newgroup, grouppass, ispublic, otherpeers);
+                    clientListeners.call(&CommsbusAudioProcessor::ClientListener::peerSuggestedNewGroup, this, username, newgroup, grouppass, otherpeers);
                 }
             }
         }
@@ -2882,7 +2840,7 @@ void CommsbusAudioProcessor::commitLatencyMatch(float latency)
 }
 
 
-void CommsbusAudioProcessor::suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames, bool ispublic)
+void CommsbusAudioProcessor::suggestNewGroupToPeers(const String & group, const String & groupPass, const StringArray & peernames)
 {
     // suggest to other peers to join a new group
 
@@ -2892,7 +2850,6 @@ void CommsbusAudioProcessor::suggestNewGroupToPeers(const String & group, const 
     info->setProperty("user", getCurrentUsername());
     info->setProperty("group", group);
     info->setProperty("group_pass", groupPass);
-    info->setProperty("public", ispublic);
 
     info->setProperty("others", peernames);
 
@@ -3978,9 +3935,8 @@ int32_t CommsbusAudioProcessor::handleClientEvents(const aoo_event ** events, in
                 if (mIsConnectedToServer && mPendingReconnectInfo.groupName.isNotEmpty()) {
                     mPendingReconnectInfo.timestamp = Time::getCurrentTime().toMilliseconds();
                     addRecentServerConnectionInfo(mPendingReconnectInfo);
-                    setWatchPublicGroups(false);
                     DBG("Joining group after pending reconnect: " << mPendingReconnectInfo.groupName);
-                    joinServerGroup(mPendingReconnectInfo.groupName, mPendingReconnectInfo.groupPassword, mPendingReconnectInfo.groupIsPublic);
+                    joinServerGroup(mPendingReconnectInfo.groupName, mPendingReconnectInfo.groupPassword);
                 }
                 
                 mPendingReconnect = false;
@@ -4063,34 +4019,9 @@ int32_t CommsbusAudioProcessor::handleClientEvents(const aoo_event ** events, in
             break;
         }
         case AOONET_CLIENT_GROUP_PUBLIC_ADD_EVENT:
-        {
-            aoonet_client_group_event *e = (aoonet_client_group_event *)events[i];
-            DBG("Public group add/changed - " << e->name << " count: " << e->result);
-            {
-                const ScopedLock sl (mPublicGroupsLock);
-                String group = CharPointer_UTF8 (e->name);
-                AooPublicGroupInfo & ginfo = mPublicGroupInfos[group];
-                ginfo.groupName = group;
-                ginfo.activeCount = e->result;
-                ginfo.timestamp = Time::getCurrentTime().toMilliseconds();
-            }
-
-            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPublicGroupModified, this, CharPointer_UTF8 (e->name), e->result,  String::fromUTF8(e->errormsg));
-            break;
-        }
         case AOONET_CLIENT_GROUP_PUBLIC_DEL_EVENT:
-        {
-            aoonet_client_group_event *e = (aoonet_client_group_event *)events[i];
-            DBG("Public group deleted - " << e->name);
-            {
-                const ScopedLock sl (mPublicGroupsLock);
-                String group = CharPointer_UTF8 (e->name);
-                mPublicGroupInfos.erase(group);
-            }
-
-            clientListeners.call(&CommsbusAudioProcessor::ClientListener::aooClientPublicGroupDeleted, this, CharPointer_UTF8 (e->name), String::fromUTF8(e->errormsg));
+            // public groups are not used in Commsbus
             break;
-        }
 
         case AOONET_CLIENT_PEER_PREJOIN_EVENT:
         {
@@ -7744,7 +7675,6 @@ ValueTree AooServerConnectionInfo::getValueTree() const
     item.setProperty("serverHost", serverHost, nullptr);
     item.setProperty("serverPort", serverPort, nullptr);
     item.setProperty("timestamp", timestamp, nullptr);
-    item.setProperty("groupIsPublic", groupIsPublic, nullptr);
 
     return item;
 }
@@ -7758,7 +7688,6 @@ void AooServerConnectionInfo::setFromValueTree(const ValueTree & item)
     serverHost = item.getProperty("serverHost", serverHost);
     serverPort = item.getProperty("serverPort", serverPort);
     timestamp = item.getProperty("timestamp", timestamp);
-    groupIsPublic = item.getProperty("groupIsPublic", groupIsPublic);
 }
 
 

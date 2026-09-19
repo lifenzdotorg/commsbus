@@ -35,8 +35,7 @@ enum {
 ConnectView::ConnectView(CommsbusAudioProcessor& proc, AooServerConnectionInfo & info)
 : Component(), processor(proc), currConnectionInfo(info),
 recentsListModel(this),
-recentsGroupFont (17.0 * SonoLookAndFeel::getFontScale(), Font::bold), recentsNameFont(15 * SonoLookAndFeel::getFontScale(), Font::plain), recentsInfoFont(13 * SonoLookAndFeel::getFontScale(), Font::plain),
-publicGroupsListModel(this)
+recentsGroupFont (17.0 * SonoLookAndFeel::getFontScale(), Font::bold), recentsNameFont(15 * SonoLookAndFeel::getFontScale(), Font::plain), recentsInfoFont(13 * SonoLookAndFeel::getFontScale(), Font::plain)
 {
     setColour (nameTextColourId, Colour::fromFloatRGBA(1.0f, 1.0f, 1.0f, 0.9f));
     setColour (selectedColourId, Colour::fromFloatRGBA(0.0f, 0.4f, 0.8f, 0.5f));
@@ -51,9 +50,7 @@ publicGroupsListModel(this)
 
     mDirectConnectContainer = std::make_unique<Component>();
     mServerConnectContainer = std::make_unique<Component>();
-    mPublicServerConnectContainer = std::make_unique<Component>();
     mServerConnectViewport = std::make_unique<Viewport>();
-    mPublicServerConnectViewport = std::make_unique<Viewport>();
     mRecentsContainer = std::make_unique<Component>();
 
     mServerConnectViewport->setViewedComponent(mServerConnectContainer.get());
@@ -68,14 +65,14 @@ publicGroupsListModel(this)
     mRecentsGroup->setColour(GroupComponent::outlineColourId, Colour::fromFloatRGBA(0.8, 0.8, 0.8, 0.1));
     mRecentsGroup->setTextLabelPosition(Justification::centred);
 
-    // Commsbus leads with DIRECT: peer-to-peer by address, no rendezvous server
-    // involved. Upstream SonoBus shipped this tab commented out and steered people
-    // to private groups instead; the group tabs are kept here as a fallback for
-    // when peers cannot reach each other by address.
+    // Commsbus leads with PRIVATE GROUP -- both ends point at one connection
+    // server (which every Commsbus instance can be, see mServerHostHintLabel) and
+    // find each other by group name, which survives an address change at either
+    // end. DIRECT is second, for when the addresses really are fixed. Upstream
+    // SonoBus shipped DIRECT commented out entirely.
+    mConnectTab->addTab(TRANS("PRIVATE GROUP"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mServerConnectViewport.get(), false);
     mConnectTab->addTab(TRANS("DIRECT"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mDirectConnectViewport.get(), false);
     mConnectTab->addTab(TRANS("RECENTS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mRecentsContainer.get(), false);
-    mConnectTab->addTab(TRANS("PRIVATE GROUP"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mServerConnectViewport.get(), false);
-    mConnectTab->addTab(TRANS("PUBLIC GROUPS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mPublicServerConnectContainer.get(), false);
 
 
 
@@ -173,11 +170,21 @@ publicGroupsListModel(this)
     mServerHostStaticLabel = std::make_unique<Label>("serverhostst", TRANS("Connection Server:"));
     configServerLabel(mServerHostStaticLabel.get());
 
+    // Every Commsbus instance already runs a connection server of its own, so a
+    // pair of them needs nothing on the internet -- point both ends at one of the
+    // two machines. Worth saying out loud; it is not discoverable otherwise.
+    mServerHostHintLabel = std::make_unique<Label>("serverhosthint",
+        TRANS("Every Commsbus runs its own server on port 10999 -- to stay off the internet, point both ends at one machine, e.g. 192.168.1.50:10999"));
+    mServerHostHintLabel->setJustificationType(Justification::topLeft);
+    mServerHostHintLabel->setFont(12);
+    mServerHostHintLabel->setColour(Label::textColourId, Colour(0x99aaaaaa));
+    mServerHostHintLabel->setMinimumHorizontalScale(0.75);
+
 
     mServerGroupEditor = std::make_unique<TextEditor>("groupedit");
     mServerGroupEditor->setTitle(TRANS("Group Name:"));
     mServerGroupEditor->setFont(Font(16 * SonoLookAndFeel::getFontScale()));
-    mServerGroupEditor->setText(!currConnectionInfo.groupIsPublic ? currConnectionInfo.groupName : "", false);
+    mServerGroupEditor->setText(currConnectionInfo.groupName, false);
     configEditor(mServerGroupEditor.get());
 
     mServerGroupPasswordEditor = std::make_unique<TextEditor>("grouppass"); // 0x25cf
@@ -271,71 +278,6 @@ publicGroupsListModel(this)
     mRecentsListBox->setRowClickedOnMouseDown(false);
 
 
-    mPublicGroupsListBox = std::make_unique<ListBox>("publicgroupslist");
-    mPublicGroupsListBox->setColour (ListBox::outlineColourId, Colour::fromFloatRGBA(0.7, 0.7, 0.7, 0.0));
-    mPublicGroupsListBox->setColour (ListBox::backgroundColourId, Colour::fromFloatRGBA(0.1, 0.12, 0.1, 0.0f));
-    mPublicGroupsListBox->setColour (ListBox::textColourId, Colours::whitesmoke.withAlpha(0.8f));
-    mPublicGroupsListBox->setTitle(TRANS("Public Groups List"));
-    mPublicGroupsListBox->setOutlineThickness (1);
-#if JUCE_IOS || JUCE_ANDROID
-    mPublicGroupsListBox->getViewport()->setScrollOnDragEnabled(true);
-#endif
-    mPublicGroupsListBox->getViewport()->setScrollBarsShown(true, false);
-    mPublicGroupsListBox->setMultipleSelectionEnabled (false);
-    mPublicGroupsListBox->setRowHeight(38);
-    mPublicGroupsListBox->setModel (&publicGroupsListModel);
-    mPublicGroupsListBox->setRowSelectedOnMouseDown(true);
-    mPublicGroupsListBox->setRowClickedOnMouseDown(false);
-
-
-    mPublicServerHostEditor = std::make_unique<TextEditor>("pubsrvaddredit");
-    mPublicServerHostEditor->setTitle(TRANS("Connection Server:"));
-    mPublicServerHostEditor->setFont(Font(14 * SonoLookAndFeel::getFontScale()));
-    configEditor(mPublicServerHostEditor.get());
-    mPublicServerHostEditor->setTooltip(servaudioinfo);
-
-    mPublicServerHostStaticLabel = std::make_unique<Label>("pubaddrst", TRANS("Connection Server:"));
-    configServerLabel(mPublicServerHostStaticLabel.get());
-
-    mPublicServerUserStaticLabel = std::make_unique<Label>("pubuserst", TRANS("Your Displayed Name:"));
-    configServerLabel(mPublicServerUserStaticLabel.get());
-    mPublicServerUserStaticLabel->setMinimumHorizontalScale(0.8);
-
-    mPublicServerStatusInfoLabel = std::make_unique<Label>("pubsrvinfo", "");
-    configServerLabel(mPublicServerStatusInfoLabel.get());
-    mPublicServerStatusInfoLabel->setJustificationType(Justification::centredLeft);
-
-    mPublicServerUsernameEditor = std::make_unique<TextEditor>("pubsrvaddredit");
-    mPublicServerUsernameEditor->setTitle(TRANS("Your Displayed Name:"));
-    mPublicServerUsernameEditor->setFont(Font(16 * SonoLookAndFeel::getFontScale()));
-    mPublicServerUsernameEditor->setText(processor.getCurrentUsername(), false);
-    configEditor(mPublicServerUsernameEditor.get());
-
-    mPublicGroupComponent = std::make_unique<GroupComponent>("", TRANS("Active Public Groups"));
-    mPublicGroupComponent->setColour(GroupComponent::textColourId, Colour::fromFloatRGBA(0.8, 0.8, 0.8, 0.8));
-    mPublicGroupComponent->setColour(GroupComponent::outlineColourId, Colour::fromFloatRGBA(0.8, 0.8, 0.8, 0.1));
-    mPublicGroupComponent->setTextLabelPosition(Justification::centred);
-
-    mPublicServerInfoStaticLabel = std::make_unique<Label>("pubinfost", TRANS("Select existing group below OR "));
-    configServerLabel(mPublicServerInfoStaticLabel.get());
-    mPublicServerInfoStaticLabel->setFont(14);
-    mPublicServerInfoStaticLabel->setMinimumHorizontalScale(0.8);
-
-    mPublicServerAddGroupButton = std::make_unique<TextButton>("addgroup");
-    mPublicServerAddGroupButton->setButtonText(TRANS("Create Group..."));
-    mPublicServerAddGroupButton->addListener(this);
-    mPublicServerAddGroupButton->setColour(TextButton::buttonColourId, Colour::fromFloatRGBA(0.1, 0.4, 0.6, 0.6));
-    mPublicServerAddGroupButton->setWantsKeyboardFocus(true);
-
-    mPublicServerGroupEditor = std::make_unique<TextEditor>("pubgroupedit");
-    mPublicServerGroupEditor->setTitle(TRANS("Public Group Name"));
-    mPublicServerGroupEditor->setFont(Font(16 * SonoLookAndFeel::getFontScale()));
-    mPublicServerGroupEditor->setText(currConnectionInfo.groupIsPublic ? currConnectionInfo.groupName : "", false);
-    configEditor(mPublicServerGroupEditor.get());
-    mPublicServerGroupEditor->setTextToShowWhenEmpty(TRANS("enter group name"), Colour(0x44ffffff));
-    mPublicServerGroupEditor->setTooltip(TRANS("Choose a descriptive group name that includes geographic information and genre"));
-
-
     // parenting
     mDirectConnectContainer->addAndMakeVisible(mDirectConnectButton.get());
     mDirectConnectContainer->addAndMakeVisible(mAddRemoteHostEditor.get());
@@ -359,6 +301,7 @@ publicGroupsListModel(this)
 #endif
     mServerConnectContainer->addAndMakeVisible(mServerGroupStaticLabel.get());
     mServerConnectContainer->addAndMakeVisible(mServerHostStaticLabel.get());
+    mServerConnectContainer->addAndMakeVisible(mServerHostHintLabel.get());
     mServerConnectContainer->addAndMakeVisible(mServerGroupPassStaticLabel.get());
     mServerConnectContainer->addAndMakeVisible(mServerGroupPasswordEditor.get());
     mServerConnectContainer->addAndMakeVisible(mServerStatusLabel.get());
@@ -367,19 +310,6 @@ publicGroupsListModel(this)
 
     mRecentsContainer->addAndMakeVisible(mRecentsListBox.get());
     mRecentsContainer->addAndMakeVisible(mClearRecentsButton.get());
-
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicGroupComponent.get());
-    mPublicGroupComponent->addAndMakeVisible(mPublicGroupsListBox.get());
-
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerHostEditor.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerHostStaticLabel.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerUserStaticLabel.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerUsernameEditor.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerAddGroupButton.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerInfoStaticLabel.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerStatusInfoLabel.get());
-    mPublicServerConnectContainer->addAndMakeVisible(mPublicServerGroupEditor.get());
-
 
     addAndMakeVisible(mConnectComponentBg.get());
     addAndMakeVisible(mConnectTab.get());
@@ -432,9 +362,6 @@ void ConnectView::escapePressed()
         && !mServerUsernameEditor->hasKeyboardFocus(false)
         && !mServerUserPasswordEditor->hasKeyboardFocus(false)
         && !mServerGroupPasswordEditor->hasKeyboardFocus(false)
-        && !mPublicServerHostEditor->hasKeyboardFocus(false)
-        && !mPublicServerGroupEditor->hasKeyboardFocus(false)
-        && !mPublicServerUsernameEditor->hasKeyboardFocus(false)
         )
     {
         // close us down
@@ -478,18 +405,9 @@ void ConnectView::updateState()
     updateRecents();
 
     if (firstTimeConnectShow) {
-        // Commsbus opens on DIRECT (tab 0). Recents only wins if there is actually
-        // something in it, so an existing group workflow is not disrupted.
-        if (mConnectTab->getNumTabs() > 1 && recentsListModel.getNumRows() > 0) {
-            mConnectTab->setCurrentTabIndex(1); // RECENTS
-        } else {
-            mConnectTab->setCurrentTabIndex(0); // DIRECT
-        }
+        // Commsbus opens on PRIVATE GROUP.
+        showPrivateGroupTab();
         firstTimeConnectShow = false;
-    }
-
-    if (mConnectTab->getCurrentContentComponent() == mPublicServerConnectContainer.get()) {
-        publicGroupLogin();
     }
 }
 
@@ -542,6 +460,11 @@ void ConnectView::updateLayout()
     remoteBox.items.add(FlexItem(180, 2*minitemheight, *mDirectConnectDescriptionLabel).withMargin(2).withFlex(1).withMaxHeight(150));
     remoteBox.items.add(FlexItem(60, minitemheight, localAddressBox).withMargin(2).withFlex(0));
     remoteBox.items.add(FlexItem(10, 0).withFlex(1));
+
+    servHostHintBox.items.clear();
+    servHostHintBox.flexDirection = FlexBox::Direction::row;
+    servHostHintBox.items.add(FlexItem(4, 4).withFlex(0));
+    servHostHintBox.items.add(FlexItem(100, 46, *mServerHostHintLabel).withMargin(2).withFlex(1));
 
     servAddressBox.items.clear();
     servAddressBox.flexDirection = FlexBox::Direction::row;
@@ -605,46 +528,11 @@ void ConnectView::updateLayout()
     serverBox.items.add(FlexItem(minButtonWidth, minitemheight, servButtonBox).withMargin(2).withFlex(0).withMaxWidth(maxservboxwidth));
     serverBox.items.add(FlexItem(5, 10).withFlex(1));
     serverBox.items.add(FlexItem(100, minitemheight, servAddressBox).withMargin(2).withFlex(0).withMaxWidth(maxservboxwidth));
+    serverBox.items.add(FlexItem(100, 46, servHostHintBox).withMargin(0).withFlex(0).withMaxWidth(maxservboxwidth));
     serverBox.items.add(FlexItem(80, minpassheight, *mServerAudioInfoLabel).withMargin(2).withFlex(1).withMaxWidth(maxservboxwidth).withMaxHeight(60));
     serverBox.items.add(FlexItem(5, 8).withFlex(0));
 
-    minHeight = 4*minitemheight + 3*minpassheight + 58;
-
-    // public groups stuff
-
-    int staticlabelmaxw = 180;
-
-    publicServAddressBox.items.clear();
-    publicServAddressBox.flexDirection = FlexBox::Direction::row;
-    publicServAddressBox.items.add(FlexItem(servLabelWidth, minitemheight, *mPublicServerHostStaticLabel).withMargin(2).withFlex(1).withMaxWidth(staticlabelmaxw));
-    publicServAddressBox.items.add(FlexItem(150, minpassheight, *mPublicServerHostEditor).withMargin(2).withFlex(1).withMaxWidth(220));
-    publicServAddressBox.items.add(FlexItem(servLabelWidth, minitemheight, *mPublicServerStatusInfoLabel).withMargin(2).withFlex(0.75));
-
-    publicServUserBox.items.clear();
-    publicServUserBox.flexDirection = FlexBox::Direction::row;
-    publicServUserBox.items.add(FlexItem(servLabelWidth, minitemheight, *mPublicServerUserStaticLabel).withMargin(2).withFlex(1).withMaxWidth(staticlabelmaxw));
-    publicServUserBox.items.add(FlexItem(172, minitemheight, *mPublicServerUsernameEditor).withMargin(2).withFlex(1));
-
-    publicAddGroupBox.items.clear();
-    publicAddGroupBox.flexDirection = FlexBox::Direction::row;
-    publicAddGroupBox.items.add(FlexItem(100, minitemheight, *mPublicServerInfoStaticLabel).withMargin(2).withFlex(0.5));
-    publicAddGroupBox.items.add(FlexItem(100, minitemheight, *mPublicServerAddGroupButton).withMargin(2).withFlex(1).withMaxWidth(180));
-    //publicAddGroupBox.items.add(FlexItem(4, 8).withFlex(0.25));
-    publicAddGroupBox.items.add(FlexItem(100, minitemheight, *mPublicServerGroupEditor).withMargin(2).withFlex(1));
-
-
-    int maxpubservboxwidth = 600;
-
-    publicGroupsBox.items.clear();
-    publicGroupsBox.flexDirection = FlexBox::Direction::column;
-    publicGroupsBox.items.add(FlexItem(5, 3).withFlex(0));
-    publicGroupsBox.items.add(FlexItem(100, minitemheight, publicServAddressBox).withMargin(2).withFlex(0));
-    publicGroupsBox.items.add(FlexItem(5, 4).withFlex(0));
-    publicGroupsBox.items.add(FlexItem(180, minitemheight, publicServUserBox).withMargin(2).withFlex(0).withMaxWidth(maxpubservboxwidth));
-    publicGroupsBox.items.add(FlexItem(5, 4).withFlex(0));
-    publicGroupsBox.items.add(FlexItem(180, minitemheight, publicAddGroupBox).withMargin(2).withFlex(0).withMaxWidth(maxpubservboxwidth));
-    publicGroupsBox.items.add(FlexItem(5, 7).withFlex(0));
-    publicGroupsBox.items.add(FlexItem(100, minitemheight, *mPublicGroupComponent).withMargin(2).withFlex(1));
+    minHeight = 4*minitemheight + 3*minpassheight + 58 + 46; // + server hint
 
     // recents
     clearRecentsBox.items.clear();
@@ -669,7 +557,7 @@ void ConnectView::updateLayout()
     connectHorizBox.items.clear();
     connectHorizBox.flexDirection = FlexBox::Direction::row;
     connectHorizBox.items.add(FlexItem(100, 100, *mConnectTab).withMargin(3).withFlex(1));
-    if (mConnectTab->getNumTabs() < 3) {
+    if (mConnectTab->getTabNames().indexOf(TRANS("RECENTS")) < 0) {
         connectHorizBox.items.add(FlexItem(335, 100, *mRecentsGroup).withMargin(3).withFlex(0));
     }
 
@@ -715,7 +603,7 @@ void ConnectView::resized()  {
             mRecentsGroup->setVisible(false);
 
             mConnectTab->addTab(TRANS("RECENTS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mRecentsContainer.get(), false);
-            // RECENTS belongs directly after DIRECT
+            // RECENTS belongs after PRIVATE GROUP and DIRECT
             mConnectTab->moveTab(mConnectTab->getNumTabs() - 1, recentsTabPosition);
             if (tabsel >= recentsTabPosition) {
                 ++tabsel;
@@ -739,19 +627,7 @@ void ConnectView::resized()  {
     remoteBox.performLayout(mDirectConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mDirectConnectContainer->getWidth()), mDirectConnectContainer->getHeight()));
     serverBox.performLayout(mServerConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mServerConnectContainer->getWidth()), mServerConnectContainer->getHeight()));
 
-    //mPublicServerConnectContainer->setBounds(0,0,
-    //                                   mPublicServerConnectViewport->getWidth() - (mPublicServerConnectViewport->getHeight() < minServerConnectHeight ? mPublicServerConnectViewport->getScrollBarThickness() : 0 ),
-    //                                   jmax(minServerConnectHeight, mPublicServerConnectViewport->getHeight()));
-
-
-
-    publicGroupsBox.performLayout(mPublicServerConnectContainer->getLocalBounds());
-    //publicGroupsBox.performLayout(mPublicServerConnectContainer->getLocalBounds().withSizeKeepingCentre(jmin(400, mPublicServerConnectContainer->getWidth()), mPublicServerConnectContainer->getHeight()));
-
-    mPublicGroupsListBox->setBounds(mPublicGroupComponent->getLocalBounds().reduced(4).withTrimmedTop(10));
-
-
-    if (mConnectTab->getNumTabs() < 3) {
+    if (mConnectTab->getTabNames().indexOf(TRANS("RECENTS")) < 0) {
         mRecentsContainer->setBounds(mRecentsGroup->getLocalBounds().reduced(4).withTrimmedTop(10));
     }
     recentsBox.performLayout(mRecentsContainer->getLocalBounds());
@@ -773,24 +649,17 @@ void ConnectView::groupJoinFailed()
 void ConnectView::showActiveGroupTab()
 {
 
-    int adjindex = mConnectTab->getCurrentTabIndex() + (mConnectTab->getNumTabs() > 2 ? 0 : 1);
-    if (adjindex != 1 && adjindex != 2) {
-        if (currConnectionInfo.groupIsPublic) {
-            showPublicGroupTab();
-        } else {
-            showPrivateGroupTab();
-        }
+    if (mConnectTab->getCurrentContentComponent() != mServerConnectViewport.get()) {
+        showPrivateGroupTab();
     }
 }
 
 void ConnectView::showPrivateGroupTab()
 {
-    mConnectTab->setCurrentTabIndex(mConnectTab->getNumTabs() > 2 ? 1 : 0);
-}
-
-void ConnectView::showPublicGroupTab()
-{
-    mConnectTab->setCurrentTabIndex(mConnectTab->getNumTabs() > 2 ? 2 : 1);
+    const int idx = mConnectTab->getTabNames().indexOf(TRANS("PRIVATE GROUP"));
+    if (idx >= 0) {
+        mConnectTab->setCurrentTabIndex(idx);
+    }
 }
 
 bool ConnectView::getServerGroupAndPasswordText(String & retgroup, String & retpass) const
@@ -818,71 +687,10 @@ void ConnectView::visibilityChanged ()
 
 void ConnectView::connectTabChanged (int newCurrentTabIndex)
 {
-    // normaliza index to have recents as 0
-    int adjindex = mConnectTab->getNumTabs() < 3 ? newCurrentTabIndex + 1 : newCurrentTabIndex;
+    ignoreUnused(newCurrentTabIndex);
 
-    // public groups
-    if (adjindex == 2) {
-        // put focus somewhere a text editor won't activate on ios
-        if (mPublicServerAddGroupButton->isShowing()) {
-            mPublicServerAddGroupButton->grabKeyboardFocus();
-        }
-        publicGroupLogin();
-        
-        currConnectionInfo.userName = mServerUsernameEditor->getText().trim();
-        currConnectionInfo.groupName = mServerGroupEditor->getText().trim();
-        currConnectionInfo.groupPassword = mServerGroupPasswordEditor->getText();
-    }
-    else if (adjindex == 1) {
-        // private groups
+    if (mConnectTab->getCurrentContentComponent() == mServerConnectViewport.get()) {
         resetPrivateGroupLabels();
-    }
-}
-
-void ConnectView::publicGroupLogin()
-{
-    String hostport = mPublicServerHostEditor->getText();
-    DBG("Public host enter pressed");
-    // parse it
-    StringArray toks = StringArray::fromTokens(hostport, ":", "");
-    String host = DEFAULT_SERVER_HOST;
-    int port = DEFAULT_SERVER_PORT;
-
-    if (toks.size() >= 1) {
-        host = toks[0].trim();
-    }
-    if (toks.size() >= 2) {
-        port = toks[1].trim().getIntValue();
-    }
-
-    AooServerConnectionInfo info;
-    info.userName = mPublicServerUsernameEditor->getText().trim();
-    info.serverHost = host;
-    info.serverPort = port;
-
-    bool connchanged = (info.serverHost != currConnectionInfo.serverHost
-                        || info.serverPort != currConnectionInfo.serverPort
-                        || info.userName != currConnectionInfo.userName);
-
-    if (connchanged
-        || !processor.getWatchPublicGroups()
-        || !processor.isConnectedToServer()
-        ) {
-
-        if (connchanged && processor.isConnectedToServer()) {
-            processor.disconnectFromServer();
-        }
-        else if (!processor.getWatchPublicGroups() && processor.isConnectedToServer()) {
-            processor.setWatchPublicGroups(true);
-        }
-
-        if (!processor.isConnectedToServer()) {
-
-            Timer::callAfterDelay(100, [this,info] {
-                connectWithInfo(info, true);
-                updatePublicGroups();
-            });
-        }
     }
 }
 
@@ -925,11 +733,6 @@ bool ConnectView::copyInfoToClipboard(bool singleURL, String * retmessage)
             url2 = url2.withParameter("p", groupPassword);
         }
 
-        if (processor.isConnectedToServer() && currConnectionInfo.groupIsPublic) {
-            url = url.withParameter("public", "1");
-            url2 = url2.withParameter("public", "1");
-        }
-
         //message += url.toString(true);
         //message += "\n\n";
 
@@ -956,22 +759,9 @@ void ConnectView::textEditorReturnKeyPressed (TextEditor& ed)
 {
     DBG("Return pressed");
 
-    if (&ed == mPublicServerHostEditor.get() || &ed == mPublicServerUsernameEditor.get()) {
-        publicGroupLogin();
-    }
-    else if (&ed == mPublicServerGroupEditor.get()) {
-        buttonClicked(mPublicServerAddGroupButton.get());
-    }
-
-
     if (isVisible() && mServerConnectButton->isShowing()) {
         //mServerConnectButton->setWantsKeyboardFocus(true);
         mServerConnectButton->grabKeyboardFocus();
-        //mServerConnectButton->setWantsKeyboardFocus(false);
-    }
-    else if (isVisible() && mPublicServerAddGroupButton->isShowing()) {
-        //mServerConnectButton->setWantsKeyboardFocus(true);
-        mPublicServerAddGroupButton->grabKeyboardFocus();
         //mServerConnectButton->setWantsKeyboardFocus(false);
     }
     //else if (isVisible() && mDirectConnectButton->isShowing()) {
@@ -994,7 +784,7 @@ void ConnectView::textEditorEscapeKeyPressed (TextEditor& ed)
 
 void ConnectView::textEditorTextChanged (TextEditor& ed)
 {
-    if (&ed == mPublicServerUsernameEditor.get() || &ed == mServerUsernameEditor.get()) {
+    if (&ed == mServerUsernameEditor.get()) {
         // try to set the current username, it will fail if we are connected, no big deal
         processor.setCurrentUsername(ed.getText().trim());
     }
@@ -1003,11 +793,7 @@ void ConnectView::textEditorTextChanged (TextEditor& ed)
 
 void ConnectView::textEditorFocusLost (TextEditor& ed)
 {
-    // only one we care about live is udp port
-    if (&ed == mPublicServerHostEditor.get() || &ed == mPublicServerUsernameEditor.get()) {
-        publicGroupLogin();
-    }
-
+    ignoreUnused(ed);
 }
 
 void ConnectView::buttonClicked (Button* buttonThatWasClicked)
@@ -1073,38 +859,6 @@ void ConnectView::buttonClicked (Button* buttonThatWasClicked)
         info.userName = mServerUsernameEditor->getText().trim();
         info.groupName = mServerGroupEditor->getText().trim();
         info.groupPassword = mServerGroupPasswordEditor->getText();
-        info.groupIsPublic = false;
-        info.serverHost = host;
-        info.serverPort = port;
-
-        connectWithInfo(info);
-
-        listeners.call(&ConnectView::Listener::connectionsChanged, this);
-
-        //mConnectionTimeLabel->setText("", dontSendNotification);
-
-    }
-    else if (buttonThatWasClicked == mPublicServerAddGroupButton.get()) {
-
-        String hostport = mPublicServerHostEditor->getText();
-
-        // parse it
-        StringArray toks = StringArray::fromTokens(hostport, ":", "");
-        String host = DEFAULT_SERVER_HOST;
-        int port = DEFAULT_SERVER_PORT;
-
-        if (toks.size() >= 1) {
-            host = toks[0].trim();
-        }
-        if (toks.size() >= 2) {
-            port = toks[1].trim().getIntValue();
-        }
-
-        AooServerConnectionInfo info;
-        info.userName = mPublicServerUsernameEditor->getText().trim();
-        info.groupName = mPublicServerGroupEditor->getText().trim();
-        info.groupPassword = "";
-        info.groupIsPublic = true;
         info.serverHost = host;
         info.serverPort = port;
 
@@ -1165,8 +919,6 @@ void ConnectView::buttonClicked (Button* buttonThatWasClicked)
     }
     else if (buttonThatWasClicked == mConnectCloseButton.get()) {
         setVisible(false);
-
-        processor.setWatchPublicGroups(false);
 
         updateState();
     }
@@ -1235,40 +987,24 @@ void ConnectView::connectWithInfo(const AooServerConnectionInfo & info, bool all
     currConnectionInfo = info;
 
     if (currConnectionInfo.groupName.isEmpty() && !allowEmptyGroup) {
-        if (info.groupIsPublic) {
-            mPublicServerStatusInfoLabel->setText(TRANS("You need to specify a group name!"), dontSendNotification);
-            mPublicServerGroupEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mPublicServerGroupEditor->repaint();
-            mPublicServerStatusInfoLabel->setVisible(true);
-        }
-        else {
-            mServerStatusLabel->setText(TRANS("You need to specify a group name!"), dontSendNotification);
-            mServerGroupEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mServerGroupEditor->repaint();
-            mServerInfoLabel->setVisible(false);
-            mServerStatusLabel->setVisible(true);
-        }
+        mServerStatusLabel->setText(TRANS("You need to specify a group name!"), dontSendNotification);
+        mServerGroupEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
+        mServerGroupEditor->repaint();
+        mServerInfoLabel->setVisible(false);
+        mServerStatusLabel->setVisible(true);
         return;
     }
     else {
         mServerGroupEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
         mServerGroupEditor->repaint();
-        mPublicServerGroupEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
-        mPublicServerGroupEditor->repaint();
     }
 
     if (currConnectionInfo.userName.trim().isEmpty()) {
         String mesg = TRANS("You need to specify a user name!");
 
-        if (info.groupIsPublic) {
-            mPublicServerStatusInfoLabel->setText(mesg, dontSendNotification);
-            mPublicServerUsernameEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mPublicServerUsernameEditor->repaint();
-        } else {
-            mServerStatusLabel->setText(mesg, dontSendNotification);
-            mServerUsernameEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mServerUsernameEditor->repaint();
-        }
+        mServerStatusLabel->setText(mesg, dontSendNotification);
+        mServerUsernameEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
+        mServerUsernameEditor->repaint();
 
         mServerInfoLabel->setVisible(false);
         mServerStatusLabel->setVisible(true);
@@ -1277,8 +1013,6 @@ void ConnectView::connectWithInfo(const AooServerConnectionInfo & info, bool all
     else {
         mServerUsernameEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
         mServerUsernameEditor->repaint();
-        mPublicServerUsernameEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
-        mPublicServerUsernameEditor->repaint();
     }
 
     //mServerGroupPasswordEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
@@ -1298,21 +1032,12 @@ void ConnectView::connectWithInfo(const AooServerConnectionInfo & info, bool all
 
         mServerHostEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
         mServerHostEditor->repaint();
-
-        mPublicServerHostEditor->setColour(TextEditor::backgroundColourId, Colour(0xff050505));
-        mPublicServerHostEditor->repaint();
     }
     else {
         String mesg = TRANS("Server address is invalid!");
-        if (info.groupIsPublic) {
-            mPublicServerStatusInfoLabel->setText(mesg, dontSendNotification);
-            mPublicServerHostEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mPublicServerHostEditor->repaint();
-        } else {
-            mServerStatusLabel->setText(mesg, dontSendNotification);
-            mServerHostEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
-            mServerHostEditor->repaint();
-        }
+        mServerStatusLabel->setText(mesg, dontSendNotification);
+        mServerHostEditor->setColour(TextEditor::backgroundColourId, Colour(0xff880000));
+        mServerHostEditor->repaint();
 
         mServerInfoLabel->setVisible(false);
         mServerStatusLabel->setVisible(true);
@@ -1324,14 +1049,6 @@ void ConnectView::updateRecents()
     recentsListModel.updateState();
     mRecentsListBox->updateContent();
     mRecentsListBox->deselectAllRows();
-}
-
-void ConnectView::updatePublicGroups()
-{
-    publicGroupsListModel.updateState();
-    mPublicGroupsListBox->updateContent();
-    mPublicGroupsListBox->repaint();
-    mPublicGroupsListBox->deselectAllRows();
 }
 
 void ConnectView::resetPrivateGroupLabels()
@@ -1408,12 +1125,6 @@ bool ConnectView::handleCommsbusURL(const URL & url)
             currConnectionInfo.groupPassword = "";
         }
 
-        if ((ind = pnames.indexOf("public", true)) >= 0) {
-            currConnectionInfo.groupIsPublic = pvals[ind].getIntValue() > 0;
-        } else {
-            currConnectionInfo.groupIsPublic = false;
-        }
-
     }
 
     if (url.getScheme() == "commsbus") {
@@ -1454,10 +1165,8 @@ void ConnectView::updateServerStatusLabel(const String & mesg, bool mainonly)
 
     if (!mainonly) {
         mServerStatusLabel->setText(mesg, dontSendNotification);
-        mPublicServerStatusInfoLabel->setText(mesg, dontSendNotification);
         mServerInfoLabel->setVisible(false);
         mServerStatusLabel->setVisible(true);
-        mPublicServerStatusInfoLabel->setVisible(true);
     }
 }
 
@@ -1466,18 +1175,13 @@ void ConnectView::updateServerFieldsFromConnectionInfo()
 {
     if (currConnectionInfo.serverPort == DEFAULT_SERVER_PORT) {
         mServerHostEditor->setText( currConnectionInfo.serverHost, false);
-        mPublicServerHostEditor->setText( currConnectionInfo.serverHost, false);
     } else {
         String hostport;
         hostport << currConnectionInfo.serverHost << ":" << currConnectionInfo.serverPort;
         mServerHostEditor->setText( hostport, false);
-        mPublicServerHostEditor->setText( hostport, false);
     }
     mServerUsernameEditor->setText(currConnectionInfo.userName, false);
-    mPublicServerUsernameEditor->setText(currConnectionInfo.userName, false);
-    if (currConnectionInfo.groupIsPublic) {
-        mPublicServerGroupEditor->setText(currConnectionInfo.groupName, false);
-    } else if (currConnectionInfo.groupName.isNotEmpty()){
+    if (currConnectionInfo.groupName.isNotEmpty()){
         mServerGroupEditor->setText(currConnectionInfo.groupName, false);
     }
 
@@ -1594,7 +1298,7 @@ void ConnectView::RecentsListModel::paintListBoxItem (int rowNumber, Graphics &g
     float groupheight = height*yratio;
     g.drawImageWithin(groupImage, 0, 0, iconsize, iconsize, RectanglePlacement::fillDestination);
     String grouptext;
-    grouptext << (info.groupIsPublic ? TRANS("[P] ") : "") << info.groupName;
+    grouptext << info.groupName;
     g.drawFittedText (grouptext, iconsize + 4, 0, adjwidth*xratio - 8 - iconsize, groupheight, Justification::centredLeft, true);
 
     g.setFont (parent->recentsNameFont);
@@ -1603,10 +1307,6 @@ void ConnectView::RecentsListModel::paintListBoxItem (int rowNumber, Graphics &g
     g.drawFittedText (info.userName, adjwidth*xratio + iconsize, 0, adjwidth*(1.0f - xratio) - 4 - iconsize, groupheight, Justification::centredLeft, true);
 
     String infostr;
-
-    if (info.groupIsPublic) {
-        infostr += TRANS("PUBLIC") + " ";
-    }
 
     if (info.groupPassword.isNotEmpty()) {
         infostr += TRANS("password protected,") + " ";
@@ -1664,143 +1364,4 @@ void ConnectView::RecentsListModel::returnKeyPressed (int rowNumber)
     if (rowNumber < recents.size()) {
         parent->connectWithInfo(recents.getReference(rowNumber));
     }
-}
-
-#pragma PublicGroupsListModel
-
-ConnectView::PublicGroupsListModel::PublicGroupsListModel(ConnectView * parent_) : parent(parent_)
-{
-    groupImage = ImageCache::getFromMemory(BinaryData::people_png, BinaryData::people_pngSize);
-    personImage = ImageCache::getFromMemory(BinaryData::person_png, BinaryData::person_pngSize);
-}
-
-
-void ConnectView::PublicGroupsListModel::updateState()
-{
-    groups.clear();
-    parent->processor.getPublicGroupInfos(groups);
-}
-
-int ConnectView::PublicGroupsListModel::getNumRows()
-{
-    return groups.size();
-}
-
-void ConnectView::PublicGroupsListModel::paintListBoxItem (int rowNumber, Graphics &g, int width, int height, bool rowIsSelected)
-{
-    if (rowNumber >= groups.size()) return;
-
-    AooPublicGroupInfo & info = groups.getReference(rowNumber);
-
-    bool iscurr = parent->processor.isConnectedToServer() && info.groupName == parent->processor.getCurrentJoinedGroup();
-
-    if (rowIsSelected || iscurr) {
-        g.setColour (parent->findColour(selectedColourId));
-        g.fillRect(Rectangle<int>(0,0,width,height));
-    }
-
-    g.setColour(parent->findColour(separatorColourId));
-    g.drawLine(0, height-1, width, height);
-
-
-    g.setColour (parent->findColour(nameTextColourId));
-    g.setFont (parent->recentsGroupFont);
-
-
-    float xratio = 0.7;
-    int removewidth = 0 ; // jmin(36, height - 6);
-    float yratio = 1.0; // 0.6
-    float adjwidth = width - removewidth;
-
-    // DebugLogC("Paint %s", text.toRawUTF8());
-    float iconsize = height*yratio;
-    float groupheight = height*yratio;
-    g.drawImageWithin(groupImage, 0, 0, iconsize, iconsize, RectanglePlacement::fillDestination);
-    g.drawFittedText (info.groupName, iconsize + 4, 0, adjwidth*xratio - 8 - iconsize, groupheight, Justification::centredLeft, true);
-
-    g.setFont (parent->recentsNameFont);
-    g.setColour (parent->findColour(nameTextColourId).withAlpha(0.8f));
-    g.drawImageWithin(personImage, adjwidth*xratio, 0, iconsize, iconsize, RectanglePlacement::fillDestination);
-    String usertext;
-    usertext << info.activeCount << (info.activeCount > 1 ? TRANS(" active users") : TRANS(" active user"));
-    g.drawFittedText (usertext, adjwidth*xratio + iconsize, 0, adjwidth*(1.0f - xratio) - 4 - iconsize, groupheight, Justification::centredLeft, true);
-
-
-    //g.setColour (parent->findColour(nameTextColourId).withAlpha(0.5f));
-    //g.setFont (parent->recentsInfoFont);
-    //g.drawFittedText (infostr, 14, height * yratio, adjwidth - 24, height * (1.0f - yratio), Justification::centredTop, true);
-
-    cachedWidth = width;
-}
-
-String ConnectView::PublicGroupsListModel::getNameForRow (int rowNumber)
-{
-    if (rowNumber < groups.size()) {
-        return groups.getReference(rowNumber).groupName;
-    }
-    return ListBoxModel::getNameForRow(rowNumber);
-}
-
-void ConnectView::PublicGroupsListModel::returnKeyPressed (int rowNumber)
-{
-    DBG("return key pressed: " << rowNumber);
-
-    groupSelected(rowNumber);
-}
-
-void ConnectView::PublicGroupsListModel::listBoxItemClicked (int rowNumber, const MouseEvent& e)
-{
-    // use this
-    DBG("Clicked " << rowNumber << "  x: " << e.getPosition().x << "  width: " << cachedWidth);
-
-    groupSelected(rowNumber);
-
-}
-
-void ConnectView::PublicGroupsListModel::groupSelected(int rowNumber)
-{
-    if (rowNumber >= groups.size() || rowNumber < 0) {
-        DBG("Clicked out of bounds row!");
-        return;
-    }
-
-    auto & ginfo = groups.getReference(rowNumber);
-
-    if (parent->processor.isConnectedToServer() && ginfo.groupName == parent->processor.getCurrentJoinedGroup()) {
-        DBG("Already joined this group!");
-        return;
-    }
-
-    if (parent->processor.isConnectedToServer()) {
-        parent->currConnectionInfo.groupName = ginfo.groupName;
-        parent->currConnectionInfo.groupPassword.clear();
-        parent->currConnectionInfo.groupIsPublic = true;
-        parent->currConnectionInfo.timestamp = Time::getCurrentTime().toMilliseconds();
-        parent->processor.addRecentServerConnectionInfo(parent->currConnectionInfo);
-
-        bool isPublic = true;
-
-        parent->processor.leaveServerGroup(parent->processor.getCurrentJoinedGroup());
-
-        parent->processor.joinServerGroup(parent->currConnectionInfo.groupName, parent->currConnectionInfo.groupPassword, isPublic);
-
-        parent->processor.setWatchPublicGroups(false);
-    }
-    else {
-
-        AooServerConnectionInfo cinfo;
-        cinfo.userName = parent->mPublicServerUsernameEditor->getText().trim();
-        cinfo.groupName = ginfo.groupName;
-        cinfo.groupIsPublic = true;
-        cinfo.serverHost = parent->currConnectionInfo.serverHost;
-        cinfo.serverPort = parent->currConnectionInfo.serverPort;
-
-        parent->connectWithInfo(cinfo);
-    }
-}
-
-
-void ConnectView::PublicGroupsListModel::selectedRowsChanged(int rowNumber)
-{
-
 }

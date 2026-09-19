@@ -44,20 +44,6 @@ SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallL
     mGroupPassEditor->setMultiLine(false);
     mGroupPassEditor->setIndents(8, 8);
 
-    mPublicToggle = std::make_unique<ToggleButton>();
-    mPublicToggle->setButtonText(TRANS("Public"));
-    mPublicToggle->onStateChange = [this]() {
-        if (mPublicToggle->getToggleState()) {
-            mGroupPassEditor->setEnabled(false);
-            mGroupPassEditor->setAlpha(0.5f);
-            mGroupPassStaticLabel->setAlpha(0.5f);
-        } else {
-            mGroupPassEditor->setEnabled(true);
-            mGroupPassEditor->setAlpha(1.0f);
-            mGroupPassStaticLabel->setAlpha(1.0f);
-        }
-    };
-
     mCloseButton = std::make_unique<SonoDrawableButton>("x", DrawableButton::ButtonStyle::ImageFitted);
     std::unique_ptr<Drawable> ximg(Drawable::createFromImageData(BinaryData::x_icon_svg, BinaryData::x_icon_svgSize));
     mCloseButton->setImages(ximg.get());
@@ -110,11 +96,11 @@ SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallL
         }
 
         if (!peers.isEmpty()) {
-            processor.suggestNewGroupToPeers(mGroupEditor->getText(), mGroupPassEditor->getText(), peers, mPublicToggle->getToggleState());
+            processor.suggestNewGroupToPeers(mGroupEditor->getText(), mGroupPassEditor->getText(), peers);
 
             if (connectToGroup) {
                 Timer::callAfterDelay(500, [this] {
-                    connectToGroup(mGroupEditor->getText(), mGroupPassEditor->getText(), mPublicToggle->getToggleState());
+                    connectToGroup(mGroupEditor->getText(), mGroupPassEditor->getText());
                     dismissSelf();
                 });
             }
@@ -131,7 +117,6 @@ SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallL
     addAndMakeVisible(mGroupStaticLabel.get());
     addAndMakeVisible(mGroupPassEditor.get());
     addAndMakeVisible(mGroupPassStaticLabel.get());
-    addAndMakeVisible(mPublicToggle.get());
     addAndMakeVisible(mPeerRect.get());
     addAndMakeVisible(mViewport.get());
     addAndMakeVisible(mCloseButton.get());
@@ -183,7 +168,6 @@ SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallL
     groupPassBox.flexDirection = FlexBox::Direction::row;
     groupPassBox.items.add(FlexItem(minLabelWidth, minitemheight, *mGroupPassStaticLabel).withMargin(2).withFlex(0));
     groupPassBox.items.add(FlexItem(minButtonWidth, minitemheight, *mGroupPassEditor).withMargin(2).withFlex(1));
-    groupPassBox.items.add(FlexItem(minButtonWidth, minitemheight, *mPublicToggle).withMargin(2).withFlex(0));
 
 
 

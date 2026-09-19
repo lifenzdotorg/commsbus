@@ -128,6 +128,7 @@ void BusesView::rebuildBusViews()
         bvf->nameLabel->setColour(Label::textColourId, regularTextColor);
         bvf->nameLabel->setEditable(false, true, false);
         bvf->nameLabel->setTooltip(TRANS("Double-click to rename this bus"));
+        bvf->nameLabel->setTitle(TRANS("Bus Name"));
         bvf->nameLabel->addListener(this);
 
         bvf->sourcesLabel = std::make_unique<Label>("sources", "");
@@ -141,10 +142,12 @@ void BusesView::rebuildBusViews()
         bvf->levelSlider->setName("buslevel");
         configLevelSlider(bvf->levelSlider.get());
         bvf->levelSlider->setTooltip(TRANS("Master level for everything summed into this bus"));
+        bvf->levelSlider->setTitle(TRANS("Bus Level"));
         bvf->levelSlider->addListener(this);
 
         bvf->destButton = std::make_unique<TextButton>("dest");
         bvf->destButton->setTooltip(TRANS("Device (Dante) output channel this bus is sent to"));
+        bvf->destButton->setTitle(TRANS("Bus Output Channel"));
         bvf->destButton->onClick = [this, bvf]() { showBusDestSelectionMenu(bvf->destButton.get(), bvf->busIndex); };
 
         bvf->removeButton = std::make_unique<SonoDrawableButton>("rm", DrawableButton::ButtonStyle::ImageFitted);
@@ -152,6 +155,7 @@ void BusesView::rebuildBusViews()
         bvf->removeButton->setImages(ximg.get());
         bvf->removeButton->setColour(DrawableButton::backgroundColourId, Colours::transparentBlack);
         bvf->removeButton->setTooltip(TRANS("Remove this bus. Anything feeding it goes straight out again."));
+        bvf->removeButton->setTitle(TRANS("Remove Bus"));
         bvf->removeButton->onClick = [this, bvf]() { removeBusPressed(bvf->busIndex); };
 
         bvf->addAndMakeVisible(bvf->nameLabel.get());
@@ -227,6 +231,11 @@ void BusesView::updateBusViews()
             desttext << bus.destStartIndex + 1 << "-" << bus.destStartIndex + dstcnt;
         }
         bvf->destButton->setButtonText(desttext);
+
+        bvf->nameLabel->setTitle(TRANS("Bus Name") + ": " + bus.name);
+        bvf->levelSlider->setTitle(bus.name + " " + TRANS("Level"));
+        bvf->destButton->setTitle(bus.name + " " + TRANS("Output Channel"));
+        bvf->removeButton->setTitle(TRANS("Remove") + " " + bus.name);
     }
 }
 

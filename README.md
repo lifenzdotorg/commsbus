@@ -25,23 +25,27 @@ The main window is split accordingly:
 | | SonoBus | Commsbus |
 |---|---|---|
 | Formats | Standalone + VST3 / AU / AAX / LV2 / VSTi | Standalone application only |
-| Default connection | Private group via a rendezvous server | **Direct**, peer-to-peer by address |
+| Connection | Private group, public group, or direct | **Private group** (default) or direct; public groups removed |
 | Default input layout | One group spanning every input channel | **4 independent mono channel groups** |
 | Metronome / file playback / soundboard | Included | **Removed** |
 | Recording | Included | **Removed** |
 | Receive-side mixing | Pan/FX per peer | **Level + bus routing only** |
+| Effects | Per-channel and main reverb/compressor/EQ | **No effects UI at all** |
 | After a reboot | Launched by hand | Starts automatically (macOS launch agent) |
 | After a dropout | Reconnected by hand | Reconnected automatically, with backoff |
 | Auto-update | On, pointed at SonoBus releases | Off, pointed at Commsbus releases |
 
-Group-based connection through a rendezvous server is still present as a
-fallback for peers that cannot reach each other by address. It is simply no
-longer the default.
+**Private groups** are the default. Both ends point at the same connection
+server and find each other by group name, which survives an address change at
+either end. Every Commsbus instance *is* a connection server, on port 10999 —
+so for a pair of sites that can reach each other, point both at one of the two
+machines and nothing has to touch the internet. The Connect panel says so under
+the server field.
 
-**Direct peers** are configured on the DIRECT tab and stored with the rest of
-the application state. Commsbus polls them and reconnects any that are missing,
-so a peer that reboots, changes address, or drops off the network rejoins by
-itself.
+**Direct peers** are the second option, configured on the DIRECT tab and stored
+with the rest of the application state. Commsbus polls them and reconnects any
+that are missing, so a peer that reboots, changes address, or drops off the
+network rejoins by itself.
 
 **Only one copy runs at a time.** A second launch activates the running window
 and exits, so a copy started at login and a copy started by hand cannot fight

@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The fork has diverged from upstream in four deliberate ways. Keep these in mind before "fixing" something back toward upstream behaviour:
 
 1. **Standalone application only.** The VST3 / AU / AAX / LV2 / VSTi plugin targets were removed. `juce_add_plugin` is still used (the JUCE standalone wrapper is built on it) but `Standalone` is the only format.
-2. **Direct connection is the default.** The DIRECT tab — commented out upstream — is tab 0 and the default view. The group/rendezvous-server path still exists as a fallback.
+2. **Private group is the default, direct connection is second.** `PRIVATE GROUP` is tab 0 and the view the Connect panel opens on; `DIRECT` — which upstream shipped commented out entirely — is tab 1. A group survives an address change at either end, which a direct address does not, so it is the better default for an unattended bridge. **`PUBLIC GROUPS` was removed outright** — the tab, the widgets, `PublicGroupsListModel`, `publicGroupLogin`, the `setWatchPublicGroups`/`getPublicGroupInfos` processor API, the `AooPublicGroupInfo` struct, the two `aooClientPublicGroup*` listener callbacks, and the `groupIsPublic`/`isPublic` flag that ran through `AooServerConnectionInfo`, `joinServerGroup`, `suggestNewGroupToPeers` and `peerSuggestedNewGroup`. `AOONET_CLIENT_GROUP_PUBLIC_ADD_EVENT`/`_DEL_EVENT` are still received from AOO and deliberately ignored.
 3. **4 independent mono input channel groups by default**, clamped to the device's input count, instead of upstream's single group spanning every input.
 4. **Unattended operation.** Auto-reconnect defaults on, direct peers reconnect themselves, macOS start-at-login is available, and only one instance runs at a time.
 5. **No metronome, file playback, soundboard or recording.** All removed outright, along with the mixer strip that carried the first three.
@@ -97,7 +97,19 @@ Owns the major sub-views, each its own file pair: `ConnectView`, `OptionsView`, 
 
 Custom widgets are prefixed `Sono*` — prefer reusing them over raw JUCE widgets.
 
-In `ConnectView::resized()`, wide layouts pull RECENTS out of the tab strip into its own panel. That code looks the tab up **by name** (`getTabNames().indexOf(TRANS("RECENTS"))`), not by index — DIRECT now occupies index 0, and the original hard-coded `removeTab(0)`/`moveTab(2,0)` would move the wrong tab. Keep it name-based if you add tabs.
+Tab order is `PRIVATE GROUP`, `DIRECT`, `RECENTS` (`recentsTabPosition = 2`).
+In `ConnectView::resized()`, wide layouts pull RECENTS out of the tab strip into
+its own panel. Everything that has to find a tab does so **by name**
+(`getTabNames().indexOf(TRANS("RECENTS"))`, and `showPrivateGroupTab()` likewise),
+never by index or by counting tabs — upstream's hard-coded `removeTab(0)` /
+`moveTab(2,0)` and its `getNumTabs() < 3` tests all assumed a tab order this fork
+no longer has. Keep it name-based if you add or remove tabs.
+
+Below the `Connection Server` field on the PRIVATE GROUP tab,
+`mServerHostHintLabel` points out that every Commsbus instance is itself a
+connection server on port 10999, so a pair of them needs nothing on the internet.
+That is true of upstream SonoBus too (`startAooServer()` is called unconditionally
+for the desktop standalone), just never surfaced.
 
 ### Dante bridge model
 
@@ -129,7 +141,8 @@ in no FlexBox; `mInReverbButton`, `showInputReverbView` and `inReverbCalloutBox`
 were deleted outright. The effects *DSP* (compressor, expander, EQ, limiter,
 reverb send, `ChannelGroupEffectsView` and friends) is still compiled and still
 runs if a `ChannelGroupParams` arrives with an effect enabled -- it is simply
-unreachable from the UI.
+unreachable from the UI. The `Use Input FX Limiter` toggle is gone from Options
+for the same reason.
 
 The main output `FX` button went the same way: `mEffectsButton`,
 `showEffectsConfig` and `effectsCalloutBox` are deleted, so the global reverb

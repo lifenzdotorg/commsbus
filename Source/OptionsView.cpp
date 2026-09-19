@@ -246,9 +246,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     }
 #endif
 
-    mOptionsInputLimiterButton = std::make_unique<ToggleButton>(TRANS("Use Input FX Limiter"));
-    mOptionsInputLimiterButton->addListener(this);
-
     mOptionsChangeAllFormatButton = std::make_unique<ToggleButton>(TRANS("Change all connected"));
     mOptionsChangeAllFormatButton->addListener(this);
     mOptionsChangeAllFormatButton->setLookAndFeel(&smallLNF);
@@ -334,7 +331,6 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     if (CommsbusAutoStart::isSupported()) {
         mOptionsComponent->addAndMakeVisible(mOptionsStartAtLoginButton.get());
     }
-    mOptionsComponent->addAndMakeVisible(mOptionsInputLimiterButton.get());
     mOptionsComponent->addAndMakeVisible(mOptionsDefaultLevelSlider.get());
     mOptionsComponent->addAndMakeVisible(mOptionsDefaultLevelSliderLabel.get());
     mOptionsComponent->addAndMakeVisible(mOptionsChangeAllFormatButton.get());
@@ -591,10 +587,6 @@ void OptionsView::updateState(bool ignorecheck)
     mOptionsSliderSnapToMouseButton->setToggleState(processor.getSlidersSnapToMousePosition(), dontSendNotification);
     mOptionsDisableShortcutButton->setToggleState(processor.getDisableKeyboardShortcuts(), dontSendNotification);
 
-    CompressorParams limparams;
-    processor.getInputLimiterParams(0, limparams);
-    mOptionsInputLimiterButton->setToggleState(limparams.enabled, dontSendNotification);
-
     if (getShouldOverrideSampleRateValue) {
         Value * val = getShouldOverrideSampleRateValue();
         mOptionsOverrideSamplerateButton->setToggleState((bool)val->getValue(), dontSendNotification);
@@ -706,11 +698,6 @@ void OptionsView::updateLayout()
     optionsOverrideSamplerateBox.items.add(FlexItem(10, 12).withFlex(0));
     optionsOverrideSamplerateBox.items.add(FlexItem(180, minpassheight, *mOptionsOverrideSamplerateButton).withMargin(0).withFlex(1));
 
-    optionsInputLimitBox.items.clear();
-    optionsInputLimitBox.flexDirection = FlexBox::Direction::row;
-    optionsInputLimitBox.items.add(FlexItem(10, 12).withFlex(0));
-    optionsInputLimitBox.items.add(FlexItem(180, minpassheight, *mOptionsInputLimiterButton).withMargin(0).withFlex(1));
-
     optionsChangeAllQualBox.items.clear();
     optionsChangeAllQualBox.flexDirection = FlexBox::Direction::row;
     optionsChangeAllQualBox.items.add(FlexItem(10, 12).withFlex(1));
@@ -756,7 +743,6 @@ void OptionsView::updateLayout()
     optionsBox.items.add(FlexItem(4, 10));
     optionsBox.items.add(FlexItem(100, minitemheight, optionsDefaultLevelBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(4, 6));
-    optionsBox.items.add(FlexItem(100, minpassheight, optionsInputLimitBox).withMargin(2).withFlex(0));
     //optionsBox.items.add(FlexItem(100, minpassheight, optionsHearlatBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minpassheight, optionsSnapToMouseBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minpassheight, optionsAutoReconnectBox).withMargin(2).withFlex(0));
@@ -946,15 +932,6 @@ void OptionsView::buttonClicked (Button* buttonThatWasClicked)
         return;
     }
 
-    
-    else if (buttonThatWasClicked == mOptionsInputLimiterButton.get()) {
-        CompressorParams params;
-        for (int j=0; j < processor.getInputGroupCount(); ++j) {
-            processor.getInputLimiterParams(j, params);
-            params.enabled = mOptionsInputLimiterButton->getToggleState();
-            processor.setInputLimiterParams(j, params);
-        }
-    }
     
     else if (buttonThatWasClicked == mOptionsChangeAllFormatButton.get()) {
         processor.setChangingDefaultAudioCodecSetsExisting(mOptionsChangeAllFormatButton->getToggleState());

@@ -594,9 +594,7 @@ public:
                     cmdlineConnInfo.timestamp = Time::getCurrentTime().toMilliseconds();
                     sonoproc->addRecentServerConnectionInfo(cmdlineConnInfo);
 
-                    sonoproc->setWatchPublicGroups(false);
-
-                    sonoproc->joinServerGroup(cmdlineConnInfo.groupName, cmdlineConnInfo.groupPassword, cmdlineConnInfo.groupIsPublic);
+                    sonoproc->joinServerGroup(cmdlineConnInfo.groupName, cmdlineConnInfo.groupPassword);
                 }
             }
 
