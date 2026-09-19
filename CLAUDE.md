@@ -48,11 +48,16 @@ The app lands in `build/Commsbus_artefacts/Release/Standalone/Commsbus.app`. Bun
 
 ### Mobile is not maintained in this fork
 
-iOS/Android build from `mobile/CommsbusMobile.jucer` via Projucer, not CMake. **The rebrand deliberately skipped `mobile/` and `Source/android/`** — they still say SonoBus, and the Android Java package is still `com/sonosaurus/sonobus`. Renaming a Java package means moving directories and regenerating the Projucer output; half-doing it is worse than not touching it. Treat mobile as unmigrated. Note also that adding a file to `CMakeLists.txt` does not add it to the mobile build.
+iOS/Android build from `mobile/SonoBusMobile.jucer` via Projucer, not CMake. **The rebrand deliberately skipped `mobile/` and `Source/android/`** — they still say SonoBus, and the Android Java package is still `com/sonosaurus/sonobus`. Renaming a Java package means moving directories and regenerating the Projucer output; half-doing it is worse than not touching it. Treat mobile as unmigrated. Note also that adding a file to `CMakeLists.txt` does not add it to the mobile build.
 
 ### Version bumps
 
-Duplicated in three places: `project(Commsbus VERSION ...)` plus `BUILDVERSION` in `CMakeLists.txt`, `version=` in `mobile/CommsbusMobile.jucer`, and `source-tag` in `snap/snapcraft.yaml`.
+Two places: `project(Commsbus VERSION ...)` plus `BUILDVERSION` in
+`CMakeLists.txt`, and `source-tag` in `snap/snapcraft.yaml`. Commsbus versioning
+restarted at **0.1.0** — the 1.7.x numbers belong to upstream SonoBus, and
+`BUILDVERSION` reset to 1 with it. `mobile/SonoBusMobile.jucer` keeps its own
+1.7.2 and is deliberately left alone; mobile is unmigrated and does not build
+Commsbus.
 
 ## Vendored dependencies (`deps/`)
 
