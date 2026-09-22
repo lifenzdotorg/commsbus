@@ -230,3 +230,31 @@ signing identity or the team resets every grant.
 ## Release and packaging
 
 `release/` holds the pipeline: `buildmac.sh`/`buildwin.sh`, `distmac.sh <version>`/`distwin.sh`, `codesign.sh`, `notarize-app.sh`/`notarizedmg.sh`, `makedmg.sh`/`makepkgdmg.sh`, `wininstaller.iss`, and `update_package_version.py`. All plugin-copying steps were removed — these scripts now package the standalone app only. `snap/snapcraft.yaml` builds the Linux snap and now sources from the fork. macOS entitlements are in `scripts/Commsbus-mac.entitlements` (plus a sandboxed variant).
+
+### Notarization
+
+`release/notarize-app.sh` runs on **`xcrun notarytool`**. It used to use
+`xcrun altool`, which Apple retired for notarization in November 2023 and which
+is no longer shipped with the Command Line Tools at all — the whole scripted
+release path was dead. The CLI surface is unchanged, so `codesign.sh`
+(`--submit=`/`--resume=`) and `notarizedmg.sh` (`--primary-bundle-id=`, now
+accepted and ignored because notarytool infers it) still work.
+
+Credentials come from a **notarytool keychain profile**, `commsbus-notary` by
+default, overridable with `NOTARY_PROFILE` or `--profile=`. Create one once per
+machine with `xcrun notarytool store-credentials` — either an Apple ID plus an
+app-specific password, or an App Store Connect API key. The script header has
+both invocations.
+
+Two things that will get a submission rejected, both seen in practice:
+
+- **No secure timestamp.** The CMake POST_BUILD signing uses `--timestamp=none`
+  so local builds stay fast. `codesign.sh` re-signs with `--timestamp` before
+  notarizing; a bare `./buildcmake.sh` product submitted directly is rejected
+  with "The signature does not include a secure timestamp."
+- **Ad-hoc signature.** Notarization needs the Developer ID, not JUCE's
+  linker signature.
+
+The script zips bundles with `ditto -c -k --keepParent`, not `zip -r`, which
+mangles the symlinks inside a bundle. It staples the original `.app`, not the
+zip, and exits 42 with the full notary log on rejection.

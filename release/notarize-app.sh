@@ -1,216 +1,200 @@
 #!/bin/bash
 
-set -u # forbid use of uninitialised variables
-set -e # exit on error
+# Submit an app, pkg or dmg to Apple's notary service, wait for the verdict,
+# and staple the ticket.
+#
+# This is built on `xcrun notarytool`. The previous version used `xcrun altool`,
+# which Apple retired for notarization in November 2023 and which is no longer
+# shipped with the Command Line Tools at all -- it did not merely stop working,
+# the binary is gone.
+#
+# Credentials come from a notarytool keychain profile, created once with either
+# an Apple ID and an app-specific password:
+#
+#   xcrun notarytool store-credentials "commsbus-notary" \
+#       --apple-id <your-apple-id> --team-id VJ7JV9RU78
+#
+# or an App Store Connect API key, which suits a shared or CI setup because it
+# is not tied to anyone's personal Apple ID:
+#
+#   xcrun notarytool store-credentials "commsbus-notary" \
+#       --key AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer <issuer-uuid>
+#
+# Set NOTARY_PROFILE to use a different profile name.
+#
+# The submission must already be signed with a Developer ID, with the hardened
+# runtime enabled and a *secure timestamp*. Note that the CMake build signs with
+# --timestamp=none for speed, so a plain ./buildcmake.sh product will be
+# rejected -- codesign.sh re-signs with --timestamp before calling this.
 
-function die {
-    echo "ERROR: $1";
-    exit 1
-}
+set -u
+set -e
+set -o pipefail
 
-# this is a specific password for the notarization service -- I'm storing  it the Keychain under the name
-# 'Notarization-PASSWORD' -- the password is something like azcy-sdjd-defe-nufj
-#account_pwd=$(security find-generic-password -a ${USER} -s Notarization-PASSWORD -w)
-account_pwd="@keychain:Notarization-PASSWORD"
-account_name="${APPLEID}" # obvsiouly you need to replace this with your developer account..
-
-account_options="-u ${account_name} -p ${account_pwd} --asc-provider ${APPLEASC}"
+PROFILE="${NOTARY_PROFILE:-commsbus-notary}"
 
 RED="\033[1;31m"
 GREEN="\033[1;32m"
 YELLOW="\033[1;33m"
-BLUE="\033[1;34m"
-MAGENTA="\033[1;35m"
-CYAN="\033[1;36m"
-WHITE="\033[1;37m"
 RESET="\033[0m"
+
+function die {
+    echo -e "${RED}ERROR:${RESET} $1" >&2
+    exit 1
+}
+
+# Pull one value out of a notarytool --output-format json response.
+function json_get {
+    plutil -extract "$2" raw -o - -- "$1" 2>/dev/null || true
+}
 
 do_submit=1
 do_getresult=1
-
-uuidfile=""
-
+idfile=""
 apps=()
-main_app=""
+
 while test "$#" -gt 0; do
   case "$1" in
- -*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
-  *) optarg= ;;
+   -*=*) optarg=$(echo "$1" | sed 's/[-_a-zA-Z0-9]*=//') ;;
+      *) optarg= ;;
   esac
   case "$1" in
-      --submit)
-          do_getresult=0
-          ;;
-      --resume)
-          do_submit=0
-          ;;
-      --submit=*)
-          do_getresult=0
-          uuidfile="$optarg"
-          ;;
-      --resume=*)
-          do_submit=0
-          uuidfile="$optarg"          
-          ;;
+      --submit)      do_getresult=0 ;;
+      --resume)      do_submit=0 ;;
+      --submit=*)    do_getresult=0; idfile="$optarg" ;;
+      --resume=*)    do_submit=0;    idfile="$optarg" ;;
       --primary-bundle-id=*)
-          bundle_id="$optarg"
+          # altool needed this for pkg/dmg; notarytool works it out itself.
+          # Accepted so existing callers (notarizedmg.sh) keep working.
           ;;
+      --profile=*)   PROFILE="$optarg" ;;
       --help)
-          echo "Usage: notarize-app MyBundle.app or notarize-app MyInstaller.pkg or notarize-app MyImage.dmg"
-          echo "    will submit and wait for the result, and then will staple the app bundle."
-          echo "    Your (specific) password for the notarization service must be stored in the Keychain"
-          echo "    under the name 'Notarization-PASSWORD'"
+          echo "Usage: notarize-app.sh [options] MyBundle.app | MyInstaller.pkg | MyImage.dmg"
+          echo "    Submits, waits for the verdict, and staples the ticket."
+          echo
           echo "options:"
-          echo "    --submit[=uuidfile]  : submit the bundle for notarization, saves the uuid in a /tmp file and returns."
-          echo "    --resume[=uuidfile]     : retrieve the uuid from the /tmp file, and check its status on apple servers"
-          echo "                     if the notarization succeed, staple the app bundle."
-          echo "    --primary-bundle-id : if submitting a .pkg or a .dmg you must specify a primary bundle id."
+          echo "    --submit[=idfile]   submit and return immediately, saving the submission id"
+          echo "    --resume[=idfile]   poll a saved submission id, and staple once accepted"
+          echo "    --profile=NAME      notarytool keychain profile (default: ${PROFILE})"
+          echo "    --primary-bundle-id=ID   accepted and ignored; notarytool does not need it"
+          echo "    --trace             shell trace"
+          echo
+          echo "Credentials live in a notarytool keychain profile -- see the comments"
+          echo "at the top of this script for how to create one."
           exit 0
           ;;
-      --trace)
-          set -x
-          ;;
-      --*)
-          die "wrong option: $1";
-          ;;
-      *)
-          if [ -z "$main_app" ]; then main_app="$1"; fi
-          apps+=("$1");
-          ;;
+      --trace) set -x ;;
+      --*)     die "wrong option: $1" ;;
+      *)       apps+=("$1") ;;
   esac
   shift
 done
 
-# kill child process on ctrl-C..
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM
+xcrun notarytool --version >/dev/null 2>&1 || \
+    die "notarytool not found. It ships with Xcode 13+ / recent Command Line Tools."
 
-nb_apps=${#apps[*]}
-if (( "$nb_apps" == 0 )); then
-    die "Missing argument for .app bundle.."
-fi
-is_pkg=0
-is_dmg=0
+(( ${#apps[@]} > 0 )) || die "Missing argument: an .app, .pkg or .dmg to notarize."
+
 is_app=1
 for app in "${apps[@]}"; do
-    extension="${app##*.}"
-    if [ "$extension" == "pkg" ]; then
-        is_pkg=1;
-    elif [ "$extension" == "dmg" ]; then
-        is_dmg=1;
-    else
-        if [ ! -d "$app" ]; then
-            die "$app is not a bundle folder!!";
-        fi
-        is_app=1
-    fi
+    [ -e "$app" ] || die "$app does not exist"
+    case "${app##*.}" in
+        pkg|dmg) is_app=0 ;;
+        *) [ -d "$app" ] || die "$app is not a bundle directory" ;;
+    esac
 done
 
-if (( $is_dmg )) || (( $is_pkg )); then
-    is_app=0;
-fi
-
-if (( ${!apps[*]} > 1 )) && (( $is_app == 0 )); then
+if (( $is_app == 0 )) && (( ${#apps[@]} > 1 )); then
     die "Only one pkg or dmg at a time."
 fi
 
 if (( $is_app )); then
-    bundle_id=$(plutil -extract CFBundleIdentifier xml1 -o - "${main_app}/Contents/Info.plist" | sed -n "s/.*<string>\(.*\)<\/string>.*/\1/p")
+    bundle_id=$(plutil -extract CFBundleIdentifier raw -o - -- "${apps[0]}/Contents/Info.plist" 2>/dev/null) \
+        || die "Could not read CFBundleIdentifier from ${apps[0]}"
+else
+    bundle_id=$(basename "${apps[0]}")
 fi
+echo "Notarizing: ${apps[*]}  (${bundle_id})"
 
-echo "Bundle ID: $bundle_id"
-if [ -z "${bundle_id}" ]; then
-    die "Bundle id not found...";
-fi
+[ -n "$idfile" ] || idfile="/tmp/notarize-app-${bundle_id}.id"
+outfile=$(mktemp "/tmp/notarize-app-${bundle_id}.XXXXXX.json")
+trap 'rm -f "$outfile"' EXIT
 
-if [ -z "$uuidfile" ] ; then
-  uuidfile="/tmp/notarize-app-${bundle_id}.uuid"
-fi
-
-tmpfile="/tmp/notarize-app-${bundle_id}"
-
-ok=0
+submission_id=""
+status=""
 
 if (( $do_submit )); then
     if (( $is_app )); then
-        tmpzip="/tmp/notarize-app-${bundle_id}.zip"
-	rm -f "$tmpzip"
-        zip -r "$tmpzip" "${apps[@]}"
-    else
-        tmpzip="${apps[0]}"
-    fi
-
-    #set -x # trace on
-    tmpzip_basename="$(basename "$tmpzip")"
-    echo "Submitting ${tmpzip_basename}, please be patient it must be uploaded, and JAVA is slow.."
-    # some versions of altool write the uuid to stderr, others write to stdout, so we redirect *both* in the file...
-
-    xcrun altool --notarize-app --primary-bundle-id "$bundle_id" $account_options  -f "$tmpzip" >& "$tmpfile"
-    altool_status=$?
-
-    if [[ "$altool_status" == "0" ]]; then
-        uuid=$(grep "RequestUUID = " "$tmpfile" | sed -e 's/.* = //')
-    else
-        if [[ -f "$tmpfile" ]]; then
-            # second chance, if the file has already been uploaded, try to find the uuid in the error log
-            # "The software asset has already been uploaded. The update ID is xxxxxxx-xxxx-xxxx-xxxxxxxx"
-            uuid=$(grep "The upload ID is " | sed -e 's/.* //')
-            altool_status=0
+        # ditto, not `zip -r` -- zip mangles the symlinks inside a bundle.
+        archive="/tmp/notarize-app-${bundle_id}.zip"
+        rm -f "$archive"
+        if (( ${#apps[@]} == 1 )); then
+            ditto -c -k --keepParent "${apps[0]}" "$archive"
+        else
+            # --keepParent takes a single source, so stage them side by side
+            stagedir=$(mktemp -d "/tmp/notarize-app-${bundle_id}.stage.XXXXXX")
+            trap 'rm -f "$outfile"; rm -rf "$stagedir"' EXIT
+            for a in "${apps[@]}"; do ditto "$a" "$stagedir/$(basename "$a")"; done
+            ditto -c -k "$stagedir" "$archive"
         fi
+    else
+        archive="${apps[0]}"
     fi
 
-    if [[ "$altool_status" != "0" ]]; then
-        (cat "$tmpfile"; die "xcrun altool failed with exit code $ret")
+    echo "Uploading $(basename "$archive")..."
+
+    if (( $do_getresult )); then waitflag="--wait"; else waitflag="--no-wait"; fi
+
+    if ! xcrun notarytool submit "$archive" \
+            --keychain-profile "$PROFILE" \
+            --output-format json \
+            "$waitflag" > "$outfile"; then
+        cat "$outfile" >&2
+        die "notarytool submit failed. Is the '${PROFILE}' keychain profile set up?"
     fi
 
-    uuid=$(grep "RequestUUID = " "$tmpfile" | sed -e 's/.* = //')
-    echo "uuid for submission: $uuid"
-    echo "$uuid" > "$uuidfile"
-    if [[ -z "$uuid" ]]; then
-        [ -f "$tmpfile" ] && cat "$tmpfile"
-        die "Something is wrong, the uuid is empty -- did Apple change again the output of altool ?"
-    fi
+    submission_id=$(json_get "$outfile" id)
+    [ -n "$submission_id" ] || { cat "$outfile" >&2; die "No submission id in the notarytool response."; }
+
+    echo "$submission_id" > "$idfile"
+    echo "Submission id: $submission_id  (saved to $idfile)"
+
+    (( $do_getresult )) && status=$(json_get "$outfile" status)
 else
-    if [ ! -f "$uuidfile" ]; then
-        die "File $uuidfile not found, can't resume..";
-    fi
-    uuid=$(cat "$uuidfile")
-    echo "Checking uuid $uuid"
+    [ -f "$idfile" ] || die "$idfile not found, nothing to resume."
+    submission_id=$(cat "$idfile")
+    [ -n "$submission_id" ] || die "$idfile is empty."
+    echo "Resuming submission $submission_id"
 fi
 
-if (( $do_getresult )); then
-    numtry=0
-    ok=0
-    if [ "$uuid" != "" ]; then
-        while true; do
-            numtry=$((numtry+1))
-            if (( $numtry > 1 )); then
-                sleep 30;
-            fi
-            if (( $numtry > 50 )); then
-                die "two many attempts, notarization seem to take foreever..."
-            fi
-            xcrun altool --notarization-info "$uuid" $account_options >> "$tmpfile" 2>&1 || continue;
-            status=$(tail -3 "$tmpfile" | grep "Status Message" | sed -e 's/Status Message.*: *//')
-            sec=$(($(date +%s) - $(stat -t %s -f %m -- "$uuidfile"))); # number of seconds since the creation of the file
-            echo -e "$tmpfile, submitted $sec seconds ago, attempt #$numtry: $YELLOW$status$RESET";
-            if [[ "$status" == *"Package Approved"* ]]; then
-                ok=1
-                break;
-            fi
-            if [ "$status" != "" ]; then
-                ok=0;
-                tail -5 "$tmpfile";
-                break;
-            fi
-        done
-    fi
-fi
-
-if (( $ok )); then
-    for app in "${apps[@]}"; do
-        xcrun stapler staple "$app"
+# When resuming we poll ourselves; --wait already did this for us on submit.
+if (( $do_getresult )) && [ -z "$status" ]; then
+    for attempt in $(seq 1 60); do
+        if xcrun notarytool info "$submission_id" \
+                --keychain-profile "$PROFILE" \
+                --output-format json > "$outfile" 2>/dev/null; then
+            status=$(json_get "$outfile" status)
+        fi
+        [ "$status" != "In Progress" ] && [ -n "$status" ] && break
+        echo -e "attempt #${attempt}: ${YELLOW}${status:-querying}${RESET}"
+        sleep 20
     done
-    echo -e "Application $GREEN${apps[*]}$RESET stapled!!"
-else
+fi
+
+if (( $do_getresult == 0 )); then
+    echo "Submitted. Check it with: $0 --resume=${idfile} ${apps[*]}"
+    exit 0
+fi
+
+if [ "$status" != "Accepted" ]; then
+    echo -e "Notarization ${RED}${status:-failed}${RESET}" >&2
+    echo "--- notary log ---" >&2
+    xcrun notarytool log "$submission_id" --keychain-profile "$PROFILE" >&2 || true
     exit 42
 fi
+
+for app in "${apps[@]}"; do
+    xcrun stapler staple "$app"
+done
+
+echo -e "${GREEN}Notarized and stapled:${RESET} ${apps[*]}"
