@@ -88,7 +88,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "instoutput\Commsbus-$env:VERSION-Installer.exe" "..\Commsbus-$env:VERSION-Windows.exe"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Commsbus-${{ env.VERSION }}-Windows
           path: Commsbus-${{ env.VERSION }}-Windows.exe
