@@ -3,5 +3,9 @@ build
 build32
 buildXcode
 release/1.*
+# Commsbus release outputs: versioned asset folders and the signing staging area
+release/0.*
+release/Commsbus/
+release/tmp/
 mobile/Builds
 .DS_Store

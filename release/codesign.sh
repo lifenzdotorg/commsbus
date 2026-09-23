@@ -23,9 +23,11 @@ fi
 
 echo "Signing with: ${CODESIGN_IDENTITY}"
 
-AOPTS="--strict --force --options=runtime --sign ${CODESIGN_IDENTITY} --timestamp"
+# an array, so an identity with spaces in it ("Developer ID Application: Some
+# Name (TEAMID)") stays one argument
+AOPTS=(--strict --force --options=runtime --sign "${CODESIGN_IDENTITY}" --timestamp)
 
-codesign ${AOPTS} --entitlements Commsbus.entitlements Commsbus/Commsbus.app
+codesign "${AOPTS[@]}" --entitlements Commsbus.entitlements Commsbus/Commsbus.app
 
 if [ "x$1" = "xonly" ] ; then
   echo Code-signing only
