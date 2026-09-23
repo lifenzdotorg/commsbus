@@ -1,0 +1,102 @@
+# Builds the Windows installer and attaches it to a GitHub release.
+#
+# The macOS build is still made locally (release/distmac.sh), since it is signed
+# and notarized with the Developer ID in the local keychain. Windows cannot be
+# built on a Mac, so this workflow does that half: publish a release (with the
+# macOS asset, as usual) and the Windows installer is added to it.
+#
+# Run it by hand from the Actions tab to rebuild an existing release (enter its
+# tag), or with no tag to just build the installer as a workflow artifact.
+
+name: Release (Windows)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and attach to (e.g. v0.1.0). Leave empty to build the current branch as an artifact only."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG || github.ref }}
+
+      - name: Work out the version
+        shell: bash
+        run: |
+          if [ -n "$TAG" ]; then
+            VERSION="${TAG#v}"
+          else
+            # no tag: the project version from CMakeLists.txt plus the commit
+            VERSION="$(sed -n 's/^project(Commsbus VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)-$(git rev-parse --short HEAD)"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building Commsbus $VERSION"
+
+      # JUCE_ASIO=1, and CMakeLists.txt expects the Steinberg ASIO SDK at
+      # ../asiosdk. ASIO matters here: it is how Dante Virtual Soundcard is
+      # normally driven on Windows.
+      - name: Fetch the ASIO SDK
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "$env:RUNNER_TEMP\asiosdk.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\asiosdk.zip" -DestinationPath "$env:RUNNER_TEMP\asio"
+          Move-Item "$env:RUNNER_TEMP\asio\asiosdk_2.3.3_2019-06-14" "..\asiosdk"
+          if (-not (Test-Path "..\asiosdk\common\iasiodrv.h")) { throw "ASIO SDK layout changed" }
+
+      - name: Configure
+        run: cmake -G "Visual Studio 17 2022" -A x64 -B build
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage the installer inputs
+        shell: bash
+        run: |
+          mkdir -p release/Commsbus
+          cp -v build/Commsbus_artefacts/Release/Standalone/Commsbus.exe release/Commsbus/
+          cp -v doc/README_WINDOWS.txt release/Commsbus/README.txt
+
+      # Unsigned: there is no Windows code-signing certificate yet. Windows
+      # SmartScreen will warn on first run until there is one.
+      - name: Build the installer
+        shell: pwsh
+        working-directory: release
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc /O"instoutput" /DSBVERSION="$env:VERSION" wininstaller.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "instoutput\Commsbus-$env:VERSION-Installer.exe" "..\Commsbus-$env:VERSION-Windows.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Commsbus-${{ env.VERSION }}-Windows
+          path: Commsbus-${{ env.VERSION }}-Windows.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: env.TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "Commsbus-$VERSION-Windows.exe" --clobber --repo "$GITHUB_REPOSITORY"
