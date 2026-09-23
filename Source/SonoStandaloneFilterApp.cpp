@@ -57,6 +57,7 @@ extern juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 #include "SonoStandaloneFilterWindow.h"
 #include "SonoLookAndFeel.h"
 #include "CommsbusSingleInstance.h"
+#include "CommsbusWatchdog.h"
 
 #include "CommsbusAudioProcessorEditor.h"
 
@@ -600,6 +601,8 @@ public:
 
         }
 
+        // Commsbus: restart a hung app (see CommsbusWatchdog)
+        watchdog = std::make_unique<CommsbusWatchdog>();
 
 #if JUCE_MAC
         disableAppNap();
@@ -711,6 +714,7 @@ public:
     void shutdown() override
     {
         //DBG("shutdown");
+        watchdog.reset(); // a slow shutdown is not a hang
         if (mainWindow.get() != nullptr) {
             mainWindow->pluginHolder->savePluginState();
             mainWindow->pluginHolder->saveAudioDeviceState();
@@ -925,6 +929,7 @@ protected:
 
     // used only in headless mode
     std::unique_ptr<StandalonePluginHolder> pluginHolder;
+    std::unique_ptr<CommsbusWatchdog> watchdog;
 
 };
 

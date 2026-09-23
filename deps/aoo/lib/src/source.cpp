@@ -507,6 +507,32 @@ int32_t aoo::source::send(){
 
     bool didsomething = false;
 
+    // Commsbus patch: the block sequence is a signed 32-bit counter that only
+    // restarts when the stream is set up again. On a link that streams without a
+    // break it runs out after weeks (about 66 days at 128 samples/block, 48kHz),
+    // and the sink then discards every block as old -- permanent silence. Start
+    // a new stream (new salt, sequence 0), exactly as a format change does, well
+    // before that. It costs one brief gap. sequence_ is only advanced by this
+    // thread (in send_data), so reading it here is safe.
+    if (sequence_ >= sequence_restart_threshold){
+        unique_lock lock(update_mutex_); // writer lock!
+        if (sequence_ >= sequence_restart_threshold){
+            LOG_VERBOSE("aoo_source: restarting stream before the sequence wraps");
+            salt_ = make_salt();
+            sequence_ = 0;
+            dropped_ = 0;
+            history_.clear();
+            if (encoder_){
+                encoder_->reset();
+            }
+            shared_lock lock2(sink_mutex_);
+            for (auto& sink : sinks_){
+                sink.format_changed = true;
+            }
+            format_changed_ = true;
+        }
+    }
+
     if (send_format()){
         didsomething = true;
     }

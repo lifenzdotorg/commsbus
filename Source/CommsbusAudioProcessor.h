@@ -583,6 +583,11 @@ public:
     /** Connects to configured direct peers now, and keeps them connected. */
     void startAutoConnect();
 
+    /** Stops retrying the last group, for when the user deliberately disconnects
+        or connects elsewhere. (At launch the last group is retried until it is
+        rejoined; see setStateInformationWithOptions.) */
+    void cancelAutoReconnect();
+
     /**
      * Monitor / solo output: a second audio device for local listening, so
      * nothing meant only for the operator ever reaches the main (Dante) outputs.
@@ -893,6 +898,8 @@ private:
 
     void commitCacheForPeer(RemotePeer * peer);
     bool findAndLoadCacheForPeer(RemotePeer * peer);
+    // the peer cache key: the user name, or for a direct (nameless) peer its address
+    String getCacheKeyForPeer(RemotePeer * peer) const;
     
     void loadPeerCacheFromState();
     void storePeerCacheToState();
@@ -949,7 +956,10 @@ private:
     Atomic<float>   mMainReverbDamping  { 0.5f };
     Atomic<float>   mMainReverbPreDelay  { 20.0f }; // ms
     Atomic<int>   mMainReverbModel  { ReverbModelMVerb };
-    Atomic<bool>   mDynamicResampling  { false };
+    // Commsbus: on by default. The two ends run on unrelated Dante clocks; without
+    // it the receive buffer drifts until a block is dropped or inserted -- a click
+    // every few minutes at typical clock offsets, around the clock.
+    Atomic<bool>   mDynamicResampling  { true };
     Atomic<bool>   mAutoReconnectLast  { true }; // Commsbus: on by default
     Atomic<float>   mDefUserLevel    { 1.0f };
     Atomic<bool>   mReconnectAfterServerLoss  { true };
@@ -1024,6 +1034,7 @@ private:
     PeerDisplayMode mPeerDisplayMode = PeerDisplayModeFull;
     
     PeerStateCacheMap mPeerStateCacheMap;
+    CriticalSection mPeerCacheLock; // the network threads and state saving both touch the map
     
     // top level meter sources
     foleys::LevelMeterSource inputMeterSource;
@@ -1090,6 +1101,7 @@ private:
     
     AooServerConnectionInfo mPendingReconnectInfo;
     bool mPendingReconnect = false;
+    uint32 mPendingReconnectStamp = 0;
     bool mRecoveringFromServerLoss = false;
     
     class ServerReconnectTimer : public Timer

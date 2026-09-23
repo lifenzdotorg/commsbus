@@ -35,6 +35,13 @@ public:
     void refreshMessages(); // only new ones not yet rendered
     void refreshAllMessages(); // re-render all messages
 
+    /** Commsbus: drops the oldest messages once there are more than
+        maxChatEvents, so an unattended machine logging every reconnect does not
+        grow without bound. */
+    void trimHistoryIfNeeded();
+    static constexpr int maxChatEvents = 1000;
+    static constexpr int trimmedChatEvents = 500;
+
     void clearAll();
 
     bool haveNewSinceLastView() const;

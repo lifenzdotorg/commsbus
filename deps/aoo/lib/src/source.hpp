@@ -147,6 +147,8 @@ class source final : public isource {
     std::unique_ptr<encoder> encoder_;
     // state
     int32_t sequence_ = 0;
+    // Commsbus patch: see source::send()
+    static constexpr int32_t sequence_restart_threshold = 0x7F000000;
     std::atomic<int32_t> dropped_{0};
     std::atomic<float> lastpingtime_{0};
     std::atomic<bool> format_changed_{false};

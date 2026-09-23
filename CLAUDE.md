@@ -51,6 +51,13 @@ second, smaller Commsbus patch: `setComponentBelowDevicePickers`, which lays out
 the Solo Output row between the device pickers and the channel lists. Keep both
 patches when pulling the JUCE subrepo.
 
+`deps/aoo` carries a Commsbus patch as well: `aoo::source::send()` starts a new
+stream (new salt, sequence 0) once the signed 32-bit block sequence passes
+`sequence_restart_threshold`. Upstream only reset it on stream setup, so a link
+that never broke would run out after about 66 days at 128 samples/block. After
+that the sink discards every block as old and the stream goes permanently
+silent. Keep the patch when pulling the AOO subrepo.
+
 ### Mobile is not maintained in this fork
 
 iOS/Android build from `mobile/SonoBusMobile.jucer` via Projucer, not CMake. **The rebrand deliberately skipped `mobile/` and `Source/android/`** — they still say SonoBus, and the Android Java package is still `com/sonosaurus/sonobus`. Renaming a Java package means moving directories and regenerating the Projucer output; half-doing it is worse than not touching it. Treat mobile as unmigrated. Note also that adding a file to `CMakeLists.txt` does not add it to the mobile build.
@@ -94,6 +101,48 @@ Owns all audio processing, network state, and persistence.
 ### Unattended operation
 
 - **`AutoConnectManager`** (`Source/AutoConnectManager.{h,cpp}`) holds the direct-peer list (`DirectPeerEntry`: host, port, label), persists it under the `DirectPeers` child of the state tree, and runs a 2s `Timer`. Each tick it compares configured peers against `getNumberRemotePeers()`/`getRemotePeerAddressInfo()` and reconnects any that are missing, with exponential backoff (2s→30s) that resets the moment a peer reappears. It deliberately **polls rather than reacting to events** — one mechanism recovers from every way a link can die (peer reboot, cable pull, address change, app restart). It is built entirely on the processor's public API. Started from `setStateInformationWithOptions` on first state restore, via `startAutoConnect()`.
+- **Rejoining the group at launch.** With auto-reconnect on, the first state
+  restore retries the most recent group until it is rejoined
+  (`mReconnectTimer`, backing off 2s→30s), treated as server-loss recovery so a
+  retry does not drop direct peers. Upstream tried once, and at boot the
+  network or the far end's server is often not up yet. A connect that never
+  answers is abandoned after 15s. A deliberate Disconnect, or connecting
+  elsewhere, calls `cancelAutoReconnect()`. A failed group join during retries
+  keeps retrying, because on an unattended far end it is usually transient.
+- **Per-peer settings persist.** Send quality, jitter buffer and each received
+  group's routing and level live in the peer cache (`PeerStateCache`), keyed by
+  user name, or by `@ip:port` for a nameless direct peer. Upstream only committed
+  a peer to the cache when it disconnected, so a session's changes were lost on
+  quit; `getStateInformationWithOptions` now commits connected peers first.
+  `mPeerCacheLock` guards the map. Take it after `mCoreLock`, never before, and
+  `findAndLoadCacheForPeer` drops it before applying, since applying sends a
+  message that takes `mCoreLock`. Received multichannel streams default to
+  one output each (group *i* → output *i*) instead of all on output 1.
+- **`DeviceKeeper`** (in `SonoStandaloneFilterWindow.h`'s
+  `StandalonePluginHolder`). If the saved audio device is missing at launch
+  (DVS often starts after Commsbus), JUCE opens a fallback. This retries the
+  saved device as soon as it appears (3s, backing off to 60s) and saves the
+  *preferred* setup rather than the fallback, so one late boot does not forget
+  it. A device change while the saved device is present counts as the user's
+  choice. It also autosaves the app state every 30s, because the standalone
+  otherwise only saves on quit. And it reopens a device that is open but has
+  stopped calling back for 5s (`CallbackMaxSizeEnforcer::lastCallbackMs`),
+  backing off to 2 minutes.
+- **`CommsbusWatchdog`** (`Source/CommsbusWatchdog.h`, owned by the app). This
+  background thread posts a heartbeat to the message thread. If none is answered
+  for 60s, it `std::_Exit(70)`s so launchd's KeepAlive starts a fresh copy,
+  because a hang otherwise leaves a live process that does nothing. It is armed
+  only while the login agent is installed, since without it nothing would
+  restart the app.
+- **Long-uptime fixes.**
+  - Dynamic resampling defaults on, and saved state is migrated once
+    (`DynResampleMigrated`). The two ends run on unrelated Dante clocks, and
+    without it the receive buffer drifts until a block is dropped.
+  - The pending-unmute check uses a signed difference, so it survives the
+    49.7-day wrap of `Time::getMillisecondCounter()`. Compare millisecond stamps
+    that way everywhere.
+  - Chat history is capped (`ChatView::maxChatEvents`, trimmed to 500), since
+    every reconnect logs a system message.
 - **`CommsbusAutoStart`** (`Source/CommsbusAutoStart.h`, `CommsbusAutoStartMac.mm`, `CommsbusAutoStartGeneric.cpp`) installs a per-user launchd agent at `~/Library/LaunchAgents/org.lifenz.commsbus.plist` with `RunAtLoad` and `KeepAlive{SuccessfulExit=false}` — so it returns after a reboot and after a crash, but not after a deliberate quit. macOS only; `isSupported()` returns false elsewhere and the Options toggle is hidden.
 
 - **Single-instance guard** (`Source/CommsbusSingleInstance.h`, `CommsbusSingleInstanceMac.mm`, `CommsbusSingleInstanceGeneric.cpp`, enforced in `SonoStandaloneFilterApp.cpp::initialise`). With the login agent installed it is easy to get launchd's copy and a hand-launched copy both open, fighting over the audio device and the UDP port. A `juce::InterProcessLock` taken with `enter(0)` refuses the second one, which activates the running instance (macOS) and quits with status 0 — deliberately 0, so launchd's `KeepAlive{SuccessfulExit=false}` does not treat it as a crash and restart it. The check sits after command-line handling and before any window or audio device is created, so `--version`/`--help` still work in a second process. `--allow-multiple` bypasses it.

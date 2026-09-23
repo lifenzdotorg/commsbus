@@ -1649,6 +1649,7 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
             mConnectButton->setTextJustification(Justification::centredTop);
             mConnectionTimeLabel->setEnabled(true);
 
+            processor.cancelAutoReconnect();
             processor.disconnectFromServer();
             updateState();
         }

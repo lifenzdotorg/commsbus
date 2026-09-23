@@ -503,6 +503,7 @@ void ChatView::mouseDrag (const MouseEvent& event)
 void ChatView::addNewChatMessage(const SBChatEvent & mesg, bool refresh)
 {
     processor.getAllChatEvents().add(mesg);
+    trimHistoryIfNeeded();
 
     if (refresh) {
         refreshMessages();
@@ -512,14 +513,37 @@ void ChatView::addNewChatMessage(const SBChatEvent & mesg, bool refresh)
 void ChatView::addNewChatMessages(const Array<SBChatEvent> & mesgs, bool refresh)
 {
     processor.getAllChatEvents().addArray(mesgs);
+    trimHistoryIfNeeded();
 
     if (refresh) {
         refreshMessages();
     }
 }
 
+void ChatView::trimHistoryIfNeeded()
+{
+    auto & events = processor.getAllChatEvents();
+    int removed = 0;
+    {
+        const ScopedLock sl (events.getLock());
+        if (events.size() <= maxChatEvents) return;
+        removed = events.size() - trimmedChatEvents;
+        events.removeRange(0, removed);
+    }
+
+    // the "last seen" markers are indices into the list
+    mLastGlobalViewEventIndex = jmax(0, mLastGlobalViewEventIndex - removed);
+    for (auto & entry : mLastPrivateChatViewEventIndex) {
+        entry.second = jmax(0, entry.second - removed);
+    }
+
+    refreshAllMessages();
+}
+
 void ChatView::refreshMessages()
 {
+    trimHistoryIfNeeded(); // peers' messages are added by the processor directly
+
     // only new ones since last refresh
     int count = jmin(processor.getAllChatEvents().size(), jmax(0, processor.getAllChatEvents().size() - lastShownCount));
 

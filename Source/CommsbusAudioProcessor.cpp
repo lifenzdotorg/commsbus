@@ -110,6 +110,7 @@ static String autoresizeDropRateThreshKey("autoDropRateThreshNew");
 static String reconnectServerLossKey("reconnServLoss");
 static String monitorDeviceKey("MonitorDevice");
 static String sendMultichannelMigratedKey("SendMultiMigrated");
+static String dynResampleMigratedKey("DynResampleMigrated");
 
 static String compressorStateKey("CompressorState");
 static String expanderStateKey("ExpanderState");
@@ -3035,7 +3036,10 @@ void CommsbusAudioProcessor::doSendData()
         }
     }
 
-    if (mPendingUnmute.get() && mPendingUnmuteAtStamp < Time::getMillisecondCounter() ) {
+    // compared as a signed difference, so it still fires across the 49.7-day
+    // wrap of the millisecond counter -- a plain '<' could leave every received
+    // stream muted for another 49 days
+    if (mPendingUnmute.get() && (int32) (Time::getMillisecondCounter() - mPendingUnmuteAtStamp) >= 0) {
         DBG("UNMUTING ALL");
         mState.getParameter(paramMainRecvMute)->setValueNotifyingHost(0.0f);
 
@@ -3557,9 +3561,15 @@ int32_t CommsbusAudioProcessor::handleSinkEvents(const aoo_event ** events, int3
                         if (!gotuserformat && !peer->recvdChanLayout) {
                             if (peer->recvChannels > 2) {
                                 if (!peer->modifiedChanGroups) {
+                                    // Commsbus: each incoming mono stream lands on its own
+                                    // output by default, mirroring the transmit side,
+                                    // rather than all of them on output 1.
+                                    const int totalouts = jmax(1, getTotalNumOutputChannels());
                                     for (int cgi=0; cgi < peer->recvChannels; ++cgi) {
                                         peer->chanGroups[cgi].params.chanStartIndex = cgi;
                                         peer->chanGroups[cgi].params.numChannels = 1;
+                                        peer->chanGroups[cgi].params.panDestStartIndex = cgi % totalouts;
+                                        peer->chanGroups[cgi].params.panDestChannels = 1;
                                     }
                                     peer->numChanGroups = peer->recvChannels;
                                 }
@@ -5810,17 +5820,30 @@ CommsbusAudioProcessor::RemotePeer * CommsbusAudioProcessor::doAddRemotePeerIfNe
     return retpeer;    
 }
 
+String CommsbusAudioProcessor::getCacheKeyForPeer(RemotePeer * peer) const
+{
+    if (peer->userName.isNotEmpty()) return peer->userName;
+
+    // Commsbus: a direct peer has no user name, so key it by address instead --
+    // otherwise its send quality and output routing would never be remembered.
+    if (peer->endpoint && peer->endpoint->ipaddr.isNotEmpty()) {
+        return "@" + peer->endpoint->ipaddr + ":" + String(peer->endpoint->port);
+    }
+    return {};
+}
+
 void CommsbusAudioProcessor::commitCacheForPeer(RemotePeer * retpeer)
 {
-    if (retpeer->userName.isEmpty()) {
-        DBG("username empty, can't commit");
+    const String key = getCacheKeyForPeer(retpeer);
+    if (key.isEmpty()) {
+        DBG("no name or address, can't commit");
         return;
     }
 
     PeerStateCache newcache;
     newcache.netbuf = retpeer->buffertimeMs;
     newcache.netbufauto = retpeer->autosizeBufferMode;
-    newcache.name = retpeer->userName;
+    newcache.name = key;
     newcache.sendFormat = retpeer->formatIndex;
     newcache.numChanGroups = retpeer->numChanGroups;
     newcache.mainGain = retpeer->gain;
@@ -5835,26 +5858,36 @@ void CommsbusAudioProcessor::commitCacheForPeer(RemotePeer * retpeer)
         newcache.channelGroupMultiParams[i] = retpeer->lastMultiChanParams[i];
     }
 
-    PeerStateCacheMap::iterator found  = mPeerStateCacheMap.find(retpeer->userName);
+    const ScopedLock cl (mPeerCacheLock);
+    PeerStateCacheMap::iterator found  = mPeerStateCacheMap.find(key);
     
     if (found != mPeerStateCacheMap.end()) {
         found->second = newcache;
     }
     else {
-        mPeerStateCacheMap.insert(PeerStateCacheMap::value_type(retpeer->userName, newcache));
+        mPeerStateCacheMap.insert(PeerStateCacheMap::value_type(key, newcache));
     }
 }
 
 bool CommsbusAudioProcessor::findAndLoadCacheForPeer(RemotePeer * retpeer)
 {
-    if (retpeer->userName.isEmpty()) {
-        DBG("username empty, can't match");
+    const String key = getCacheKeyForPeer(retpeer);
+    if (key.isEmpty()) {
+        DBG("no name or address, can't match");
         return false;
     }
-    
-    // look for current peer by user name in peer cache and apply settings
-    PeerStateCacheMap::iterator found  = mPeerStateCacheMap.find(retpeer->userName);
-    if (found == mPeerStateCacheMap.end()) {
+
+    // Copy the entry out under the lock, then apply it without the lock held:
+    // applying sends a message, which takes mCoreLock, and state saving takes
+    // mCoreLock before mPeerCacheLock.
+    PeerStateCache cache;
+    bool havecache = false;
+    {
+    const ScopedLock cl (mPeerCacheLock);
+
+    // look for current peer by user name (or address) in peer cache and apply settings
+    PeerStateCacheMap::iterator found  = mPeerStateCacheMap.find(key);
+    if (found == mPeerStateCacheMap.end() && retpeer->userName.isNotEmpty()) {
         // no exact match, look for ones starting with the same beginning
         String namebase = retpeer->userName;
         StringArray nametoks = StringArray::fromTokens(retpeer->userName, false);
@@ -5877,7 +5910,12 @@ bool CommsbusAudioProcessor::findAndLoadCacheForPeer(RemotePeer * retpeer)
     }
     
     if (found != mPeerStateCacheMap.end()) {
-        const PeerStateCache & cache = found->second;
+        cache = found->second;
+        havecache = true;
+    }
+    }
+
+    if (havecache) {
         retpeer->autosizeBufferMode = (AutoNetBufferMode) cache.netbufauto;
         retpeer->buffertimeMs = cache.netbuf;
         retpeer->formatIndex = cache.sendFormat;
@@ -7783,6 +7821,7 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(reconnectServerLossKey, mReconnectAfterServerLoss.get(), nullptr);
     extraTree.setProperty(monitorDeviceKey, mMonitorDeviceId, nullptr);
     extraTree.setProperty(sendMultichannelMigratedKey, true, nullptr);
+    extraTree.setProperty(dynResampleMigratedKey, true, nullptr);
 
     extraTree.appendChild(mVideoLinkInfo.getValueTree(), nullptr);
     
@@ -7802,7 +7841,17 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     
     ValueTree peerCacheTree = tempstate.getOrCreateChildWithName(peerStateCacheMapKey, nullptr);
     if (includecache) {
-        // update state with our recents info
+        // Commsbus: a peer's settings only reached the cache when it disconnected,
+        // so anything set during a session (send quality, output routing) was lost
+        // on quit or restart. Commit the connected peers first.
+        {
+            const ScopedReadLock sl (mCoreLock);
+            for (auto * remote : mRemotePeers) {
+                commitCacheForPeer(remote);
+            }
+        }
+
+        const ScopedLock cl (mPeerCacheLock);
         peerCacheTree.removeAllChildren(nullptr);
         for (auto & info : mPeerStateCacheMap) {
             peerCacheTree.appendChild(info.second.getValueTree(), nullptr);
@@ -7889,6 +7938,12 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             }
         }
 
+        // Commsbus: likewise for dynamic resampling, which state from before 1.0.1
+        // carries as off (upstream's default).
+        if (!extraTree.isValid() || !(bool) extraTree.getProperty(dynResampleMigratedKey, false)) {
+            mState.getParameter(paramDynamicResampling)->setValueNotifyingHost(1.0f);
+        }
+
         if (extraTree.isValid()) {
             int port = extraTree.getProperty(useSpecificUdpPortKey, mUseSpecificUdpPort);
             setUseSpecificUdpPort(port);
@@ -7970,7 +8025,17 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             // only do initial auto reconnect on the first state restore
             
             if (getAutoReconnectToLast() && !isConnectedToServer()) {
-                reconnectToMostRecent();
+                // Commsbus: keep trying until the group is rejoined. At boot the
+                // network (or the far end's server) is often not up yet, and a single
+                // failed attempt used to leave the machine sitting disconnected.
+                // Treated as recovery so a retry does not drop any direct peers.
+                Array<AooServerConnectionInfo> recents;
+                getRecentServerConnectionInfos(recents);
+                if (recents.size() > 0) {
+                    mRecoveringFromServerLoss = true;
+                    reconnectToMostRecent();
+                    mReconnectTimer.startTimer(2000);
+                }
             }
 
             // Commsbus: direct peers are independent of the group server, so this
@@ -8020,10 +8085,27 @@ void CommsbusAudioProcessor::resetDefaultPluginSettings()
 }
 
 
+void CommsbusAudioProcessor::cancelAutoReconnect()
+{
+    mReconnectTimer.stopTimer();
+    mRecoveringFromServerLoss = false;
+    mPendingReconnect = false;
+}
+
 void CommsbusAudioProcessor::ServerReconnectTimer::timerCallback()
 {
+    // an attempt that never got an answer must not block retries forever
+    if (processor.mPendingReconnect && Time::getMillisecondCounter() - processor.mPendingReconnectStamp > 15000) {
+        DBG("Pending reconnect timed out, retrying");
+        processor.mPendingReconnect = false;
+    }
+
     if (!processor.isConnectedToServer() && !processor.mPendingReconnect) {
         processor.reconnectToMostRecent();
+
+        // back off while it keeps failing (a wrong password, a far end that is
+        // down for a while); a successful connect stops the timer
+        startTimer(jmin(30000, getTimerInterval() * 2));
     }
     else if (processor.isConnectedToServer()){
         processor.mRecoveringFromServerLoss = false;
@@ -8183,7 +8265,12 @@ bool CommsbusAudioProcessor::reconnectToMostRecent()
             DBG("Reconnecting to server and group: " << info.groupName);
             mPendingReconnectInfo = info;
             mPendingReconnect = true;
-            connectToServer(info.serverHost, info.serverPort, info.userName, info.userPassword);
+            mPendingReconnectStamp = Time::getMillisecondCounter();
+            if (!connectToServer(info.serverHost, info.serverPort, info.userName, info.userPassword)) {
+                // e.g. no network yet at boot: let the reconnect timer try again
+                mPendingReconnect = false;
+                return false;
+            }
             return true;
         }
     }
@@ -8293,6 +8380,7 @@ void CommsbusAudioProcessor::loadPeerCacheFromState()
 {
     ValueTree peerCacheMapTree = mState.state.getChildWithName(peerStateCacheMapKey);
     if (peerCacheMapTree.isValid()) {
+        const ScopedLock cl (mPeerCacheLock);
         mPeerStateCacheMap.clear();
         for (auto child : peerCacheMapTree) {
             PeerStateCache info;
@@ -8308,6 +8396,7 @@ void CommsbusAudioProcessor::storePeerCacheToState()
     ValueTree peerCacheTree = mState.state.getOrCreateChildWithName(peerStateCacheMapKey, nullptr);
     // update state with our recents info
     peerCacheTree.removeAllChildren(nullptr);
+    const ScopedLock cl (mPeerCacheLock);
     for (auto & info : mPeerStateCacheMap) {
         peerCacheTree.appendChild(info.second.getValueTree(), nullptr);        
     }

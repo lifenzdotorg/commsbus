@@ -135,6 +135,9 @@ public:
         reloadPluginState();
         startPlaying();
 
+        // Commsbus: unattended operation -- see DeviceKeeper
+        deviceKeeper = std::make_unique<DeviceKeeper> (*this);
+
        if (autoOpenMidiDevices)
            startTimer (500);
     }
@@ -142,6 +145,7 @@ public:
     virtual ~StandalonePluginHolder()
     {
         stopTimer();
+        deviceKeeper.reset();
 
         deletePlugin();
         shutDownAudioDevices();
@@ -349,9 +353,14 @@ public:
     {
         if (settings != nullptr)
         {
-            std::unique_ptr<XmlElement> xml (deviceManager.createStateXml());
+            // Save the device the user chose, not a fallback JUCE opened because it
+            // was missing at launch (see DeviceKeeper) -- otherwise one boot where
+            // Dante Virtual Soundcard came up late would forget it for good.
+            std::unique_ptr<XmlElement> xml (preferredAudioSetup != nullptr ? new XmlElement (*preferredAudioSetup)
+                                                                            : deviceManager.createStateXml().release());
 
-            settings->setValue ("audioSetup", xml.get());
+            if (xml != nullptr)
+                settings->setValue ("audioSetup", xml.get());
 
             settings->setValue ("shouldOverrideSampleRate", (bool) shouldOverrideSampleRate.getValue());
             settings->setValue ("shouldCheckForNewVersion", (bool) shouldCheckForNewVersion.getValue());
@@ -447,6 +456,14 @@ public:
                                   true,
                                   preferredDefaultDeviceName,
                                   prefSetupOptions.get());
+
+        // remember what was asked for, so DeviceKeeper can get back to it
+        lastNumIns = enableAudioInput ? totalInChannels : 0;
+        lastNumOuts = totalOutChannels;
+        lastPreferredDefaultDeviceName = preferredDefaultDeviceName;
+        lastDeviceInitStamp = Time::getMillisecondCounter();
+        if (settings != nullptr)
+            preferredAudioSetup = settings->getXmlValue ("audioSetup");
 
 #if JUCE_IOS
         // get current audio device and change a setting if necessary
@@ -544,6 +561,166 @@ public:
     static StandalonePluginHolder* getInstance();
 
     //==============================================================================
+    /** Commsbus: keeps an unattended machine working with nobody at the keyboard.
+
+        - If the saved audio device was missing at launch (Dante Virtual Soundcard
+          routinely starts after Commsbus at login), JUCE opens a fallback device.
+          This keeps trying to get back to the saved one as soon as it appears,
+          backing off from 3s to 60s while it keeps failing.
+        - Saves the app state every 30s, so a power cut or crash does not lose
+          what was set since launch (normally it is only saved on quit).
+
+        A device change while the saved device is still present is taken to be the
+        user's choice and becomes the new saved device; a change while it is absent
+        is a fallback and is not remembered.
+    */
+    struct DeviceKeeper  : private Timer,
+                           private ChangeListener
+    {
+        DeviceKeeper (StandalonePluginHolder& h) : holder (h)
+        {
+            holder.deviceManager.addChangeListener (this);
+            startTimer (tickMs);
+        }
+
+        ~DeviceKeeper() override
+        {
+            stopTimer();
+            holder.deviceManager.removeChangeListener (this);
+        }
+
+        void timerCallback() override
+        {
+            const auto now = Time::getMillisecondCounter();
+
+            if (holder.preferredAudioSetup != nullptr && ! holder.isPreferredDeviceCurrent())
+            {
+                if (now - lastAttempt >= (uint32) retryDelayMs && holder.isPreferredDeviceAvailable())
+                {
+                    DBG ("Saved audio device is back, reopening it");
+                    lastAttempt = now;
+                    holder.reopenPreferredDevice();
+                    retryDelayMs = jmin (60000, retryDelayMs * 2);
+                }
+            }
+            else
+            {
+                retryDelayMs = tickMs;
+
+                // A device that is open but has stopped calling back (a driver or
+                // DVS engine that wedged) looks fine from outside and passes no
+                // audio. Reopen it, backing off while that keeps not helping.
+                if (auto* device = holder.deviceManager.getCurrentAudioDevice())
+                {
+                    const auto lastcb = holder.getLastAudioCallbackMs();
+                    const auto since = lastcb != 0 ? now - lastcb : now - holder.lastDeviceInitStamp;
+
+                    if (device->isPlaying() && since > (uint32) stallTimeoutMs
+                        && now - holder.lastDeviceInitStamp > (uint32) stallTimeoutMs
+                        && now - lastStallFix >= (uint32) stallRetryDelayMs)
+                    {
+                        DBG ("Audio callbacks stopped for " << (int) since << "ms, reopening the device");
+                        lastStallFix = now;
+                        stallRetryDelayMs = jmin (120000, stallRetryDelayMs * 2);
+                        holder.lastDeviceInitStamp = now;
+                        holder.deviceManager.closeAudioDevice();
+                        holder.deviceManager.restartLastAudioDevice();
+                    }
+                    else if (since < (uint32) tickMs)
+                    {
+                        stallRetryDelayMs = tickMs; // healthy again
+                    }
+                }
+            }
+
+            if (++ticksSinceSave * tickMs >= 30000)
+            {
+                ticksSinceSave = 0;
+                holder.savePluginState();
+                holder.saveAudioDeviceState();
+                if (auto* pf = dynamic_cast<PropertiesFile*> (holder.settings.get()))
+                    pf->saveIfNeeded();
+            }
+        }
+
+        void changeListenerCallback (ChangeBroadcaster*) override
+        {
+            // our own (re)initialise settles asynchronously; don't mistake its
+            // result, or a fallback it lands on, for a user choice
+            if (Time::getMillisecondCounter() - holder.lastDeviceInitStamp < 5000)
+                return;
+
+            if (holder.preferredAudioSetup == nullptr || holder.isPreferredDeviceCurrent()
+                || holder.isPreferredDeviceAvailable())
+            {
+                if (auto xml = holder.deviceManager.createStateXml())
+                    holder.preferredAudioSetup = std::move (xml);
+            }
+        }
+
+        static constexpr int tickMs = 3000;
+        static constexpr int stallTimeoutMs = 5000;
+        StandalonePluginHolder& holder;
+        uint32 lastStallFix = 0;
+        int stallRetryDelayMs = tickMs;
+        uint32 lastAttempt = 0;
+        int retryDelayMs = tickMs;
+        int ticksSinceSave = 0;
+    };
+
+    uint32 getLastAudioCallbackMs() const { return maxSizeEnforcer.lastCallbackMs.load (std::memory_order_relaxed); }
+
+    bool isPreferredDeviceCurrent()
+    {
+        if (preferredAudioSetup == nullptr) return true;
+        if (deviceManager.getCurrentAudioDevice() == nullptr) return false;
+
+        const auto type = preferredAudioSetup->getStringAttribute ("deviceType");
+        if (type.isNotEmpty() && type != deviceManager.getCurrentAudioDeviceType()) return false;
+
+        const auto setup = deviceManager.getAudioDeviceSetup();
+        const auto out = preferredAudioSetup->getStringAttribute ("audioOutputDeviceName");
+        const auto in  = preferredAudioSetup->getStringAttribute ("audioInputDeviceName");
+
+        return (out.isEmpty() || out == setup.outputDeviceName)
+            && (in.isEmpty()  || in  == setup.inputDeviceName);
+    }
+
+    bool isPreferredDeviceAvailable()
+    {
+        if (preferredAudioSetup == nullptr) return false;
+
+        const auto typeName = preferredAudioSetup->getStringAttribute ("deviceType");
+        AudioIODeviceType* type = nullptr;
+
+        for (auto* t : deviceManager.getAvailableDeviceTypes())
+            if (typeName.isEmpty() ? t == deviceManager.getCurrentDeviceTypeObject() : t->getTypeName() == typeName)
+                type = t;
+
+        if (type == nullptr) return false;
+
+        type->scanForDevices();
+
+        const auto out = preferredAudioSetup->getStringAttribute ("audioOutputDeviceName");
+        const auto in  = preferredAudioSetup->getStringAttribute ("audioInputDeviceName");
+
+        return (out.isEmpty() || type->getDeviceNames (false).contains (out))
+            && (in.isEmpty()  || type->getDeviceNames (true).contains (in));
+    }
+
+    void reopenPreferredDevice()
+    {
+        if (preferredAudioSetup == nullptr) return;
+
+        XmlElement xml (*preferredAudioSetup);
+        if (! (bool) shouldOverrideSampleRate.getValue())
+            xml.removeAttribute ("audioDeviceRate");
+
+        lastDeviceInitStamp = Time::getMillisecondCounter();
+        deviceManager.initialise (lastNumIns, lastNumOuts, &xml, true, lastPreferredDefaultDeviceName, nullptr);
+    }
+
+    //==============================================================================
     OptionalScopedPointer<PropertySet> settings;
     std::unique_ptr<AudioProcessor> processor;
     AudioDeviceManager deviceManager;
@@ -552,6 +729,13 @@ public:
 
     // don't avoid feedback loop by default
     bool processorHasPotentialFeedbackLoop = false;
+
+    // Commsbus: DeviceKeeper state
+    std::unique_ptr<XmlElement> preferredAudioSetup;
+    int lastNumIns = 0, lastNumOuts = 0;
+    String lastPreferredDefaultDeviceName;
+    uint32 lastDeviceInitStamp = 0;
+    std::unique_ptr<DeviceKeeper> deviceKeeper;
     Value shouldMuteInput;
     AudioBuffer<float> emptyBuffer;
     bool autoOpenMidiDevices;
@@ -587,6 +771,8 @@ private:
         explicit CallbackMaxSizeEnforcer (AudioIODeviceCallback& callbackIn)
             : inner (callbackIn) {}
 
+        std::atomic<uint32> lastCallbackMs { 0 };
+
         void audioDeviceAboutToStart (AudioIODevice* device) override
         {
             maximumSize = device->getCurrentBufferSizeSamples();
@@ -606,6 +792,10 @@ private:
         {
             jassertquiet ((int) storedInputChannels.size()  == numInputChannels);
             jassertquiet ((int) storedOutputChannels.size() == numOutputChannels);
+
+            // Commsbus: DeviceKeeper watches this to notice a device that stopped
+            // calling back while still appearing open
+            lastCallbackMs.store (Time::getMillisecondCounter(), std::memory_order_relaxed);
 
             int position = 0;
 

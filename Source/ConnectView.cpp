@@ -835,6 +835,7 @@ void ConnectView::buttonClicked (Button* buttonThatWasClicked)
 
             //mConnectionTimeLabel->setText(TRANS("Total: ") + SonoUtility::durationToString(processor.getElapsedConnectedTime(), true), dontSendNotification);
 
+            processor.cancelAutoReconnect();
             processor.disconnectFromServer();
             //updateState();
             wasconnected = true;
@@ -1021,6 +1022,7 @@ void ConnectView::connectWithInfo(const AooServerConnectionInfo & info, bool all
 
     if (currConnectionInfo.serverHost.isNotEmpty() && currConnectionInfo.serverPort != 0)
     {
+        processor.cancelAutoReconnect(); // the user is connecting somewhere on purpose
         processor.disconnectFromServer();
 
         Timer::callAfterDelay(100, [this] {

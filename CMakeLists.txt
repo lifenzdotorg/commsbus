@@ -196,6 +196,7 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/CommsbusAutoStart.h
         Source/CommsbusAutoStartGeneric.cpp
         Source/CommsbusSingleInstance.h
+        Source/CommsbusWatchdog.h
         Source/CommsbusSingleInstanceGeneric.cpp
       )
 
