@@ -85,7 +85,7 @@ public:
 
     void updateLayout(bool notify = true);
 
-    Rectangle<int> getMinimumContentBounds() const;
+    juce::Rectangle<int> getMinimumContentBounds() const;
 
     void setNarrowMode(bool flag, bool update = false);
 

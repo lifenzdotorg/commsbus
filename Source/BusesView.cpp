@@ -378,7 +378,7 @@ void BusesView::showBusDestSelectionMenu(Component * source, int index)
     Component * dw = source->findParentComponentOfClass<AudioProcessorEditor>();
     if (!dw) dw = source->findParentComponentOfClass<Component>();
 
-    Rectangle<int> bounds = dw->getLocalArea(nullptr, source->getScreenBounds());
+    juce::Rectangle<int> bounds = dw->getLocalArea(nullptr, source->getScreenBounds());
 
     GenericItemChooser::launchPopupChooser(items, bounds, dw, callback, selindex, dw ? dw->getHeight() - 30 : 0);
 }
@@ -476,9 +476,9 @@ void BusesView::updateLayout(bool notify)
     }
 }
 
-Rectangle<int> BusesView::getMinimumContentBounds() const
+juce::Rectangle<int> BusesView::getMinimumContentBounds() const
 {
-    return Rectangle<int>(0, 0, mMinWidth, mMinHeight);
+    return juce::Rectangle<int>(0, 0, mMinWidth, mMinHeight);
 }
 
 void BusesView::paint(Graphics & g)
