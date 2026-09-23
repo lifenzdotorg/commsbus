@@ -1197,14 +1197,12 @@ ChannelGroupView * ChannelGroupsView::createChannelGroupView(bool first)
     pvf->soloButton->setClickingTogglesState(true);
     pvf->soloButton->setColour(TextButton::buttonOnColourId, soloColor.withAlpha(0.7f));
     pvf->soloButton->setColour(TextButton::textColourOnId, Colours::darkblue);
+    // Solo is heard on the monitor output only; it never changes what is sent or
+    // what goes out to the main (Dante) outputs.
     if (mPeerMode) {
-        if (first) {
-            pvf->soloButton->setTooltip(TRANS("Solo - Listen to only this user, and other soloed users. Alt-click to exclusively solo this user."));
-        } else {
-            pvf->soloButton->setTooltip(TRANS("Solo - Listen to only this channel for this user"));
-        }
+        pvf->soloButton->setTooltip(TRANS("Solo - Listen to this stream on the monitor output. Alt-click to exclusively solo it."));
     } else {
-        pvf->soloButton->setTooltip(TRANS("Solo - Listen to only this channel, does not affect sending"));
+        pvf->soloButton->setTooltip(TRANS("Solo - Listen to this input on the monitor output. Alt-click to exclusively solo it."));
     }
 
     
@@ -1596,8 +1594,9 @@ void ChannelGroupsView::updateLayoutForRemotePeer(bool notify)
     int muteminbuttwidth = isNarrow ? 30 : 52;
     int mutebuttwidth = isNarrow ? 42 : 52;
     int linkbuttwidth = 50;
-    int destbuttwidth = 44;
-    int destminbuttwidth = isNarrow ? 36 : 44;
+    // wide enough to read "Out 12" or a bus name -- this is the routing control
+    int destbuttwidth = 120;
+    int destminbuttwidth = isNarrow ? 72 : 96;
     int monsliderwidth =  0 ;
     int namewidth = isNarrow ? 88 :  110;
     int addrowheight = minitemheight - 2;
@@ -1728,9 +1727,14 @@ void ChannelGroupsView::updateLayoutForRemotePeer(bool notify)
 
             pvf->inbox.items.add(FlexItem(namewidth, minitemheight, pvf->namebox).withMargin(0).withFlex(0));
             if (!isNarrow) {
-                // Receive rows carry level only -- no solo, no effects, no panning.
+                // Receive rows carry level and routing -- no effects, no panning.
+                // Solo only picks what is heard on the monitor output.
                 pvf->inbox.items.add(FlexItem(6, 3));
                 pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->muteButton).withMargin(0).withFlex(0));
+                if (i >= 0) {
+                    pvf->inbox.items.add(FlexItem(3, 3));
+                    pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->soloButton).withMargin(0).withFlex(0));
+                }
             }
             pvf->inbox.items.add(FlexItem(3, 3));
             pvf->inbox.items.add(FlexItem(minSliderWidth, minitemheight, *pvf->levelSlider).withMargin(0).withFlex(1));
@@ -1753,6 +1757,10 @@ void ChannelGroupsView::updateLayoutForRemotePeer(bool notify)
             if (isNarrow) {
                 pvf->monbox.items.add(FlexItem(3, 3).withFlex(0.25));
                 pvf->monbox.items.add(FlexItem(muteminbuttwidth, minitemheight, *pvf->muteButton).withMargin(0).withFlex(1).withMaxWidth(mutebuttwidth));
+                if (i >= 0) {
+                    pvf->monbox.items.add(FlexItem(3, 3));
+                    pvf->monbox.items.add(FlexItem(muteminbuttwidth, minitemheight, *pvf->soloButton).withMargin(0).withFlex(1).withMaxWidth(mutebuttwidth));
+                }
                 pvf->monbox.items.add(FlexItem(3, 3).withFlex(0.25));
 
                 if (i < 0 ) {
@@ -1924,7 +1932,9 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     int linkbuttwidth = 50;
     int destbuttwidth = 44;
     int destminbuttwidth = isNarrow ? 36 : 44;
-    int monsliderwidth =  40;
+    // Local input is never monitored on the main outputs (see the monitor / solo
+    // output), so the transmit strip has no monitor level or monitor-out button.
+    int monsliderwidth =  0;
     int namewidth = isNarrow ? 88 : 100;
     int addrowheight = minitemheight - 2;
 
@@ -2003,8 +2013,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     addrowBox.items.add(FlexItem(4, 2).withMargin(0));
     addrowBox.items.add(FlexItem(linkbuttwidth, addrowheight, *mAddButton).withMargin(0).withFlex(0));
     addrowBox.items.add(FlexItem(6, 2).withMargin(0).withFlex(1));
-    addrowBox.items.add(FlexItem(minButtonWidth, addrowheight, *mMonDelayButton).withMargin(0).withFlex(0));
-    addrowBox.items.add(FlexItem(6, 2).withMargin(0).withFlex(1));
     addrowBox.items.add(FlexItem(mutebuttwidth, addrowheight, *mClearButton).withMargin(0).withFlex(0));
     addrowBox.items.add(FlexItem(4, 2).withMargin(0));
 
@@ -2046,7 +2054,7 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
         }
 
 
-        bool destbuttvisible = true;
+        bool destbuttvisible = false;
 
         //if (chi == 0 || !mPeerMode || (totalchans > 1) )
         {
@@ -2121,8 +2129,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
                     pvf->monbox.items.add(FlexItem(1, 3).withFlex(0.1).withMaxWidth(meterwidth + 10));
                 }
 
-                pvf->monbox.items.add(FlexItem(monsliderwidth, minitemheight, *pvf->monitorSlider).withMargin(0).withFlex(0));
-                pvf->monbox.items.add(FlexItem(2, 3));
 
 
                 if (destbuttvisible) {
@@ -2142,8 +2148,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
                 //pvf->monbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->fxButton).withMargin(0).withFlex(0));
                 //pvf->monbox.items.add(FlexItem(2, 3));
 
-                pvf->monbox.items.add(FlexItem(monsliderwidth, minitemheight, *pvf->monitorSlider).withMargin(0).withFlex(0));
-                pvf->monbox.items.add(FlexItem(2, 3));
 
                 if (destbuttvisible) {
                     pvf->monbox.items.add(FlexItem(destbuttwidth, minitemheight, *pvf->destButton).withMargin(0).withFlex(0));
@@ -2305,7 +2309,7 @@ void ChannelGroupsView::updateChannelViews(int specific)
 
         mAddButton->setVisible(true);
         mClearButton->setVisible(true);
-        mMonDelayButton->setVisible(true);
+        mMonDelayButton->setVisible(false); // monitor delay only applied to local monitoring
     }
 }
 
@@ -2446,13 +2450,12 @@ void ChannelGroupsView::updateInputModeChannelViews(int specific)
 
         // hide things if we are not the first channel
         bool isprimary = chi == 0;
-        bool destbuttvisible = isprimary; // && chcnt < totaloutchans;
-
         pvf->levelSlider->setVisible(isprimary);
         pvf->soloButton->setVisible(isprimary);
+        pvf->soloButton->setEnabled(processor.isMonitorEnabled());
         pvf->muteButton->setVisible(isprimary);
-        pvf->destButton->setVisible(destbuttvisible);
-        pvf->monitorSlider->setVisible(isprimary);
+        pvf->destButton->setVisible(false);    // no local monitoring on the main outputs
+        pvf->monitorSlider->setVisible(false);
         pvf->monfxButton->setVisible(false);
         pvf->nameEditor->setVisible(isprimary);
         pvf->nameLabel->setVisible(false);
@@ -2561,9 +2564,9 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
     if (maindestbuttvisible) {
         String desttext;
         if (destcnt == 1) {
-            desttext << deststart + 1;
+            desttext << TRANS("Out") << " " << deststart + 1;
         } else {
-            desttext << deststart + 1 << "-" << deststart+destcnt;
+            desttext << TRANS("Out") << " " << deststart + 1 << "-" << deststart+destcnt;
         }
         mMainChannelView->destButton->setButtonText(desttext);
     }
@@ -2693,14 +2696,14 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
         if (assignedBus >= 0) {
             desttext = processor.getOutputBusName(assignedBus);
             if (desttext.isEmpty()) desttext << TRANS("Bus") << " " << (assignedBus + 1);
-            pvf->destButton->setTooltip(TRANS("Feeding bus:") + " " + desttext);
+            pvf->destButton->setTooltip(TRANS("Feeding bus:") + " " + desttext + " -- " + TRANS("click to change"));
         }
         else if (destcnt == 1) {
-            desttext << deststart + 1;
-            pvf->destButton->setTooltip(TRANS("Straight out to device channel") + " " + desttext);
+            desttext << TRANS("Out") << " " << deststart + 1;
+            pvf->destButton->setTooltip(TRANS("Straight out to device channel") + " " + String(deststart + 1) + " -- " + TRANS("click to change"));
         } else {
-            desttext << deststart + 1 << "-" << deststart+destcnt;
-            pvf->destButton->setTooltip(TRANS("Straight out to device channels") + " " + desttext);
+            desttext << TRANS("Out") << " " << deststart + 1 << "-" << deststart+destcnt;
+            pvf->destButton->setTooltip(TRANS("Straight out to device channels") + " " + String(deststart + 1) + "-" + String(deststart + destcnt) + " -- " + TRANS("click to change"));
         }
         pvf->destButton->setButtonText(desttext);
 
@@ -2711,7 +2714,9 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
         bool isprimary = chi == 0;
         bool destbuttvisible = isprimary /*&& chcnt < totaloutchans */;
         pvf->levelSlider->setVisible(isprimary);
-        pvf->soloButton->setVisible(false);
+        pvf->soloButton->setVisible(isprimary);
+        pvf->soloButton->setEnabled(processor.isMonitorEnabled());
+        pvf->soloButton->setToggleState(processor.getRemotePeerChannelSoloed(mPeerIndex, changroup), dontSendNotification);
         pvf->muteButton->setVisible(isprimary);
         pvf->nameLabel->setVisible(isprimary);
         pvf->destButton->setVisible(destbuttvisible);
@@ -3855,7 +3860,7 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
     ChannelGroupView * pvf = mChannelViews.getUnchecked(index);
 
     Array<GenericItemChooserItem> items;
-    items.add(GenericItemChooserItem(TRANS("SELECT MONITOR OUT:"), {}, nullptr, false, true));
+    items.add(GenericItemChooserItem(mPeerMode ? TRANS("ROUTE THIS STREAM TO:") : TRANS("SELECT MONITOR OUT:"), {}, nullptr, false, true));
 
     int chstart=0, chcnt=0;
     int totalouts = 0;
@@ -3953,7 +3958,10 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
     }
 
     // for each number of channel counts possible (1-chcnt)
-    for (int cc=chcnt; cc <= jmin( jmax(2, maxchcnt), totalouts); ++cc) {
+    // The receive side is mono per channel, so it offers single output channels
+    // only; the transmit monitor keeps upstream's stereo-pair choices.
+    const int maxdestcnt = mPeerMode ? jmax(1, maxchcnt) : jmax(2, maxchcnt);
+    for (int cc=chcnt; cc <= jmin(maxdestcnt, totalouts); ++cc) {
         for (int i=0; i < totalouts - (cc - 1); ++i) {
             String name;
             if (cc == 1) {

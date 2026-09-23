@@ -82,6 +82,13 @@ public:
     /** Returns the standard height used for items in the panel. */
     int getItemHeight() const noexcept      { return itemHeight; }
 
+    /** Commsbus patch: lays out a caller-owned component, full width and the given
+        height, in the device settings panel directly below the input and output
+        device pickers. The component is not owned; pass nullptr to remove it. */
+    void setComponentBelowDevicePickers (Component* comp, int height);
+    Component* getComponentBelowDevicePickers() const noexcept   { return belowDevicePickers.getComponent(); }
+    int getHeightBelowDevicePickers() const noexcept             { return belowDevicePickersHeight; }
+
     /** Returns the ListBox that's being used to show the midi inputs, or nullptr if there isn't one. */
     ListBox* getMidiInputSelectorListBox() const noexcept;
 
@@ -102,6 +109,8 @@ private:
     std::unique_ptr<Component> audioDeviceSettingsComp;
     String audioDeviceSettingsCompType;
     int itemHeight = 0;
+    Component::SafePointer<Component> belowDevicePickers; // Commsbus patch
+    int belowDevicePickersHeight = 0;
     const int minOutputChannels, maxOutputChannels, minInputChannels, maxInputChannels;
     const bool showChannelsAsStereoPairs;
     const bool hideAdvancedOptionsWithButton;

@@ -288,6 +288,17 @@ public:
             outputDeviceDropDown->setBounds (row);
             r.removeFromTop (space);
         }
+
+        // Commsbus patch: see AudioDeviceSelectorComponent::setComponentBelowDevicePickers
+        if (auto* below = parent.getComponentBelowDevicePickers())
+        {
+            if (below->getParentComponent() != this)
+                addAndMakeVisible (below);
+
+            const int bh = parent.getHeightBelowDevicePickers();
+            below->setBounds (0, r.getY(), getWidth(), bh);
+            r.removeFromTop (bh + space);
+        }
           
         if (inputChanList != nullptr)
         {
@@ -1172,6 +1183,20 @@ AudioDeviceSelectorComponent::AudioDeviceSelectorComponent (AudioDeviceManager& 
 AudioDeviceSelectorComponent::~AudioDeviceSelectorComponent()
 {
     deviceManager.removeChangeListener (this);
+}
+
+void AudioDeviceSelectorComponent::setComponentBelowDevicePickers (Component* comp, int height)
+{
+    if (auto* old = belowDevicePickers.getComponent())
+        if (old != comp && old->getParentComponent() != nullptr)
+            old->getParentComponent()->removeChildComponent (old);
+
+    belowDevicePickers = comp;
+    belowDevicePickersHeight = height;
+
+    if (auto* panel = dynamic_cast<AudioDeviceSettingsPanel*> (audioDeviceSettingsComp.get()))
+        panel->updateAllControls(); // lays it out and resizes the panel
+    resized();
 }
 
 void AudioDeviceSelectorComponent::setItemHeight (int newItemHeight)

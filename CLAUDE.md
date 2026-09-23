@@ -46,6 +46,11 @@ The app lands in `build/Commsbus_artefacts/Release/Standalone/Commsbus.app`. Bun
 
 `deps/juce/modules/juce_gui_basics/native/juce_Windowing_mac.mm` carries a Commsbus patch. `CGWindowListCreateImage` is *obsoleted* (not merely deprecated) in the macOS 15+ SDK, so `createNSWindowSnapshot` no longer compiles at all — upstream's `-Wdeprecated-declarations` suppression is not enough, and this JUCE version has no ScreenCaptureKit fallback. The patch returns a null image on SDK 15+. Without it the build fails in JUCE's own `juceaide` during **configure**, before any Commsbus source is reached. Upstream SonoBus has the same problem on these SDKs.
 
+The device selector (`juce_AudioDeviceSelectorComponent.{h,cpp}`) carries a
+second, smaller Commsbus patch: `setComponentBelowDevicePickers`, which lays out
+the Solo Output row between the device pickers and the channel lists. Keep both
+patches when pulling the JUCE subrepo.
+
 ### Mobile is not maintained in this fork
 
 iOS/Android build from `mobile/SonoBusMobile.jucer` via Projucer, not CMake. **The rebrand deliberately skipped `mobile/` and `Source/android/`** — they still say SonoBus, and the Android Java package is still `com/sonosaurus/sonobus`. Renaming a Java package means moving directories and regenerating the Projucer output; half-doing it is worse than not touching it. Treat mobile as unmigrated. Note also that adding a file to `CMakeLists.txt` does not add it to the mobile build.
@@ -126,12 +131,16 @@ Commsbus bridges between two such devices. The main window is framed accordingly
 The transmit section is always visible; it is not the optional input mixer panel
 it was in SonoBus.
 
-Everything is mono per channel by default: `DEFAULT_MONO_CHANNEL_GROUPS` mono
+Sending defaults to **Send Multichannel** (`mSendChannels` 0), so each input
+group travels as its own stream; upstream's Send Mono default would mix every
+input into one. State saved before that change is migrated once on load (Send
+Mono → Multichannel, marked by `SendMultiMigrated` in the extra state, so a
+later deliberate mono choice sticks). Everything is mono per channel by default: `DEFAULT_MONO_CHANNEL_GROUPS` mono
 input groups each landing on their own output channel, and `panDestChannels` /
 `monDestChannels` default to 1. Stereo pairing is not used in this application.
 
-The receive strips carry **level only** -- name, mute, level, meter and
-destination. Panning is laid out and made visible in
+The receive strips carry **level and routing only** -- name, mute, solo, level,
+meter and destination (`Out N` or a bus name; the menu offers mono outputs only). Panning is laid out and made visible in
 `updateLayoutForInput`/`updateInputModeChannelViews` (transmit) but never in
 `updateLayoutForRemotePeer`/`updatePeerModeChannelViews` (receive).
 `ChannelGroupView` still *owns* the pan widgets, because the same class serves
@@ -155,6 +164,38 @@ panel (`mEffectsContainer`, `mReverbEnabledButton`, `mReverbModelChoice` and the
 reverb knobs) is built in the editor constructor and attached to its APVTS
 parameters but never shown. The `paramMainReverb*` parameters still exist. There
 is now **no effects UI anywhere in the application**.
+
+**Nothing local reaches the main outputs, and solo never touches them.** The
+main device is Dante, so upstream's local input monitoring (the `dry` mix onto
+the main outputs, the per-group monitor level and monitor-out button, Monitor
+Delay, the input-reverb mix) is gone from the transmit strip and from
+`processBlock` -- the main outputs start each block from silence. Solo no longer
+mutes the other streams either (upstream silenced every unsoloed peer on the
+main outputs, which on a bridge silences the Dante feeds).
+
+Instead, solo picks what is heard on the **monitor / solo output**
+(`Source/MonitorOutput.{h,cpp}`): a second, independent output device, usually
+the built-in speakers or headphones, chosen as **Solo Output** on the AUDIO
+settings tab, directly below the device pickers (`Off`, `System Default`, or a
+named device; persisted as `MonitorDevice` in the extra state). That row is
+placed inside JUCE's device selector through a Commsbus patch,
+`AudioDeviceSelectorComponent::setComponentBelowDevicePickers` in
+`deps/juce/modules/juce_audio_utils/gui/` -- the selector lays out its own
+children, so there is no other way to put a row between its pickers and its
+channel lists. Soloed
+input groups, all input groups under the main SOLO (`paramMainMonitorSolo`),
+and soloed receive streams (post-fader) are summed into a stereo
+`monitorBuffer`, scaled by the top **Monitor** slider (`paramDry`, whose id
+moved from `dry` to `monlevel` so an old saved -inf did not carry over), and
+pushed through a lock-free FIFO. The monitor device's own callback pulls it
+through a `LagrangeInterpolator` whose speed is nudged by the FIFO fill level,
+which absorbs clock drift and any sample-rate difference. `System Default` never
+resolves to the main device or to anything named Dante/DVS -- with nothing
+suitable there is simply no monitor. The editor's 1s timer calls
+`maintainMonitorOutput()` with the main device name, which opens the monitor the
+first time and reopens it after a dropout or a main sample-rate change. With the
+monitor `Off`, solos are cleared and the SOLO buttons and Monitor slider are
+disabled.
 
 **Output buses** (`OutputBus`, `MAX_OUTPUT_BUSES`) are the receive-side mixing
 stage. A received channel group either goes straight out to device channels
@@ -230,6 +271,24 @@ signing identity or the team resets every grant.
 ## Release and packaging
 
 `release/` holds the pipeline: `buildmac.sh`/`buildwin.sh`, `distmac.sh <version>`/`distwin.sh`, `codesign.sh`, `notarize-app.sh`/`notarizedmg.sh`, `makedmg.sh`/`makepkgdmg.sh`, `wininstaller.iss`, and `update_package_version.py`. All plugin-copying steps were removed — these scripts now package the standalone app only. `snap/snapcraft.yaml` builds the Linux snap and now sources from the fork. macOS entitlements are in `scripts/Commsbus-mac.entitlements` (plus a sandboxed variant).
+
+### Windows release build (GitHub Actions)
+
+The macOS build is made locally, because it is signed and notarized with the
+Developer ID in the local keychain. Windows is built by
+`.github/workflows/release-windows.yml` on a `windows-2022` runner: publishing a
+GitHub release triggers it, and it attaches `Commsbus-<version>-Windows.exe`
+(an Inno Setup installer) to that release. Running it by hand from the Actions
+tab with a tag rebuilds that release's installer; with no tag it builds the
+branch as a workflow artifact only.
+
+It builds x64 only with VS 2022 (the local `setupcmakewin*.sh` still say VS
+2019/2017). It downloads the Steinberg ASIO SDK to `../asiosdk`, which
+`CMakeLists.txt` expects because `JUCE_ASIO=1` -- ASIO is how Dante Virtual
+Soundcard is normally driven on Windows. The installer is **unsigned**, since
+there is no Windows code-signing certificate yet. `wininstaller.iss` signs only
+when `SIGN` is defined, which `distwin.sh` does, and installs the 64-bit app
+alone -- the plugin and 32-bit components are gone.
 
 ### Notarization
 

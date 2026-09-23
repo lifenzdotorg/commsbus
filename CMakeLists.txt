@@ -241,6 +241,8 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         ${PlatSourceFiles}
         Source/AutoConnectManager.cpp
         Source/AutoConnectManager.h
+        Source/MonitorOutput.cpp
+        Source/MonitorOutput.h
         Source/AutoUpdater.cpp
         Source/AutoUpdater.h
         Source/BeatToggleGrid.cpp

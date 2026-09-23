@@ -41,7 +41,9 @@ typedef int socklen_t;
 #define PEER_PING_INTERVAL_MS 2000.0
 
 String CommsbusAudioProcessor::paramInGain     ("ingain");
-String CommsbusAudioProcessor::paramDry     ("dry");
+// Monitor output level. The id moved off "dry" when local input monitoring on
+// the main outputs went away, so an old saved -inf does not silence the monitor.
+String CommsbusAudioProcessor::paramDry     ("monlevel");
 String CommsbusAudioProcessor::paramInMonitorMonoPan     ("inmonmonopan");
 String CommsbusAudioProcessor::paramInMonitorPan1     ("inmonpan1");
 String CommsbusAudioProcessor::paramInMonitorPan2     ("inmonpan2");
@@ -106,6 +108,8 @@ static String lastWindowWidthKey("lastWindowWidth");
 static String lastWindowHeightKey("lastWindowHeight");
 static String autoresizeDropRateThreshKey("autoDropRateThreshNew");
 static String reconnectServerLossKey("reconnServLoss");
+static String monitorDeviceKey("MonitorDevice");
+static String sendMultichannelMigratedKey("SendMultiMigrated");
 
 static String compressorStateKey("CompressorState");
 static String expanderStateKey("ExpanderState");
@@ -610,7 +614,7 @@ mState (*this, &mUndoManager, "CommsbusAoO",
                                           [](float v, int maxlen) -> String { if (fabs(v) < 0.01) return TRANS("C"); return String((int)rint(abs(v*100.0f))) + ((v > 0 ? "% R" : "% L")) ; },
                                           [](const String& s) -> float { return s.getFloatValue()*1e-2f; }),
 
-    std::make_unique<AudioParameterFloat>(ParameterID(paramDry, 1),     TRANS ("Dry Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), mDry.get(), "", AudioProcessorParameter::genericParameter,
+    std::make_unique<AudioParameterFloat>(ParameterID(paramDry, 1),     TRANS ("Monitor Level"),    NormalisableRange<float>(0.0,    1.0, 0.0, 0.5), mDry.get(), "", AudioProcessorParameter::genericParameter,
                                           [](float v, int maxlen) -> String { return Decibels::toString(Decibels::gainToDecibels(v), 1); }, 
                                           [](const String& s) -> float { return Decibels::decibelsToGain(s.getFloatValue()); }),
 
@@ -741,9 +745,9 @@ mState (*this, &mUndoManager, "CommsbusAoO",
     mDefaultAudioFormatParam = mState.getParameter(paramDefaultSendQual);
 
     const bool isplugin = false; // Commsbus is a standalone application only
-    mDry = 0.0;
+    mDry = 1.0;
 
-    mState.getParameter(paramDry)->setValue(mDry.get());
+    mState.getParameter(paramDry)->setValue(mState.getParameter(paramDry)->convertTo0to1(mDry.get()));
     mState.getParameter(paramSendChannels)->setValue(mState.getParameter(paramSendChannels)->convertTo0to1(mSendChannels.get()));
 
     mMainReverb = std::make_unique<Reverb>();
@@ -6515,6 +6519,8 @@ void CommsbusAudioProcessor::changeProgramName (int index, const String& newName
 //==============================================================================
 void CommsbusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    mMonitorOutput.setSourceSampleRate(sampleRate);
+
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
     bool blocksizechanged = lastSamplesPerBlock != samplesPerBlock;
@@ -6910,7 +6916,7 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     auto maxsendchans = jmax(2, jmax(totalInputChannels, mainBusOutputChannels));
 
     float inGain = mInGain.get();
-    float drynow = mDry.get(); // DB_CO(dry_level);
+    float drynow = mDry.get(); // monitor output level
     float wetnow = mWet.get(); // DB_CO(wet_level);
     float inmonMonoPan = mInMonMonoPan.get();
     float inmonPan1 = mInMonPan1.get();
@@ -6921,7 +6927,8 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
     inGain = mMainInMute.get() ? 0.0f : inGain;
 
-    drynow = (mAnythingSoloed.get() && !mMainMonitorSolo.get()) ? 0.0f : drynow;
+    // Commsbus: solo is heard on the monitor output only, and never mutes anything
+    // on the main outputs -- those are the Dante feeds.
 
     int numSamples = buffer.getNumSamples();
 
@@ -7079,34 +7086,38 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     mainFxBuffer.clear(0, numSamples);
 
 
-    // handle what's going to be monitored
-    inputBuffer.clear(0, numSamples);
+    // Commsbus: local input is never monitored on the main outputs. Soloed input
+    // groups (or all of them, with the main SOLO) go to the monitor output instead.
+    monitorBuffer.clear(0, numSamples);
+    const bool monitorOpen = mMonitorOutput.isOpen();
 
-    bool anyinputsoloed = false;
-    for (auto i = 0; i < mInputChannelGroupCount; ++i) {
-        if (mInputChannelGroups[i].params.soloed) {
-            anyinputsoloed = true;
-            break;
+    auto addToMonitor = [this, numSamples] (const AudioBuffer<float> & src, int srcstart, int srcchans, float gain) {
+        if (srcchans == 2) {
+            for (int ch = 0; ch < 2 && srcstart + ch < src.getNumChannels(); ++ch) {
+                monitorBuffer.addFrom(ch, 0, src, srcstart + ch, 0, numSamples, gain);
+            }
         }
-    }
+        else {
+            // mono (or wider) lands in the centre
+            const float g = gain / (float) jmax(1, srcchans);
+            for (int ch = srcstart; ch < srcstart + srcchans && ch < src.getNumChannels(); ++ch) {
+                monitorBuffer.addFrom(0, 0, src, ch, 0, numSamples, g);
+                monitorBuffer.addFrom(1, 0, src, ch, 0, numSamples, g);
+            }
+        }
+    };
 
-    int monPanChannels = jmin(inputBuffer.getNumChannels(), totalOutputChannels);
-    float tmgain = monPanChannels == 1 && mainBusInputChannels > 0 ? (1.0f/std::max(1.0f, (float)(mainBusInputChannels * 0.5f))): 1.0f;
-    int srcstart = 0;
-    for (auto i = 0; i < mInputChannelGroupCount; ++i)
-    {
-        float utmgain = anyinputsoloed && !mInputChannelGroups[i].params.soloed ? 0.0f : tmgain;
-        int dstch = mInputChannelGroups[i].params.monDestStartIndex;
-        int dstcnt = jmin(monPanChannels, mInputChannelGroups[i].params.monDestChannels);
-
-        auto * revbuffer = doreverb ? &mainFxBuffer : nullptr;
-
-        mInputChannelGroups[i].processMonitor(inputPostBuffer, srcstart,
-                                              inputBuffer, dstch, dstcnt,
-                                              numSamples, utmgain, nullptr, 
-                                              revbuffer, 0, fxchannels, mainReverbEnabled, drynow);
-
-        srcstart += mInputChannelGroups[i].params.numChannels;
+    if (monitorOpen) {
+        const bool mainsolo = mMainMonitorSolo.get();
+        int srcstart = 0;
+        for (auto i = 0; i < mInputChannelGroupCount && i < MAX_CHANGROUPS; ++i)
+        {
+            const int nch = mInputChannelGroups[i].params.numChannels;
+            if (mainsolo || mInputChannelGroups[i].params.soloed) {
+                addToMonitor(inputPostBuffer, srcstart, nch, 1.0f);
+            }
+            srcstart += nch;
+        }
     }
 
     // for multichannel send, groups follow the last input channel
@@ -7262,22 +7273,15 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
             bool forceSilent = false;
 
-            // we get the stuff, but ignore it (either muted or others soloed)
-            if (!remote->recvActive || (anysoloed && !remote->soloed) || remote->resetSafetyMuted) {
+            // we get the stuff, but ignore it (muted). Solo does not silence the
+            // others here -- it only picks what goes to the monitor output.
+            if (!remote->recvActive || remote->resetSafetyMuted) {
 
                 usegain = 0.0f;
                 forceSilent = true;
 
                 if (remote->_lastgain <= 0.0f) {
                     wasSilent = true;
-                }
-            }
-
-            bool anysubsolo = false;
-            for (auto cgi = 0; cgi < remote->numChanGroups; ++cgi) {
-                if (remote->chanGroups[cgi].params.soloed) {
-                    anysubsolo = true;
-                    break;
                 }
             }
 
@@ -7311,8 +7315,13 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
             for (auto i = 0; i < remote->numChanGroups; ++i)
             {
-                // apply solo muting to the gain here
-                float adjgain = anysubsolo && !remote->chanGroups[i].params.soloed ? 0.0f : tgain;
+                const float adjgain = tgain;
+
+                // soloed streams are also heard on the monitor output, post-fader
+                if (monitorOpen && (remote->soloed || remote->chanGroups[i].params.soloed)) {
+                    addToMonitor(remote->workBuffer, remote->chanGroups[i].params.chanStartIndex,
+                                 remote->chanGroups[i].params.numChannels, 1.0f);
+                }
 
                 const int busidx = remote->chanGroups[i].params.busAssign;
 
@@ -7321,7 +7330,8 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
                     // applies its own level and destination after this loop.
                     const int srcstart = remote->chanGroups[i].params.chanStartIndex;
                     const int srcchans = remote->chanGroups[i].params.numChannels;
-                    const float bgain = adjgain * remote->chanGroups[i].params.gain;
+                    // the group's own level was already applied in place by processBlock
+                    const float bgain = adjgain;
 
                     for (int ch = 0; ch < srcchans; ++ch) {
                         const int srcch = srcstart + ch;
@@ -7474,21 +7484,20 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     // BEGIN MAIN OUTPUT BUFFER WRITING
 
 
-    bool inrevdirect = !(anysoloed && !mMainMonitorSolo.get()) && drynow == 0.0;
-    bool dryrampit =  (fabsf(drynow - mLastDry) > 0.00001);
+    const bool dryrampit =  (fabsf(drynow - mLastDry) > 0.00001);
 
-    // process monitoring
+    // The monitor output gets its listen mix at the Monitor level.
+    if (monitorOpen) {
+        for (int channel = 0; channel < 2; ++channel) {
+            if (dryrampit) monitorBuffer.applyGainRamp(channel, 0, numSamples, mLastDry, drynow);
+            else monitorBuffer.applyGain(channel, 0, numSamples, drynow);
+        }
+        mMonitorOutput.pushSamples(monitorBuffer, numSamples);
+    }
 
-
-    // copy from input buffer with dry gain as-is
+    // The main outputs start from silence: no local input is ever monitored here.
     for (int channel = 0; channel < totalOutputChannels; ++channel) {
-        //int usechan = channel < totalNumInputChannels ? channel : channel > 0 ? channel-1 : 0;
-        if (dryrampit) {
-            buffer.copyFromWithRamp(channel, 0, inputBuffer.getReadPointer(channel), numSamples, mLastDry, drynow);
-        }
-        else {
-            buffer.copyFrom(channel, 0, inputBuffer.getReadPointer(channel), numSamples, drynow);
-        }
+        buffer.clear(channel, 0, numSamples);
     }
 
     // EFFECTS
@@ -7599,24 +7608,8 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
     }
 
 
-    // mix input reverb into main buffer
-    if (doinreverb) {
-        for (int channel = 0; channel < mainBusOutputChannels && channel < 2; ++channel) {
-            if (drynow > 0.0f || dryrampit) {
-                // attenuate reverb with monitor level if used
-                if (dryrampit) {
-                    buffer.addFromWithRamp(channel, 0, inputRevBuffer.getReadPointer(channel), numSamples, mLastDry, drynow);
-                }
-                else {
-                    buffer.addFrom(channel, 0, inputRevBuffer.getReadPointer(channel), numSamples, drynow);
-                }
-            }
-            else if (inrevdirect) {
-                // add the full input reverb to mix, if monitoring is off
-                buffer.addFrom(channel, 0, inputRevBuffer.getReadPointer(channel), numSamples);
-            }
-        }
-    }
+    // (upstream mixed the input reverb into the main outputs here; Commsbus keeps
+    // local input off the main outputs entirely)
 
     // apply wet (output) gain to original buf, main bus only
     if (fabsf(wetnow - mLastWet) > 0.00001) {
@@ -7788,6 +7781,8 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(lastWindowHeightKey, var((int)mPluginWindowHeight), nullptr);
     extraTree.setProperty(autoresizeDropRateThreshKey, var((float)mAutoresizeDropRateThresh), nullptr);
     extraTree.setProperty(reconnectServerLossKey, mReconnectAfterServerLoss.get(), nullptr);
+    extraTree.setProperty(monitorDeviceKey, mMonitorDeviceId, nullptr);
+    extraTree.setProperty(sendMultichannelMigratedKey, true, nullptr);
 
     extraTree.appendChild(mVideoLinkInfo.getValueTree(), nullptr);
     
@@ -7883,6 +7878,17 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
         }
 
         ValueTree extraTree = mState.state.getChildWithName(extraStateCollectionKey);
+
+        // Commsbus: state saved before the multichannel default carries upstream's
+        // Send Mono, which mixes every input into one stream. Move it over once;
+        // the marker means a later deliberate choice of mono is left alone.
+        if (!extraTree.isValid() || !(bool) extraTree.getProperty(sendMultichannelMigratedKey, false)) {
+            auto * param = mState.getParameter(paramSendChannels);
+            if ((int) param->convertFrom0to1(param->getValue()) == 1) {
+                param->setValueNotifyingHost(param->convertTo0to1(0));
+            }
+        }
+
         if (extraTree.isValid()) {
             int port = extraTree.getProperty(useSpecificUdpPortKey, mUseSpecificUdpPort);
             setUseSpecificUdpPort(port);
@@ -7916,6 +7922,12 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
             setAutoresizeBufferDropRateThreshold(extraTree.getProperty(autoresizeDropRateThreshKey, (float)mAutoresizeDropRateThresh));
 
             setReconnectAfterServerLoss(extraTree.getProperty(reconnectServerLossKey, mReconnectAfterServerLoss.get()));
+
+            const String monid = extraTree.getProperty(monitorDeviceKey, mMonitorDeviceId);
+            if (monid != mMonitorDeviceId) {
+                mMonitorDeviceId = monid;
+                mMonitorApplied = false; // maintainMonitorOutput opens it
+            }
 
             
             ValueTree videoinfo = extraTree.getChildWithName(videoLinkInfoKey);
@@ -8112,6 +8124,43 @@ void CommsbusAudioProcessor::setRemotePeerChannelGroupBus(int index, int changro
     auto remote = mRemotePeers.getUnchecked(index);
     if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return;
     remote->chanGroups[changroup].params.busAssign = busIndex;
+}
+
+void CommsbusAudioProcessor::setMonitorDevice(const String & deviceId)
+{
+    mMonitorDeviceId = deviceId.isEmpty() ? MonitorOutput::defaultId : deviceId;
+
+    if (mMonitorDeviceId == MonitorOutput::noneId) {
+        // nothing to hear solos on, so do not leave anything soloed
+        for (int i = 0; i < mInputChannelGroupCount; ++i) setInputGroupSoloed(i, false);
+        for (int i = 0; i < getNumberRemotePeers(); ++i) {
+            setRemotePeerSoloed(i, false);
+            for (int cg = 0; cg < getRemotePeerChannelGroupCount(i); ++cg) setRemotePeerChannelSoloed(i, cg, false);
+        }
+        mState.getParameter(paramMainMonitorSolo)->setValueNotifyingHost(0.0f);
+    }
+
+    mMonitorOutput.setDevice(mMonitorDeviceId, mMainOutputDeviceName, getSampleRate());
+    mMonitorOpenedRate = getSampleRate();
+    mMonitorApplied = true;
+    mMonitorLastRetry = Time::getMillisecondCounter();
+}
+
+void CommsbusAudioProcessor::maintainMonitorOutput(const String & mainOutputDeviceName)
+{
+    const bool mainchanged = mainOutputDeviceName != mMainOutputDeviceName;
+    mMainOutputDeviceName = mainOutputDeviceName;
+
+    const bool ratechanged = getSampleRate() > 0.0 && getSampleRate() != mMonitorOpenedRate;
+    const auto now = Time::getMillisecondCounter();
+
+    // a device that dropped out (unplugged headphones, a sleep/wake) is retried
+    // every few seconds, since nobody may be there to reselect it
+    const bool droppedout = isMonitorEnabled() && !mMonitorOutput.isOpen() && now - mMonitorLastRetry > 5000;
+
+    if (!mMonitorApplied || mainchanged || ratechanged || droppedout) {
+        setMonitorDevice(mMonitorDeviceId);
+    }
 }
 
 void CommsbusAudioProcessor::startAutoConnect()

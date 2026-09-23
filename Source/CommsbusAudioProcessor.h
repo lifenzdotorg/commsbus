@@ -21,6 +21,7 @@
 #include "zitaRev.h"
 
 #include "AutoConnectManager.h"
+#include "MonitorOutput.h"
 
 typedef MVerb<float> MVerbFloat;
 
@@ -582,6 +583,25 @@ public:
     /** Connects to configured direct peers now, and keeps them connected. */
     void startAutoConnect();
 
+    /**
+     * Monitor / solo output: a second audio device for local listening, so
+     * nothing meant only for the operator ever reaches the main (Dante) outputs.
+     * Soloed transmit and receive channels, and the main SOLO (all local inputs),
+     * are heard there at the Monitor level; solo never changes the main outputs.
+     *
+     * The id is MonitorOutput::noneId, MonitorOutput::defaultId or a device name.
+     */
+    juce::String getMonitorDevice() const { return mMonitorDeviceId; }
+    void setMonitorDevice(const juce::String & deviceId);
+    bool isMonitorEnabled() const { return mMonitorDeviceId != MonitorOutput::noneId; }
+    juce::String getMonitorOpenDeviceName() const { return mMonitorOutput.getOpenDeviceName(); }
+    juce::StringArray getMonitorDeviceNames() { return mMonitorOutput.getOutputDeviceNames(mMainOutputDeviceName); }
+
+    /** Message thread, called periodically by the editor: tells the monitor which
+        device is the main one (so it is never picked), opens the monitor the first
+        time, and reopens it if it dropped out or the main sample rate moved. */
+    void maintainMonitorOutput(const juce::String & mainOutputDeviceName);
+
 
     // misc settings
     bool getSlidersSnapToMousePosition() const { return mSliderSnapToMouse; }
@@ -910,7 +930,7 @@ private:
     Atomic<float>   mInMonMonoPan    {   0.0 };
     Atomic<float>   mInMonPan1    {   -1.0 };
     Atomic<float>   mInMonPan2    {   1.0 };
-    Atomic<float>   mDry    { 0.0 };
+    Atomic<float>   mDry    { 1.0 }; // monitor output level
     Atomic<float>   mWet    {   1.0 };
     Atomic<double>   mBufferTime     { 0.001 };
     Atomic<double>   mMaxBufferTime     { 1.0 };
@@ -918,7 +938,10 @@ private:
     Atomic<bool>   mMainRecvMute    {   false };
     Atomic<bool>   mMainInMute    {   false };
     Atomic<bool>   mMainMonitorSolo    {   false };
-    Atomic<int>   mSendChannels  { 1 }; // 0 is match inputs, 1 is 1, etc
+    // 0 is match inputs, 1 is 1, etc. Commsbus defaults to multichannel: each mono
+    // input group is its own stream, which a Dante bridge relies on -- mono would
+    // silently mix every input into one.
+    Atomic<int>   mSendChannels  { 0 };
     Atomic<bool>   mHearLatencyTest  { false };
     Atomic<bool>   mMainReverbEnabled  { false };
     Atomic<float>   mMainReverbLevel  { 1.0f };
@@ -1054,6 +1077,13 @@ private:
     Array<OutputBus> mOutputBuses;
     mutable CriticalSection mBusLock;
     AudioSampleBuffer mBusBuffer;   // one mono row per bus
+
+    MonitorOutput mMonitorOutput;
+    juce::String mMonitorDeviceId { MonitorOutput::defaultId };
+    juce::String mMainOutputDeviceName;
+    bool mMonitorApplied = false;
+    double mMonitorOpenedRate = 0.0;
+    uint32 mMonitorLastRetry = 0;
 
     Array<AooServerConnectionInfo> mRecentConnectionInfos;
     CriticalSection  mRecentsLock;

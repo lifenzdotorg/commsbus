@@ -142,6 +142,13 @@ protected:
 
     std::unique_ptr<SonoChoiceButton> mOptionsLanguageChoice;
     std::unique_ptr<Label> mOptionsLanguageLabel;
+
+    // monitor / solo output device
+    void refreshMonitorDeviceChoice();
+    std::unique_ptr<SonoChoiceButton> mOptionsMonitorDeviceChoice;
+    std::unique_ptr<Label> mOptionsMonitorDeviceLabel;
+    std::unique_ptr<Component> mSoloOutputRow; // sits in the AUDIO tab, below the device pickers
+    StringArray mMonitorDeviceIds; // parallel to the choice items, id = index + 1
     std::unique_ptr<ToggleButton> mOptionsUnivFontButton;
 
 

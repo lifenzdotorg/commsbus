@@ -152,6 +152,32 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     mOptionsFormatChoiceStaticLabel->setJustificationType(Justification::centredRight);
 
 
+    mOptionsMonitorDeviceChoice = std::make_unique<SonoChoiceButton>();
+    mOptionsMonitorDeviceChoice->setTitle(TRANS("Solo Output"));
+    mOptionsMonitorDeviceChoice->addChoiceListener(this);
+    mOptionsMonitorDeviceChoice->setTooltip(TRANS("A separate audio device, such as speakers or headphones, where soloed channels are heard. Solo never changes the main (Dante) outputs. System Default picks the computer's default output unless that is the main device or Dante."));
+
+    mOptionsMonitorDeviceLabel = std::make_unique<Label>("", TRANS("Solo Output:"));
+    configLabel(mOptionsMonitorDeviceLabel.get(), false);
+    mOptionsMonitorDeviceLabel->setJustificationType(Justification::centredRight);
+
+    // Lines up with the device selector's own rows: label in the left 35%,
+    // control in the next 60%.
+    struct SoloOutputRow : public Component
+    {
+        SoloOutputRow(Component & l, Component & c) : label(l), choice(c) {
+            addAndMakeVisible(label);
+            addAndMakeVisible(choice);
+        }
+        void resized() override {
+            label.setBounds(0, 0, proportionOfWidth(0.35f) - 4, getHeight());
+            choice.setBounds(proportionOfWidth(0.35f), 0, proportionOfWidth(0.6f), getHeight());
+        }
+        Component & label;
+        Component & choice;
+    };
+    mSoloOutputRow = std::make_unique<SoloOutputRow>(*mOptionsMonitorDeviceLabel, *mOptionsMonitorDeviceChoice);
+
     mOptionsLanguageChoice = std::make_unique<SonoChoiceButton>();
     mOptionsLanguageChoice->setTitle(TRANS("Language"));
     mOptionsLanguageChoice->addChoiceListener(this);
@@ -419,6 +445,8 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
             mAudioDeviceSelector->setItemHeight(44);
 #endif
 
+            mAudioDeviceSelector->setComponentBelowDevicePickers(mSoloOutputRow.get(), jmax(30, mAudioDeviceSelector->getItemHeight()));
+
             mAudioOptionsViewport = std::make_unique<Viewport>();
             mAudioOptionsViewport->setViewedComponent(mAudioDeviceSelector.get(), false);
 
@@ -528,8 +556,39 @@ void OptionsView::configEditor(TextEditor *editor, bool passwd)
     }
 }
 
+void OptionsView::refreshMonitorDeviceChoice()
+{
+    mOptionsMonitorDeviceChoice->clearItems();
+    mMonitorDeviceIds.clearQuick();
+
+    mMonitorDeviceIds.add(MonitorOutput::noneId);
+    mOptionsMonitorDeviceChoice->addItem(TRANS("Off"), 1);
+
+    String defname = TRANS("System Default");
+    if (processor.getMonitorDevice() == MonitorOutput::defaultId) {
+        const auto open = processor.getMonitorOpenDeviceName();
+        defname << " (" << (open.isNotEmpty() ? open : TRANS("none suitable")) << ")";
+    }
+    mMonitorDeviceIds.add(MonitorOutput::defaultId);
+    mOptionsMonitorDeviceChoice->addItem(defname, 2, true);
+
+    auto names = processor.getMonitorDeviceNames();
+    const auto current = processor.getMonitorDevice();
+    if (current != MonitorOutput::noneId && current != MonitorOutput::defaultId && !names.contains(current)) {
+        names.add(current); // remembered, but not plugged in right now
+    }
+    for (auto & name : names) {
+        mMonitorDeviceIds.add(name);
+        mOptionsMonitorDeviceChoice->addItem(name, mMonitorDeviceIds.size());
+    }
+
+    mOptionsMonitorDeviceChoice->setSelectedId(mMonitorDeviceIds.indexOf(current) + 1, dontSendNotification);
+}
+
 void OptionsView::updateState(bool ignorecheck)
 {
+    refreshMonitorDeviceChoice();
+
     mOptionsFormatChoiceDefaultChoice->setSelectedItemIndex(processor.getDefaultAudioCodecFormat(), dontSendNotification);
     mOptionsAutosizeDefaultChoice->setSelectedId((int)processor.getDefaultAutoresizeBufferMode(), dontSendNotification);
 
@@ -1042,6 +1101,13 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
 {
     if (comp == mOptionsFormatChoiceDefaultChoice.get()) {
         processor.setDefaultAudioCodecFormat(index);
+    }
+    else if (comp == mOptionsMonitorDeviceChoice.get()) {
+        if (isPositiveAndBelow(ident - 1, mMonitorDeviceIds.size())) {
+            processor.setMonitorDevice(mMonitorDeviceIds[ident - 1]);
+            refreshMonitorDeviceChoice();
+            listeners.call(&OptionsView::Listener::optionsChanged, this);
+        }
     }
     else if (comp == mOptionsAutosizeDefaultChoice.get()) {
         processor.setDefaultAutoresizeBufferMode((CommsbusAudioProcessor::AutoNetBufferMode) ident);

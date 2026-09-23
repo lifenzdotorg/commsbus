@@ -454,7 +454,7 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mInSoloButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(1.0, 1.0, 0.6, 0.7f));
     mInSoloButton->setColour(TextButton::textColourOnId, Colours::darkblue);
 
-    mInSoloButton->setTooltip(TRANS("Listen to only yourself, and other soloed users. Alt-click to exclusively solo yourself."));
+    mInSoloButton->setTooltip(TRANS("Listen to all your local inputs on the monitor output. Solo never changes what goes out to the main outputs."));
     mInMonSoloAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment> (p.getValueTreeState(), CommsbusAudioProcessor::paramMainMonitorSolo, *mInSoloButton);
 
 
@@ -548,7 +548,7 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mDryLabel = std::make_unique<Label>(CommsbusAudioProcessor::paramDry, TRANS("Monitor"));
     configLabel(mDryLabel.get(), false);
     mDryLabel->setJustificationType(Justification::topLeft);
-    mDryLabel->setTooltip(TRANS("This adjusts the level of the monitoring of your input, that only you hear"));
+    mDryLabel->setTooltip(TRANS("Level of the monitor output, where soloed channels are heard. Choose the device in Settings > Audio > Solo Output."));
     mDryLabel->setInterceptsMouseClicks(true, false);
     mDryLabel->setAccessible(false);
 
@@ -1514,6 +1514,17 @@ void CommsbusAudioProcessorEditor::timerCallback(int timerid)
         updateChannelState();
 
         mBusesContainer->refreshIfBusesChanged();
+
+        // keep the monitor / solo output open, and off the main device
+        if (JUCEApplicationBase::isStandaloneApp() && getAudioDeviceManager && getAudioDeviceManager()) {
+            processor.maintainMonitorOutput(getAudioDeviceManager()->getAudioDeviceSetup().outputDeviceName);
+        }
+        {
+            const bool monon = processor.isMonitorEnabled();
+            mInSoloButton->setEnabled(monon);
+            mDrySlider->setEnabled(monon);
+            mDryLabel->setEnabled(monon);
+        }
         
         if (!stateUpdated && (currGroup != processor.getCurrentJoinedGroup()
                               || currConnected != processor.isConnectedToServer()
