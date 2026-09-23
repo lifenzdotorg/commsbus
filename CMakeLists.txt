@@ -36,9 +36,9 @@ endif()
 # `project()` command. `project()` sets up some helpful variables that describe source/binary
 # directories, and the current project version. This is a standard CMake command.
 
-project(Commsbus VERSION 0.2.0)
+project(Commsbus VERSION 1.0.1)
 
-set(BUILDVERSION 2)
+set(BUILDVERSION 3)
 
 
 # If you've installed JUCE somehow (via a package manager, or directly using the CMake install
