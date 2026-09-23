@@ -57,7 +57,7 @@ parts:
     plugin: cmake
     source: https://github.com/lifenzdotorg/commsbus.git
     #source: .
-    source-tag: '0.1.0'
+    source-tag: 'v0.2.0'
     # source-subdir: "Builds/LinuxMakefile"
     build-packages:
       - libjack-dev

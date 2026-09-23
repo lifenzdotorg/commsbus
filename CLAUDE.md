@@ -58,7 +58,8 @@ iOS/Android build from `mobile/SonoBusMobile.jucer` via Projucer, not CMake. **T
 ### Version bumps
 
 Two places: `project(Commsbus VERSION ...)` plus `BUILDVERSION` in
-`CMakeLists.txt`, and `source-tag` in `snap/snapcraft.yaml`. Commsbus versioning
+`CMakeLists.txt`, and `source-tag` in `snap/snapcraft.yaml` (which names the git tag, so it
+carries the `v` prefix, e.g. `v0.2.0`). Commsbus versioning
 restarted at **0.1.0** — the 1.7.x numbers belong to upstream SonoBus, and
 `BUILDVERSION` reset to 1 with it. `mobile/SonoBusMobile.jucer` keeps its own
 1.7.2 and is deliberately left alone; mobile is unmigrated and does not build
