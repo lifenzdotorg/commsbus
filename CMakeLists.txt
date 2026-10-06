@@ -254,12 +254,16 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/ChannelGroup.h
         Source/ChannelGroupsView.cpp
         Source/ChannelGroupsView.h
+        Source/ChannelTrimView.cpp
+        Source/ChannelTrimView.h
         Source/ChatView.cpp
         Source/ChatView.h
         Source/CompressorView.h
         Source/ConnectView.cpp
         Source/ConnectView.h
         Source/DebugLogC.h
+        Source/DeviceViewWindow.cpp
+        Source/DeviceViewWindow.h
         Source/EffectParams.cpp
         Source/EffectParams.h
         Source/EffectsBaseView.h
@@ -286,6 +290,8 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/RandomSentenceGenerator.h
         Source/ReverbSendView.h
         Source/ReverbView.h
+        Source/RoutingMatrixView.cpp
+        Source/RoutingMatrixView.h
         Source/RunCumulantor.cpp
         Source/RunCumulantor.h
         Source/RunningCumulant.h
@@ -311,7 +317,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         Source/CommsbusTypes.h
         Source/SuggestNewGroupView.cpp
         Source/SuggestNewGroupView.h
-        Source/VDONinjaView.h
         Source/VersionInfo.cpp
         Source/VersionInfo.h
         Source/faustCompressor.h
@@ -468,8 +473,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/continue.svg
         images/copy_icon.svg
         images/dice_icon_128.png
-        images/dispfull.svg
-        images/dispminimal.svg
         images/dots.svg
         images/dots_icon.png
         images/dots_menu.png
@@ -539,7 +542,6 @@ function(commsbus_add_app_target target_name product_name formats is_instrument 
         images/toggle.svg
         images/triangle_disclosure.svg
         images/triangle_disclosure_right.svg
-        images/videocam-outline.svg
         images/x_icon.svg
     )
 

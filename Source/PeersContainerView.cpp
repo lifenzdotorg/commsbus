@@ -325,7 +325,7 @@ void PeersContainerView::resized()
 
     mPeerViewBounds.clearQuick();
 
-    for (int i=0; i < mPeerViews.size(); ++i) {
+    for (int i=0; i < mPeerViews.size() && i < mNumVisiblePeerViews; ++i) {
         PeerViewInfo * pvf = mPeerViews.getUnchecked(i);
         pvf->resized();
 
@@ -973,6 +973,30 @@ void PeersContainerView::rebuildPeerViews()
     resized();
 }
 
+bool PeersContainerView::peerVisibilityChanged() const
+{
+    const int numpeers = processor.getNumberRemotePeers();
+    if ((int) mPeerVisibleFlags.size() != numpeers) {
+        return true;
+    }
+    for (int i=0; i < numpeers; ++i) {
+        if (mPeerVisibleFlags[i] != processor.isPeerVisible(i)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PeersContainerView::isPendingUserVisible(const String & user) const
+{
+    if (processor.getNetworkRole() != CommsbusAudioProcessor::NetworkRoleCampus) {
+        return true;
+    }
+    // a campus is only told about the Central joining
+    const auto central = processor.getCentralName();
+    return central.isNotEmpty() && user.trim().equalsIgnoreCase(central);
+}
+
 void PeersContainerView::updatePeerOrdering()
 {
     mPeerUpdateOrdering.clear();
@@ -980,7 +1004,22 @@ void PeersContainerView::updatePeerOrdering()
     std::set<int> addedindexes;
     std::map<int,int> priorityIndexes; // key is priority, value is peer index
 
-    for (int i=0; i < processor.getNumberRemotePeers(); ++i) {
+    // Peers hidden by the star-network role go after every visible one, and
+    // their views are hidden (see updateLayout).
+    const int numpeers = processor.getNumberRemotePeers();
+    mPeerVisibleFlags.assign(numpeers, true);
+    mNumVisiblePeerViews = 0;
+    for (int i=0; i < numpeers; ++i) {
+        mPeerVisibleFlags[i] = processor.isPeerVisible(i);
+        if (mPeerVisibleFlags[i]) {
+            ++mNumVisiblePeerViews;
+        } else {
+            addedindexes.insert(i); // keeps it out of the visible ordering below
+        }
+    }
+
+    for (int i=0; i < numpeers; ++i) {
+        if (!mPeerVisibleFlags[i]) continue;
         String username = processor.getRemotePeerUserName(i);
 
         auto found = mPeerPriorityOrdering.find(username);
@@ -996,8 +1035,15 @@ void PeersContainerView::updatePeerOrdering()
     }
 
     // add the rest
-    for (int i=0; i < processor.getNumberRemotePeers(); ++i) {
+    for (int i=0; i < numpeers; ++i) {
         if (addedindexes.find(i) == addedindexes.end()) {
+            mPeerUpdateOrdering.push_back(i);
+        }
+    }
+
+    // then the hidden ones
+    for (int i=0; i < numpeers; ++i) {
+        if (!mPeerVisibleFlags[i]) {
             mPeerUpdateOrdering.push_back(i);
         }
     }
@@ -1041,6 +1087,13 @@ void PeersContainerView::updateLayout()
 
     for (int i=0; i < mPeerViews.size(); ++i) {
         PeerViewInfo * pvf = mPeerViews.getUnchecked(i);
+
+        // hidden by the star-network role: no view, no space
+        if (i >= mNumVisiblePeerViews) {
+            pvf->setVisible(false);
+            continue;
+        }
+        pvf->setVisible(true);
 
         //pvf->updateLayout();
         
@@ -1366,12 +1419,22 @@ void PeersContainerView::updateLayout()
     int ppheight = minitemheight;
     int ppw = 120;
 
+    auto pendingiter = mPendingUsers.begin();
     for (int i=0; i < mPendingPeerViews.size(); ++i) {
+
+        PendingPeerViewInfo * ppvf = mPendingPeerViews.getUnchecked(i);
+
+        // the views follow the map's order
+        const bool pendingvisible = pendingiter == mPendingUsers.end() || isPendingUserVisible(pendingiter->second.user);
+        if (pendingiter != mPendingUsers.end()) ++pendingiter;
+        ppvf->setVisible(pendingvisible);
+        if (!pendingvisible) {
+            continue;
+        }
 
         peersBox.items.add(FlexItem(8, 4).withMargin(0));
         peersheight += 4;
 
-        PendingPeerViewInfo * ppvf = mPendingPeerViews.getUnchecked(i);
         ppvf->mainbox.items.clear();
         ppvf->mainbox.flexDirection = FlexBox::Direction::row;
         ppvf->mainbox.items.add(FlexItem(110, minitemheight, *ppvf->nameLabel).withMargin(0).withFlex(0));

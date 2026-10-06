@@ -570,9 +570,52 @@ public:
     bool removeOutputBus(int index);              // assignments to it revert to direct
     juce::String getOutputBusName(int index) const;
 
-    /** Which bus a received channel group feeds, or -1 for straight out to device channels. */
+    /** Which bus a received channel group feeds, -1 (BusAssignDirect) for straight
+        out to device channels, or -2 (BusAssignUnpatched) for nowhere at all. */
     int  getRemotePeerChannelGroupBus(int index, int changroup) const;
     void setRemotePeerChannelGroupBus(int index, int changroup, int busIndex);
+
+    //==============================================================================
+    // Receive patching as a Dante-style crosspoint: one received channel group
+    // (a "transmitter") onto one device output channel (a "receiver"). Used by the
+    // routing matrix and the device view; the per-row destination menus write the
+    // same state (busAssign / panDestStartIndex), so all of them stay consistent.
+
+    /** The device output channels a received group currently lands on, directly
+        or through its bus. Returns false (and retstart -1) when it is unpatched.
+        retbus is the bus it goes through, or -1 when direct. */
+    bool getRemotePeerChannelGroupOutputs(int index, int changroup, int & retstart, int & retcount, int & retbus) const;
+
+    /** Whether the group reaches device output `outch` (directly or via a bus). */
+    bool isRemotePeerChannelGroupPatchedTo(int index, int changroup, int outch) const;
+
+    /**
+     * Patches a received group onto device output `outch`, moving it from
+     * wherever it went before. If something else already lands on that output,
+     * the streams are combined through a bus on that output: an existing bus
+     * there is reused, otherwise one is created and the stream(s) already going
+     * straight out to it are moved onto it. retNote (if given) gets a short,
+     * human-readable description of that, or is left empty for a plain patch.
+     * Message thread only.
+     */
+    void patchRemotePeerChannelGroupToOutput(int index, int changroup, int outch, juce::String * retNote = nullptr);
+
+    /** Disconnects a received group from every output: it is silent on the main
+        outputs (it is still received, metered and soloable). */
+    void unpatchRemotePeerChannelGroup(int index, int changroup);
+
+    /** Unpatches everything that lands on device output `outch`. Returns how many
+        groups were unpatched. */
+    int unpatchOutputChannel(int outch);
+
+    /** Patching lock. Starts locked on every launch (never persisted) so routing cannot be
+        changed by accident; the three patch/unpatch calls above do nothing while locked. */
+    bool isPatchingLocked() const { return mPatchingLocked.get(); }
+    void setPatchingLocked(bool locked) { mPatchingLocked = locked; }
+
+    /** Remembered choice of MATRIX (true) or LIST view for the receive area. */
+    bool getReceiveRoutingMatrixShown() const { return mReceiveMatrixShown; }
+    void setReceiveRoutingMatrixShown(bool flag) { mReceiveMatrixShown = flag; }
 
     /**
      * Direct (address-based) peers that Commsbus keeps itself connected to,
@@ -615,29 +658,28 @@ public:
     bool getDisableKeyboardShortcuts() const { return mDisableKeyboardShortcuts; }
     void setDisableKeyboardShortcuts(bool flag) {  mDisableKeyboardShortcuts = flag; }
 
-
-    struct VideoLinkInfo
-    {
-        ValueTree getValueTree() const;
-        void setFromValueTree(const ValueTree & val);
-
-        enum {
-            PushAndView = 0,
-            PushOnly = 1,
-            ViewOnly =2
-        };
-
-
-        bool roomMode = true;
-        bool showNames = true;
-        bool beDirector = false;
-        bool screenShareMode = false;
-        bool largeShare = false;
-        int pushViewMode = PushAndView;
-        String extraParams;
+    /**
+     * Star-network visibility. The deployment is one Central host with campuses
+     * connecting to it. A Central sees every peer; a Campus is shown only the
+     * Central (matched by user name), so it does not see the other campuses.
+     * This is display-only: audio routing is never affected. Everything that
+     * lists peers asks isPeerVisible().
+     */
+    enum NetworkRole {
+        NetworkRoleCentral = 0,
+        NetworkRoleCampus = 1
     };
+    NetworkRole getNetworkRole() const { return mNetworkRole; }
+    void setNetworkRole(NetworkRole role) { mNetworkRole = role; }
+    juce::String getCentralName() const { return mCentralName; }
+    void setCentralName(const juce::String & name) { mCentralName = name.trim(); }
 
-    VideoLinkInfo & getVideoLinkInfo() { return mVideoLinkInfo; }
+    /** Message thread. Whether peer `index` should be listed in the UI. */
+    bool isPeerVisible(int index) const;
+    int getNumberVisibleRemotePeers() const;
+    /** The user name, or host:port for a nameless (direct) peer. */
+    juce::String getRemotePeerDisplayName(int index) const;
+
 
 
     // sets and gets the format we send out
@@ -941,6 +983,7 @@ private:
     Atomic<float>   mWet    {   1.0 };
     Atomic<double>   mBufferTime     { 0.001 };
     Atomic<double>   mMaxBufferTime     { 1.0 };
+    Atomic<bool>   mPatchingLocked  {   true };
     Atomic<bool>   mMainSendMute    {   false };
     Atomic<bool>   mMainRecvMute    {   false };
     Atomic<bool>   mMainInMute    {   false };
@@ -1192,7 +1235,9 @@ private:
     // misc
     bool mSliderSnapToMouse = true;
     bool mDisableKeyboardShortcuts = false;
-    VideoLinkInfo mVideoLinkInfo;
+    NetworkRole mNetworkRole = NetworkRoleCentral;
+    String mCentralName;
+    bool mReceiveMatrixShown = true;
     
     File mSupportDir;
     

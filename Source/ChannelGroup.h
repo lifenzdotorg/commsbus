@@ -59,8 +59,11 @@ struct ChannelGroupParams
 
     // Commsbus: which output bus this group feeds, or -1 to go straight to the
     // audio device's output channels (panDestStartIndex/panDestChannels).
-    // Only meaningful for received peer groups.
-    int busAssign = -1;
+    // Only meaningful for received peer groups. BusAssignUnpatched (-2) means the
+    // group is not patched anywhere -- an unsubscribed crosspoint in the routing
+    // matrix -- and contributes nothing to the main outputs.
+    enum { BusAssignDirect = -1, BusAssignUnpatched = -2 };
+    int busAssign = BusAssignDirect;
 
     // compressor (only used for 1 or 2 channel groups)
     CompressorParams compressorParams;

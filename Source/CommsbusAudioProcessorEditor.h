@@ -22,9 +22,10 @@
 #include "ChannelGroupsView.h"
 #include "PeersContainerView.h"
 #include "BusesView.h"
+#include "RoutingMatrixView.h"
+#include "DeviceViewWindow.h"
 #include "OptionsView.h"
 #include "ReverbView.h"
-#include "VDONinjaView.h"
 
 class RandomSentenceGenerator;
 
@@ -196,6 +197,8 @@ private:
     void showFormatChooser(int peerindex);
     
     void showSettings(bool flag);
+    /** True while the full-window settings overlay is up. */
+    bool isSettingsShown() const { return mSettingsOverlay != nullptr && mSettingsOverlay->isVisible(); }
 
     void showMonitorDelayView(bool flag);
 
@@ -223,7 +226,6 @@ private:
     void showSuggestedGroupPrompt(const String & name, const String & group, const String & grouppass, const StringArray & others);
     void showSuggestGroupView(bool show);
 
-    void showVDONinjaView(bool show, bool fromVideoButton=true);
     void copyGroupLink();
 
     void resetJitterBufferForAll();
@@ -237,6 +239,13 @@ private:
     void showLoadSettingsPreset();
 
     void showChatPanel(bool show, bool allowresize=true);
+
+    /** Receive area: the Dante-style routing matrix (true) or the peer list. */
+    void setReceiveMatrixShown(bool show, bool doLayout = true);
+    /** Opens (or raises) the Device View for a peer, or this device for -1. */
+    void openDeviceView(int peerIndex);
+    /** A patch changed from the matrix or a device view: bring every routing UI up to date. */
+    void routingChanged();
 
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
@@ -256,7 +265,6 @@ private:
 
     std::unique_ptr<SonoTextButton> mConnectButton;
     std::unique_ptr<SonoDrawableButton> mAltConnectButton;
-    std::unique_ptr<SonoDrawableButton> mVideoButton;
 
     std::unique_ptr<Label> mMainGroupLabel;
     std::unique_ptr<Label> mMainUserLabel;
@@ -265,8 +273,6 @@ private:
     std::unique_ptr<ImageComponent> mMainPersonImage;
     std::unique_ptr<Label> mMainMessageLabel;
 
-    std::unique_ptr<SonoDrawableButton> mPeerLayoutFullButton;
-    std::unique_ptr<SonoDrawableButton> mPeerLayoutMinimalButton;
 
 
     std::unique_ptr<Label> mServerStatusLabel;
@@ -364,9 +370,6 @@ private:
     std::unique_ptr<SuggestNewGroupView> mSuggestNewGroupView;
 
 
-    // vdo ninja
-    std::unique_ptr<VDONinjaView> mVDONinjaView;
-
 
     std::unique_ptr<FileChooser> mFileChooser;
     bool mReloadFile = false;
@@ -395,7 +398,6 @@ private:
     WeakReference<Component> suggestedGroupCalloutBox;
     WeakReference<Component> suggestNewGroupViewCalloutBox;
 
-    WeakReference<Component> vdoninjaViewCalloutBox;
 
 
     std::unique_ptr<PatchMatrixView> mPatchMatrixView;
@@ -489,11 +491,21 @@ private:
     std::unique_ptr<Label> mReceiveHeaderLabel;
     std::unique_ptr<Label> mBusesHeaderLabel;
 
+    // Dante Controller style receive routing: MATRIX replaces the peer rows in the
+    // receive area (LIST brings them back); device views are separate windows.
+    std::unique_ptr<RoutingMatrixView> mRoutingMatrix;
+    std::unique_ptr<TextButton> mMatrixViewButton;
+    std::unique_ptr<TextButton> mListViewButton;
+    OwnedArray<DeviceViewWindow> mDeviceViewWindows;
+
     int peersHeight = 0;
     bool isNarrow = false;
     bool isReallyNarrow = false;
     bool settingsWasShownOnDown = false;
-    WeakReference<Component> settingsCalloutBox;
+    // Settings covers the whole window (it used to be a small callout). It holds
+    // mOptionsView as a child but does not own it; declared after mOptionsView so
+    // it is destroyed first.
+    std::unique_ptr<Component> mSettingsOverlay;
 
     int inChannels = 0;
     int outChannels = 0;

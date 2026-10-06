@@ -40,13 +40,83 @@ enum {
     separatorColourId = 0x1002850,
 };
 
-enum {
-    PeerLayoutRadioGroupId = 1
-};
-
 #define COMMSBUS_SCHEME "commsbus"
 
 using namespace SonoAudio;
+
+/**
+ * Commsbus: settings fill the whole editor rather than sitting in a small
+ * callout. A header bar carries the title and a Done button; Esc also closes.
+ * The content (OptionsView) is a child but is not owned here.
+ */
+class SettingsOverlay : public Component
+{
+public:
+    SettingsOverlay(Component & content_, std::function<void()> onClose_)
+    : content(content_), onClose(std::move(onClose_))
+    {
+        titleLabel.setText(TRANS("SETTINGS"), dontSendNotification);
+        titleLabel.setFont(Font(18, Font::bold));
+        titleLabel.setJustificationType(Justification::centredLeft);
+        titleLabel.setColour(Label::textColourId, Colour(0xeeeeeeee));
+        addAndMakeVisible(titleLabel);
+
+        doneButton.setButtonText(TRANS("Done"));
+        doneButton.setTooltip(TRANS("Close settings (Esc)"));
+        doneButton.setWantsKeyboardFocus(true);
+        doneButton.onClick = [this]() { if (onClose) onClose(); };
+        addAndMakeVisible(doneButton);
+
+        addAndMakeVisible(content);
+
+        setWantsKeyboardFocus(true);
+        setFocusContainerType(FocusContainerType::keyboardFocusContainer);
+        setOpaque(true);
+    }
+
+    void paint(Graphics & g) override
+    {
+        g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
+
+        auto header = getLocalBounds().removeFromTop(headerHeight);
+        g.setColour(Colour(0xff1c1c1c));
+        g.fillRect(header);
+        g.setColour(Colour(0xff3a3a3a));
+        g.fillRect(header.removeFromBottom(1));
+    }
+
+    void resized() override
+    {
+        auto bounds = getLocalBounds();
+        auto header = bounds.removeFromTop(headerHeight).reduced(10, 7);
+        doneButton.setBounds(header.removeFromRight(90));
+        titleLabel.setBounds(header);
+
+        // A centred column: wide enough for the device selector and the channel
+        // list, without stretching single toggles across a big window.
+        bounds.reduce(6, 6);
+        const int colwidth = jmin(bounds.getWidth(), maxContentWidth);
+        content.setBounds(bounds.withSizeKeepingCentre(colwidth, bounds.getHeight()));
+    }
+
+    bool keyPressed(const KeyPress & key) override
+    {
+        if (key.isKeyCode(KeyPress::escapeKey)) {
+            if (onClose) onClose();
+            return true;
+        }
+        return false;
+    }
+
+    static constexpr int headerHeight = 48;
+    static constexpr int maxContentWidth = 720;
+
+private:
+    Component & content;
+    std::function<void()> onClose;
+    Label titleLabel;
+    TextButton doneButton;
+};
 
 
 class CommsbusAudioProcessorEditor::PatchMatrixView : public Component, public BeatToggleGridDelegate
@@ -390,36 +460,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mMainGroupImage->setAccessible(false);
 
 
-    mPeerLayoutFullButton = std::make_unique<SonoDrawableButton>("peerfull", DrawableButton::ButtonStyle::ImageOnButtonBackground);
-    std::unique_ptr<Drawable> fullimg(Drawable::createFromImageData(BinaryData::dispfull_svg, BinaryData::dispfull_svgSize));
-    mPeerLayoutFullButton->setImages(fullimg.get());
-    mPeerLayoutFullButton->addListener(this);
-    mPeerLayoutFullButton->setClickingTogglesState(false);
-    mPeerLayoutFullButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.2, 0.2, 0.7));
-    mPeerLayoutFullButton->setColour(TextButton::buttonColourId, Colours::transparentBlack);
-    mPeerLayoutFullButton->setColour(SonoTextButton::outlineColourId, Colours::transparentBlack);
-    mPeerLayoutFullButton->setColour(DrawableButton::backgroundOnColourId, Colour::fromFloatRGBA(0.2, 0.2, 0.2, 0.7));
-    mPeerLayoutFullButton->setColour(DrawableButton::backgroundColourId, Colours::transparentBlack);
-    mPeerLayoutFullButton->setTitle(TRANS("Detailed View"));
-    mPeerLayoutFullButton->setTooltip(TRANS("Shows full information for connected users"));
-    mPeerLayoutFullButton->setConnectedEdges(Button::ConnectedOnLeft);
-    mPeerLayoutFullButton->setRadioGroupId(PeerLayoutRadioGroupId);
-
-    mPeerLayoutMinimalButton = std::make_unique<SonoDrawableButton>("peermin", DrawableButton::ButtonStyle::ImageOnButtonBackground);
-    std::unique_ptr<Drawable> minimg(Drawable::createFromImageData(BinaryData::dispminimal_svg, BinaryData::dispminimal_svgSize));
-    mPeerLayoutMinimalButton->setImages(minimg.get());
-    mPeerLayoutMinimalButton->addListener(this);
-    mPeerLayoutMinimalButton->setClickingTogglesState(false);
-    mPeerLayoutMinimalButton->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.2, 0.2, 0.2, 0.7));
-    mPeerLayoutMinimalButton->setColour(TextButton::buttonColourId, Colours::transparentBlack);
-    mPeerLayoutMinimalButton->setColour(SonoTextButton::outlineColourId, Colours::transparentBlack);
-    mPeerLayoutMinimalButton->setColour(DrawableButton::backgroundOnColourId, Colour::fromFloatRGBA(0.2, 0.2, 0.2, 0.7));
-    mPeerLayoutMinimalButton->setColour(DrawableButton::backgroundColourId, Colours::transparentBlack);
-    mPeerLayoutMinimalButton->setTooltip(TRANS("Shows minimal information for connected users"));
-    mPeerLayoutMinimalButton->setTitle(TRANS("Minimal View"));
-    mPeerLayoutMinimalButton->setConnectedEdges(Button::ConnectedOnRight);
-    mPeerLayoutMinimalButton->setRadioGroupId(PeerLayoutRadioGroupId);
-
 
     mInGainSlider     = std::make_unique<Slider>(Slider::LinearHorizontal,  Slider::TextBoxAbove);
     mInGainSlider->setName("ingain");
@@ -606,16 +646,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mAltConnectButton->setTitle(TRANS("Connect to Other"));
 
 
-    mVideoButton = std::make_unique<SonoDrawableButton>("vid", DrawableButton::ButtonStyle::ImageOnButtonBackground);
-    std::unique_ptr<Drawable> vidimg(Drawable::createFromImageData(BinaryData::videocamoutline_svg, BinaryData::videocamoutline_svgSize));
-    mVideoButton->setImages(vidimg.get(), nullptr, nullptr, nullptr, nullptr);
-    mVideoButton->addListener(this);
-    mVideoButton->setTooltip(TRANS("Show the VDO.Ninja video chat link options"));
-    mVideoButton->setTitle(TRANS("VDO.Ninja Link"));
-    mVideoButton->onClick = [this] {
-        showVDONinjaView(true);
-    };
-
     mMainStatusLabel = std::make_unique<Label>("servstat", "");
     mMainStatusLabel->setJustificationType(Justification::centredRight);
     mMainStatusLabel->setFont(13);
@@ -721,6 +751,37 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mBusesContainer = std::make_unique<BusesView>(processor);
     mBusesContainer->addListener(this);
     mMainContainer->addAndMakeVisible(mBusesContainer.get());
+
+    mRoutingMatrix = std::make_unique<RoutingMatrixView>(processor);
+    mRoutingMatrix->getAudioDeviceManager = [this]() -> AudioDeviceManager* {
+        return getAudioDeviceManager ? getAudioDeviceManager() : nullptr;
+    };
+    mRoutingMatrix->onRoutingChanged = [this]() { routingChanged(); };
+    mRoutingMatrix->onOpenDeviceView = [this](int peerIndex) { openDeviceView(peerIndex); };
+    mRoutingMatrix->onLayoutChanged = [this]() {
+        // rows/columns came or went; only re-lay out once the editor is up
+        if (mRoutingMatrix->isVisible() && getWidth() > 0) resized();
+    };
+    mMainContainer->addChildComponent(mRoutingMatrix.get());
+
+    auto makeViewToggle = [this](const String & text, const String & tip) {
+        auto butt = std::make_unique<TextButton>(text);
+        butt->setLookAndFeel(&smallLNF);
+        butt->setClickingTogglesState(false);
+        butt->setColour(TextButton::buttonColourId, Colour::fromFloatRGBA(0.15f, 0.17f, 0.2f, 1.0f));
+        butt->setColour(TextButton::buttonOnColourId, Colour::fromFloatRGBA(0.25f, 0.4f, 0.55f, 1.0f));
+        butt->setTooltip(tip);
+        mMainContainer->addAndMakeVisible(butt.get());
+        return butt;
+    };
+    mMatrixViewButton = makeViewToggle(TRANS("MATRIX"), TRANS("Show receive routing as a Dante Controller style matrix"));
+    mMatrixViewButton->setConnectedEdges(Button::ConnectedOnRight);
+    mMatrixViewButton->onClick = [this]() { setReceiveMatrixShown(true); };
+    mListViewButton = makeViewToggle(TRANS("LIST"), TRANS("Show received streams as a list of peers"));
+    mListViewButton->setConnectedEdges(Button::ConnectedOnLeft);
+    mListViewButton->onClick = [this]() { setReceiveMatrixShown(false); };
+
+    setReceiveMatrixShown(processor.getReceiveRoutingMatrixShown(), false);
 
     //mInputChannelsViewport = std::make_unique<Viewport>();
     //mInputChannelsViewport->setViewedComponent(mInputChannelsContainer.get(), false);
@@ -920,12 +981,13 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mTopLevelContainer->addAndMakeVisible(mMainUserLabel.get());
     mTopLevelContainer->addAndMakeVisible(mMainPersonImage.get());
     mTopLevelContainer->addAndMakeVisible(mMainGroupImage.get());
-    mTopLevelContainer->addAndMakeVisible(mPeerLayoutFullButton.get());
-    mTopLevelContainer->addAndMakeVisible(mPeerLayoutMinimalButton.get());
 
 
     mTopLevelContainer->addAndMakeVisible(mDrySlider.get());
-    mTopLevelContainer->addAndMakeVisible(mOutGainSlider.get());
+    // The main output level is no longer on the main window (levels are trimmed
+    // per channel in Settings > CHANNELS); the slider stays attached to paramWet
+    // so saved state still loads, but it is never shown or laid out.
+    mTopLevelContainer->addChildComponent(mOutGainSlider.get());
     //mTopLevelContainer->addAndMakeVisible(mInGainSlider.get());
     mTopLevelContainer->addAndMakeVisible(mMainMuteButton.get());
     mTopLevelContainer->addAndMakeVisible(mMainRecvMuteButton.get());
@@ -938,7 +1000,6 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
     mTopLevelContainer->addAndMakeVisible (mSettingsButton.get());
     mTopLevelContainer->addAndMakeVisible(mConnectButton.get());
     mTopLevelContainer->addChildComponent(mAltConnectButton.get());
-    mTopLevelContainer->addChildComponent(mVideoButton.get());
     mTopLevelContainer->addAndMakeVisible(mMainStatusLabel.get());
     mTopLevelContainer->addAndMakeVisible(mConnectionTimeLabel.get());
 
@@ -977,7 +1038,7 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
 
     //mTopLevelContainer->addAndMakeVisible(mInGainLabel.get());
     mTopLevelContainer->addAndMakeVisible(mDryLabel.get());
-    mTopLevelContainer->addAndMakeVisible(mOutGainLabel.get());
+    mTopLevelContainer->addChildComponent(mOutGainLabel.get());
     mTopLevelContainer->addAndMakeVisible(inputMeter.get());
     mTopLevelContainer->addAndMakeVisible(outputMeter.get());
     mTopLevelContainer->addAndMakeVisible (mInMixerButton.get());
@@ -1108,6 +1169,11 @@ CommsbusAudioProcessorEditor::CommsbusAudioProcessorEditor (CommsbusAudioProcess
 
 CommsbusAudioProcessorEditor::~CommsbusAudioProcessorEditor()
 {
+    mDeviceViewWindows.clear();
+
+    if (mMatrixViewButton) mMatrixViewButton->setLookAndFeel(nullptr);
+    if (mListViewButton) mListViewButton->setLookAndFeel(nullptr);
+
     if (menuBarModel) {
         menuBarModel->setApplicationCommandManagerToWatch(nullptr);
 #if JUCE_MAC
@@ -1225,6 +1291,80 @@ void CommsbusAudioProcessorEditor::busLayoutChanged(BusesView *comp)
 {
     updateLayout();
     resized();
+}
+
+void CommsbusAudioProcessorEditor::setReceiveMatrixShown(bool show, bool doLayout)
+{
+    processor.setReceiveRoutingMatrixShown(show);
+
+    mMatrixViewButton->setToggleState(show, dontSendNotification);
+    mListViewButton->setToggleState(!show, dontSendNotification);
+
+    mRoutingMatrix->setVisible(show);
+    mPeerContainer->setVisible(!show);
+
+    if (doLayout) {
+        if (show) {
+            mRoutingMatrix->refresh();
+        } else {
+            mPeerContainer->updatePeerViews();
+        }
+        resized();
+    }
+}
+
+void CommsbusAudioProcessorEditor::openDeviceView(int peerIndex)
+{
+    String key;
+    if (peerIndex >= 0) {
+        if (!isPositiveAndBelow(peerIndex, processor.getNumberRemotePeers()) || !processor.isPeerVisible(peerIndex)) return;
+        key = processor.getRemotePeerDisplayName(peerIndex);
+        if (key.isEmpty()) return; // nothing to follow it by
+    }
+
+    for (auto * w : mDeviceViewWindows) {
+        if (w->getPeerName() == key) {
+            w->refresh();
+            w->setVisible(true);
+            w->setMinimised(false);
+            w->toFront(true);
+            return;
+        }
+    }
+
+    auto * win = new DeviceViewWindow(processor, key, [this]() -> AudioDeviceManager* {
+        return getAudioDeviceManager ? getAudioDeviceManager() : nullptr;
+    });
+    win->onRoutingChanged = [this]() { routingChanged(); };
+
+    SafePointer<CommsbusAudioProcessorEditor> safeThis(this);
+    win->onCloseRequested = [safeThis](DeviceViewWindow * w) {
+        w->setVisible(false);
+        Component::SafePointer<DeviceViewWindow> safeWin(w);
+        // not from inside the window's own callback
+        MessageManager::callAsync([safeThis, safeWin]() {
+            if (safeThis && safeWin) {
+                safeThis->mDeviceViewWindows.removeObject(safeWin.getComponent());
+            }
+        });
+    };
+
+    mDeviceViewWindows.add(win);
+}
+
+void CommsbusAudioProcessorEditor::routingChanged()
+{
+    // the list view's destination buttons, the bus panel (a bus may have been
+    // created), the matrix, and every open device view
+    mPeerContainer->updatePeerViews();
+    mBusesContainer->refreshIfBusesChanged();
+
+    if (mRoutingMatrix->isVisible()) {
+        mRoutingMatrix->refresh();
+    }
+    for (auto * w : mDeviceViewWindows) {
+        w->refresh();
+    }
 }
 
 void CommsbusAudioProcessorEditor::internalSizesChanged(PeersContainerView *comp)
@@ -1461,7 +1601,8 @@ bool CommsbusAudioProcessorEditor::updatePeerState(bool force)
 {
     if (!mPeerContainer) return false;
     
-    if (force || mPeerContainer->getPeerViewCount() != processor.getNumberRemotePeers()) {
+    if (force || mPeerContainer->getPeerViewCount() != processor.getNumberRemotePeers()
+        || mPeerContainer->peerVisibilityChanged()) {
         mPeerContainer->rebuildPeerViews();
         updateLayout();
         resized();
@@ -1514,6 +1655,15 @@ void CommsbusAudioProcessorEditor::timerCallback(int timerid)
         updateChannelState();
 
         mBusesContainer->refreshIfBusesChanged();
+
+        // routing can also change from the list view's destination menus, the
+        // buses panel, or peers coming and going
+        if (mRoutingMatrix->isVisible()) {
+            mRoutingMatrix->refresh();
+        }
+        for (auto * w : mDeviceViewWindows) {
+            w->refresh();
+        }
 
         // keep the monitor / solo output open, and off the main device
         if (JUCEApplicationBase::isStandaloneApp() && getAudioDeviceManager && getAudioDeviceManager()) {
@@ -1670,11 +1820,11 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
         
     }
     else if (buttonThatWasClicked == mSetupAudioButton.get()) {
-        if (!settingsCalloutBox) {
+        if (!isSettingsShown()) {
             showSettings(true);
-            if (mOptionsView) {
-                mOptionsView->showAudioTab();
-            }
+        }
+        if (mOptionsView) {
+            mOptionsView->showAudioTab();
         }
     }
     else if (buttonThatWasClicked == mPatchbayButton.get()) {
@@ -1723,7 +1873,7 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
     else if (buttonThatWasClicked == mMainRecvMuteButton.get()) {
         // allow or disallow sending to all peers, handled by button attachment
 
-        if (processor.getNumberRemotePeers() > 0 && settingsCalloutBox == nullptr) {
+        if (processor.getNumberRemotePeers() > 0 && !isSettingsShown()) {
             if (mMainRecvMuteButton->getToggleState()) {
                 showPopTip(TRANS("Muted everyone"), 3000, mMainRecvMuteButton.get());
             } else {
@@ -1733,17 +1883,6 @@ void CommsbusAudioProcessorEditor::buttonClicked (Button* buttonThatWasClicked)
     }
     
     
-    else if (buttonThatWasClicked == mPeerLayoutMinimalButton.get()) {
-        processor.setPeerDisplayMode( CommsbusAudioProcessor::PeerDisplayModeMinimal);
-        mPeerContainer->setPeerDisplayMode(CommsbusAudioProcessor::PeerDisplayModeMinimal);
-        updateState();
-    }
-    else if (buttonThatWasClicked == mPeerLayoutFullButton.get()) {
-        processor.setPeerDisplayMode( CommsbusAudioProcessor::PeerDisplayModeFull);
-        mPeerContainer->setPeerDisplayMode(CommsbusAudioProcessor::PeerDisplayModeFull);
-        updateState();
-    }
-
     else if (buttonThatWasClicked == mMainLinkButton.get()) {
 
         showGroupMenu(true);
@@ -2183,59 +2322,6 @@ void CommsbusAudioProcessorEditor::showLatencyMatchView(bool show)
     }
 }
 
-void CommsbusAudioProcessorEditor::showVDONinjaView(bool show, bool fromVideoButton)
-{
-    if (show && vdoninjaViewCalloutBox == nullptr) {
-
-        auto wrap = std::make_unique<Viewport>();
-
-        Component* dw = this;
-
-#if JUCE_IOS || JUCE_ANDROID
-        const int defWidth = 320;
-        const int defHeight = 350;
-#else
-        const int defWidth = 500;
-        const int defHeight = 315;
-#endif
-
-        if (!mVDONinjaView) {
-            mVDONinjaView = std::make_unique<VDONinjaView>(processor);
-        }
-
-
-        int prefwidth = jmin(defWidth, dw->getWidth() - 10);
-        
-        // size it once, then get min height out of it
-        mVDONinjaView->setBounds(Rectangle<int>(0,0,prefwidth,defHeight));
-
-        auto useheight = mVDONinjaView->getMinimumContentBounds().getHeight() + mVDONinjaView->getMinimumHeaderBounds().getHeight();
-        auto usewidth = std::max(prefwidth, mVDONinjaView->getMinimumContentBounds().getWidth());
-
-        mVDONinjaView->setBounds(Rectangle<int>(0,0, usewidth,useheight));
-
-        wrap->setViewedComponent(mVDONinjaView.get(), false);
-        mVDONinjaView->updateState();
-        mVDONinjaView->setVisible(true);
-
-        wrap->setSize(usewidth, jmin(useheight, dw->getHeight() - 24));
-
-        Rectangle<int> bounds =  dw->getLocalArea(nullptr, fromVideoButton ? mVideoButton->getScreenBounds() : mMainLinkButton->getScreenBounds());
-        DBG("callout bounds: " << bounds.toString());
-        vdoninjaViewCalloutBox = & CallOutBox::launchAsynchronously (std::move(wrap), bounds , dw, false);
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(vdoninjaViewCalloutBox.get())) {
-            box->setDismissalMouseClicksAreAlwaysConsumed(true);
-        }
-    }
-    else {
-        // dismiss it
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(vdoninjaViewCalloutBox.get())) {
-            box->dismiss();
-            vdoninjaViewCalloutBox = nullptr;
-        }
-    }
-}
-
 void CommsbusAudioProcessorEditor::showSuggestGroupView(bool show)
 {
     if (show && suggestNewGroupViewCalloutBox == nullptr) {
@@ -2318,14 +2404,14 @@ void CommsbusAudioProcessorEditor::mouseDown (const MouseEvent& event)
 {
     
     if (event.eventComponent == mSettingsButton.get()) {
-        settingsWasShownOnDown = settingsCalloutBox != nullptr || (Time::getMillisecondCounter() < settingsClosedTimestamp + 500);
+        settingsWasShownOnDown = isSettingsShown() || (Time::getMillisecondCounter() < settingsClosedTimestamp + 500);
 
         if (!settingsWasShownOnDown) {
           //  showOrHideSettings();
         }
     }
     else if (event.eventComponent == mTitleLabel.get() || event.eventComponent == mTitleImage.get()) {
-        settingsWasShownOnDown = settingsCalloutBox != nullptr;
+        settingsWasShownOnDown = isSettingsShown();
         settingsClosedTimestamp = 0; // reset on a down
         if (settingsWasShownOnDown) {
             showSettings(false);
@@ -2460,7 +2546,11 @@ bool CommsbusAudioProcessorEditor::keyPressed (const KeyPress & key)
     }
     else if (key.isKeyCode(KeyPress::escapeKey)) {
         DBG("ESCAPE pressed");
-        if (mConnectView->isVisible()) {
+        if (isSettingsShown()) {
+            showSettings(false);
+            gotone = true;
+        }
+        else if (mConnectView->isVisible()) {
             mConnectView->escapePressed();
             gotone = true;
         }
@@ -2516,20 +2606,7 @@ void CommsbusAudioProcessorEditor::showSettings(bool flag)
 {
     DBG("Got settings click");
 
-    if (flag && settingsCalloutBox == nullptr) {
-        
-        //Viewport * wrap = new Viewport();
-        
-        Component* dw = this; 
-        
-#if JUCE_IOS || JUCE_ANDROID
-        int defWidth = 320;
-        int defHeight = 420;
-#else
-        int defWidth = 340;
-        int defHeight = 400;
-#endif
-        
+    if (flag && !isSettingsShown()) {
 
         bool firsttime = false;
         if (!mOptionsView) {
@@ -2546,32 +2623,16 @@ void CommsbusAudioProcessorEditor::showSettings(bool flag)
             firsttime = true;
         }
 
-
-        auto prefbounds = mOptionsView->getPreferredContentBounds();
-
-        defHeight = prefbounds.getHeight();
-
-        defWidth = jmin(defWidth + 8, dw->getWidth() - 30);
-        defHeight = jmin(defHeight + 8, dw->getHeight() - 90); // 24
-
-
-        auto wrap = std::make_unique<Component>();
-
-        wrap->addAndMakeVisible(mOptionsView.get());
-
-        mOptionsView->setBounds(Rectangle<int>(0,0,defWidth,defHeight));
-
-        wrap->setSize(defWidth,defHeight);
+        if (!mSettingsOverlay) {
+            mSettingsOverlay = std::make_unique<SettingsOverlay>(*mOptionsView, [this]() { showSettings(false); });
+            addChildComponent(mSettingsOverlay.get());
+        }
 
         updateOptionsState();
-        
-       
-        Rectangle<int> bounds =  dw->getLocalArea(nullptr, mTitleLabel->getScreenBounds().reduced(10));
-        DBG("callout bounds: " << bounds.toString());
-        settingsCalloutBox = & CallOutBox::launchAsynchronously (std::move(wrap), bounds , dw, false);
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(settingsCalloutBox.get())) {
-            box->setDismissalMouseClicksAreAlwaysConsumed(true);
-        }
+
+        mSettingsOverlay->setBounds(getLocalBounds());
+        mSettingsOverlay->setVisible(true);
+        mSettingsOverlay->toFront(true);
 
         settingsClosedTimestamp = 0;
 
@@ -2587,11 +2648,16 @@ void CommsbusAudioProcessorEditor::showSettings(bool flag)
         mOptionsView->grabInitialFocus();
 
     }
-    else {
+    else if (!flag && isSettingsShown()) {
         // dismiss it
-        if (CallOutBox * box = dynamic_cast<CallOutBox*>(settingsCalloutBox.get())) {
-            box->dismiss();
-            settingsCalloutBox = nullptr;
+        mSettingsOverlay->setVisible(false);
+        settingsClosedTimestamp = Time::getMillisecondCounter();
+
+        // a role or Central name change shows up in the peer list straight away
+        updatePeerState();
+
+        if (mSettingsButton->isShowing()) {
+            mSettingsButton->grabKeyboardFocus();
         }
     }
 }
@@ -2711,9 +2777,6 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         mReverbPreDelayLabel->setVisible(true);        
     }
 
-    mPeerLayoutMinimalButton->setToggleState(processor.getPeerDisplayMode() == CommsbusAudioProcessor::PeerDisplayModeMinimal, dontSendNotification);
-    mPeerLayoutFullButton->setToggleState(processor.getPeerDisplayMode() == CommsbusAudioProcessor::PeerDisplayModeFull, dontSendNotification);
-
     if (!currGroup.isEmpty() && currConnected)
     {
         String grouptext;
@@ -2721,8 +2784,10 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         mMainGroupLabel->setText(grouptext, dontSendNotification);
         String userstr;
 
-        if (processor.getNumberRemotePeers() > 0) {
-            userstr = String::formatted("%d", processor.getNumberRemotePeers() + 1);
+        // Only the peers this machine is shown (see isPeerVisible) are counted.
+        const int numvisible = processor.getNumberVisibleRemotePeers();
+        if (numvisible > 0) {
+            userstr = String::formatted("%d", numvisible + 1);
         } else {
             userstr = "1";
         }
@@ -2740,9 +2805,13 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         mMainLinkButton->setVisible(true);
         mMainLinkArrow->setVisible(true);
 
-        if (processor.getNumberRemotePeers() == 0 && mPeerContainer->getPendingPeerCount() == 0) {
+        if (processor.getNumberVisibleRemotePeers() == 0 && mPeerContainer->getPendingPeerCount() == 0) {
             String labstr;
-            labstr << TRANS("Waiting for other users to join group") << " \"" << currGroup << "\"...";
+            if (processor.getNetworkRole() == CommsbusAudioProcessor::NetworkRoleCampus && processor.getNumberRemotePeers() > 0) {
+                labstr << TRANS("Waiting for the Central host to join group") << " \"" << currGroup << "\"...";
+            } else {
+                labstr << TRANS("Waiting for other users to join group") << " \"" << currGroup << "\"...";
+            }
             mMainMessageLabel->setText(labstr, dontSendNotification);
             mMainMessageLabel->setVisible(true);
         } else {
@@ -3163,8 +3232,6 @@ void CommsbusAudioProcessorEditor::showGroupMenu(bool show)
 
     items.add(GenericItemChooserItem(TRANS("Group Latency Match..."), {}, nullptr, true));
 
-    items.add(GenericItemChooserItem(TRANS("VDO.Ninja Video Link..."), {}, nullptr, true));
-
     items.add(GenericItemChooserItem(TRANS("Suggest New Group..."), {}, nullptr, true));
 
 
@@ -3183,10 +3250,6 @@ void CommsbusAudioProcessorEditor::showGroupMenu(bool show)
             // group latency
             safeThis->showLatencyMatchView(true);
         } else if (index == 2) {
-            // vdo ninja
-            safeThis->showVDONinjaView(true, false);
-        }
-        else if (index == 3) {
             // suggest new group
             safeThis->showSuggestGroupView(true);
         }
@@ -3516,7 +3579,10 @@ void CommsbusAudioProcessorEditor::resized()
     Rectangle<int> inmixactualbounds = Rectangle<int>(0,0,0,0);
 
     const int sectionHeaderH = 18;
-    const int fullwidth = std::max(peersminbounds.getWidth(), mMainViewport->getWidth() - 10);
+    const bool matrixShown = mRoutingMatrix->isVisible();
+    // the matrix scrolls itself, so it never widens the main container
+    const int fullwidth = matrixShown ? std::max(200, mMainViewport->getWidth() - 10)
+                                      : std::max(peersminbounds.getWidth(), mMainViewport->getWidth() - 10);
 
     mTransmitHeaderLabel->setBounds(4, 0, fullwidth, sectionHeaderH);
 
@@ -3533,20 +3599,40 @@ void CommsbusAudioProcessorEditor::resized()
     const int receiveHeaderY = inmixactualbounds.getBottom() + vgap;
     mReceiveHeaderLabel->setBounds(4, receiveHeaderY, fullwidth, sectionHeaderH);
 
+    {
+        // MATRIX | LIST switch, right-aligned on the RECEIVE header line, kept
+        // within the visible width even when the peer rows are wider
+        const int toggleW = 56;
+        const int rightEdge = std::min(fullwidth, mMainViewport->getWidth() - 10);
+        mListViewButton->setBounds(rightEdge - toggleW, receiveHeaderY, toggleW, sectionHeaderH);
+        mMatrixViewButton->setBounds(rightEdge - 2 * toggleW, receiveHeaderY, toggleW, sectionHeaderH);
+    }
+
     // The buses panel is fixed height and always sits at the bottom of the
     // receive area, so the peer rows take whatever vertical space is left.
     const int busesH = busesminbounds.getHeight();
     const int busesBlockH = busesH + sectionHeaderH + vgap;
 
-    mPeerContainer->setBounds(Rectangle<int>(0, receiveHeaderY + sectionHeaderH, fullwidth,
-                                             std::max(peersminbounds.getHeight() + 5,
-                                                      mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap - 2*sectionHeaderH - busesBlockH)));
+    const int availRecvH = mMainViewport->getHeight() - inmixactualbounds.getHeight() - vgap - 2*sectionHeaderH - busesBlockH;
 
-    const int busesHeaderY = mPeerContainer->getBottom() + vgap;
+    mPeerContainer->setBounds(Rectangle<int>(0, receiveHeaderY + sectionHeaderH, fullwidth,
+                                             std::max(peersminbounds.getHeight() + 5, availRecvH)));
+
+    Component * recvComp = mPeerContainer.get();
+
+    if (matrixShown) {
+        // Fill the space left, like Dante Controller's window; when that is
+        // small, keep enough of the matrix to work in and let the main view scroll.
+        const int matrixH = std::max(availRecvH, std::min(mRoutingMatrix->getNaturalHeight(), 320));
+        mRoutingMatrix->setBounds(Rectangle<int>(0, receiveHeaderY + sectionHeaderH, fullwidth, matrixH));
+        recvComp = mRoutingMatrix.get();
+    }
+
+    const int busesHeaderY = recvComp->getBottom() + vgap;
     mBusesHeaderLabel->setBounds(4, busesHeaderY, fullwidth, sectionHeaderH);
     mBusesContainer->setBounds(Rectangle<int>(0, busesHeaderY + sectionHeaderH, fullwidth, busesH));
 
-    Rectangle<int> totbounds = mPeerContainer->getBounds().getUnion(inmixactualbounds)
+    Rectangle<int> totbounds = recvComp->getBounds().getUnion(inmixactualbounds)
                                    .getUnion(mTransmitHeaderLabel->getBounds())
                                    .getUnion(mBusesContainer->getBounds());
     //totbounds.setHeight(totbounds.getHeight());
@@ -3571,12 +3657,21 @@ void CommsbusAudioProcessorEditor::resized()
                                          mMainViewport->getY() + receiveHeaderY + sectionHeaderH + 45);
     
     mMainMessageLabel->setBounds(mMainViewport->getX() + 10, mSetupAudioButton->getBottom() + 10, mMainViewport->getRight() - mMainViewport->getX() - 20, jmin(120, mMainViewport->getBottom() - (mSetupAudioButton->getBottom() + 10)));
+
+    if (matrixShown) {
+        // keep the "waiting for..." message clear of the matrix's filter boxes
+        // and its own empty-grid message: over the grid area, below the headers
+        const int msgx = mMainViewport->getX() + RoutingMatrixView::rowHeaderWidth + 10;
+        const int msgy = mMainViewport->getY() + receiveHeaderY + sectionHeaderH + RoutingMatrixView::colHeaderHeight + 64;
+        mMainMessageLabel->setBounds(msgx, msgy, std::max(100, mMainViewport->getRight() - msgx - 10),
+                                     std::max(20, std::min(80, mMainViewport->getBottom() - msgy)));
+    }
     
 
 
     //auto grouptextbounds = Rectangle<int>(mMainPeerLabel->getX(), mMainGroupImage->getY(), mMainUserLabel->getRight() - mMainPeerLabel->getX(),  mMainGroupImage->getHeight()).expanded(2, 2);
     //auto grouptextbounds = Rectangle<int>(mMainPeerLabel->getX(), mMainGroupImage->getY(), mMainUserLabel->getRight() - mMainPeerLabel->getX(),  mMainUserLabel->getBottom() - mMainGroupImage->getY());
-    auto grouptextbounds = Rectangle<int>(mMainPeerLabel->getX(), mPeerLayoutFullButton->getY(), mMainUserLabel->getRight() - mMainPeerLabel->getX(),  mPeerLayoutFullButton->getHeight());
+    auto grouptextbounds = Rectangle<int>(mMainPeerLabel->getX(), mMainPeerLabel->getY(), mMainUserLabel->getRight() - mMainPeerLabel->getX(),  mMainPeerLabel->getHeight());
     mMainLinkButton->setBounds(grouptextbounds);
 
     auto triwidth = 12;
@@ -3595,6 +3690,10 @@ void CommsbusAudioProcessorEditor::resized()
     // connect component stuff
     if (mConnectView) {
         mConnectView->setBounds(getLocalBounds());
+    }
+
+    if (mSettingsOverlay) {
+        mSettingsOverlay->setBounds(getLocalBounds());
     }
 
     mConnectionTimeLabel->setBounds(mConnectButton->getBounds().removeFromBottom(16));
@@ -3667,7 +3766,6 @@ void CommsbusAudioProcessorEditor::updateLayout()
     
     outBox.items.clear();
     outBox.flexDirection = FlexBox::Direction::column;
-    outBox.items.add(FlexItem(minKnobWidth, minitemheight, *mOutGainSlider).withMargin(0).withFlex(1)); //.withAlignSelf(FlexItem::AlignSelf::center));
 
     inMeterBox.items.clear();
     inMeterBox.flexDirection = FlexBox::Direction::column;
@@ -3718,18 +3816,19 @@ void CommsbusAudioProcessorEditor::updateLayout()
 
     int minmainw = jmax(minPannerWidth, 2*mutew + 8) + inmeterwidth + jmax(minPannerWidth, 2*mutew + 8);
     
+    // No output level slider any more (outBox is left empty), so this is just
+    // the jitter-buffer reset button and the output meter, at a fixed width.
     outputMainBox.items.clear();
     outputMainBox.flexDirection = FlexBox::Direction::row;
     outputMainBox.items.add(FlexItem(7, 6).withMargin(0).withFlex(0));
     outputMainBox.items.add(FlexItem(toolwidth, minitemheight, *mBufferMinButton).withMargin(0).withFlex(0));
-    outputMainBox.items.add(FlexItem(4, 6).withMargin(0).withFlex(0));
-    outputMainBox.items.add(FlexItem(minSliderWidth, minitemheight, outBox).withMargin(0).withFlex(1)); //.withMaxWidth(isNarrow ? 160 : 120));
-    outputMainBox.items.add(FlexItem(4, 6).withMargin(0).withFlex(0));
+    outputMainBox.items.add(FlexItem(8, 6).withMargin(0).withFlex(0));
     outputMainBox.items.add(FlexItem(outmeterwidth, minitemheight, mainMeterBox).withMargin(0).withFlex(0));
-    if (isNarrow) {
-        outputMainBox.items.add(FlexItem(21, 6).withMargin(0).withFlex(0));
-    } else {
-        outputMainBox.items.add(FlexItem(16, 6).withMargin(0).withFlex(0));        
+    outputMainBox.items.add(FlexItem(isNarrow ? 21 : 16, 6).withMargin(0).withFlex(0));
+
+    int outputMainWidth = 0;
+    for (auto & item : outputMainBox.items) {
+        outputMainWidth += item.minWidth;
     }
 
     
@@ -3764,22 +3863,9 @@ void CommsbusAudioProcessorEditor::updateLayout()
 
     mainGroupLayoutBox.items.clear();
     mainGroupLayoutBox.flexDirection = FlexBox::Direction::row;
-    mainGroupLayoutBox.items.add(FlexItem(1, 4));
-    mainGroupLayoutBox.items.add(FlexItem(toolwidth, minitemheight, *mPeerLayoutMinimalButton).withMargin(0).withFlex(0));
-    mainGroupLayoutBox.items.add(FlexItem(toolwidth, minitemheight, *mPeerLayoutFullButton).withMargin(0).withFlex(0));
-    //mainGroupLayoutBox.items.add(FlexItem(3, 4));
-    //mainGroupLayoutBox.items.add(FlexItem(toolwidth, minitemheight, *mChatButton).withMargin(0).withFlex(0) ); //.withMaxWidth(maxPannerWidth));
-    mainGroupLayoutBox.items.add(FlexItem(4, 4));
+    mainGroupLayoutBox.items.add(FlexItem(5, 4));
     mainGroupLayoutBox.items.add(FlexItem(24, minitemheight, *mMainPeerLabel).withMargin(0).withFlex(0));
     mainGroupLayoutBox.items.add(FlexItem(minButtonWidth, minitemheight - 5, mainGroupUserBox).withMargin(0).withFlex(1));
-    if (processor.isConnectedToServer() && processor.getCurrentJoinedGroup().isNotEmpty() && !isReallyNarrow) {
-        mainGroupLayoutBox.items.add(FlexItem(3, 4).withMargin(1).withFlex(0.0));
-        mainGroupLayoutBox.items.add(FlexItem(toolwidth, minitemheight, *mVideoButton).withMargin(0).withFlex(0));
-        mVideoButton->setVisible(true);
-    }
-    else {
-        mVideoButton->setVisible(false);
-    }
 
 
 
@@ -3933,14 +4019,11 @@ void CommsbusAudioProcessorEditor::updateLayout()
     }
 #endif
 
-    if (!isNarrow) {
-        toolbarBox.items.add(FlexItem(1, 5).withMargin(0).withFlex(0.1));
-        toolbarBox.items.add(FlexItem(120, minitemheight, outputMainBox).withMargin(0).withFlex(1).withMaxWidth(390));
-        toolbarBox.items.add(FlexItem(6, 6).withMargin(0).withFlex(0));
-    }
-    else {    
-        toolbarBox.items.add(FlexItem(14, 6).withMargin(0).withFlex(0));
-    }
+    // Without the output level slider the output section is narrow enough to
+    // stay in the toolbar at every width, pushed to the right edge.
+    toolbarBox.items.add(FlexItem(1, 5).withMargin(0).withFlex(1));
+    toolbarBox.items.add(FlexItem(outputMainWidth, minitemheight, outputMainBox).withMargin(0).withFlex(0));
+    toolbarBox.items.add(FlexItem(6, 6).withMargin(0).withFlex(0));
     
 
     
@@ -3954,11 +4037,6 @@ void CommsbusAudioProcessorEditor::updateLayout()
 
     
     
-    if (isNarrow) {
-        mainBox.items.add(FlexItem(100, minitemheight + 4, outputMainBox).withMargin(0).withFlex(0)); 
-        mainBox.items.add(FlexItem(4, 4).withMargin(0).withFlex(0));
-        minheight += minitemheight + 8;
-    }
     mainBox.items.add(FlexItem(100, minitemheight + 4, toolbarBox).withMargin(0).withFlex(0)); minheight += minitemheight + 10;
     mainBox.items.add(FlexItem(10, 6).withFlex(0));
         
@@ -4242,15 +4320,6 @@ void CommsbusAudioProcessorEditor::getCommandInfo (CommandID cmdID, ApplicationC
                           TRANS("Popup"), 0);
             info.setActive(true);
             break;
-        case CommsbusCommands::ToggleFullInfoView:
-            info.setInfo(TRANS("Toggle Full Info View"),
-                TRANS("Toggle Full Info View"),
-                TRANS("Popup"), 0);
-            info.setActive(true);
-            if (useKeybindings) {
-                info.addDefaultKeypress('i', ModifierKeys::commandModifier);
-            }
-            break;
         case CommsbusCommands::ShowConnectMenu:
             info.setInfo(TRANS("Show Connect Menu"),
                 TRANS("Show Connect Menu"),
@@ -4301,15 +4370,6 @@ void CommsbusAudioProcessorEditor::getCommandInfo (CommandID cmdID, ApplicationC
                 info.addDefaultKeypress ('l', ModifierKeys::commandModifier | ModifierKeys::altModifier);
             }
             break;
-        case CommsbusCommands::VDONinjaVideoLink:
-            info.setInfo (TRANS("VDO.Ninja Video Link..."),
-                          TRANS("VDO.Ninja Video Link..."),
-                          TRANS("Popup"), 0);
-            info.setActive(currConnected && !currGroup.isEmpty());
-            if (useKeybindings) {
-                info.addDefaultKeypress ('v', ModifierKeys::commandModifier | ModifierKeys::altModifier);
-            }
-            break;
         case CommsbusCommands::SuggestNewGroup:
             info.setInfo (TRANS("Suggest New Group..."),
                           TRANS("Suggest New Group..."),
@@ -4345,11 +4405,9 @@ void CommsbusAudioProcessorEditor::getAllCommands (Array<CommandID>& cmds) {
     cmds.add(CommsbusCommands::ShowViewMenu);
     cmds.add(CommsbusCommands::ShowGroupMenu);
     cmds.add(CommsbusCommands::ShowConnectMenu);
-    cmds.add(CommsbusCommands::ToggleFullInfoView);
     cmds.add(CommsbusCommands::ToggleAllMonitorDelay);
     cmds.add(CommsbusCommands::CopyGroupLink);
     cmds.add(CommsbusCommands::GroupLatencyMatch);
-    cmds.add(CommsbusCommands::VDONinjaVideoLink);
     cmds.add(CommsbusCommands::SuggestNewGroup);
     cmds.add(CommsbusCommands::ResetAllJitterBuffers);
 
@@ -4371,11 +4429,6 @@ bool CommsbusAudioProcessorEditor::perform (const InvocationInfo& info) {
             if (getInputChannelGroupsView()) {
                 getInputChannelGroupsView()->toggleAllMonitorDelay();
             }
-            break;
-        case CommsbusCommands::ToggleFullInfoView:
-
-            buttonClicked(processor.getPeerDisplayMode() == CommsbusAudioProcessor::PeerDisplayModeMinimal ?
-                          mPeerLayoutFullButton.get() : mPeerLayoutMinimalButton.get());
             break;
         case CommsbusCommands::ShowConnectMenu:
             if (mMenuBar) {
@@ -4434,9 +4487,6 @@ bool CommsbusAudioProcessorEditor::perform (const InvocationInfo& info) {
             break;
         case CommsbusCommands::GroupLatencyMatch:
             showLatencyMatchView(true);
-            break;
-        case CommsbusCommands::VDONinjaVideoLink:
-            showVDONinjaView(true, mVideoButton->isShowing());
             break;
         case CommsbusCommands::SuggestNewGroup:
             showSuggestGroupView(true);
@@ -4533,7 +4583,6 @@ PopupMenu CommsbusAudioProcessorEditor::CommsbusMenuBarModel::getMenuForIndex (i
         case MenuGroupIndex:
             retval.addCommandItem (&parent.commandManager, CommsbusCommands::CopyGroupLink);
             retval.addCommandItem (&parent.commandManager, CommsbusCommands::GroupLatencyMatch);
-            retval.addCommandItem (&parent.commandManager, CommsbusCommands::VDONinjaVideoLink);
             retval.addCommandItem (&parent.commandManager, CommsbusCommands::SuggestNewGroup);
             break;
         case MenuTransportIndex:
@@ -4541,7 +4590,6 @@ PopupMenu CommsbusAudioProcessorEditor::CommsbusMenuBarModel::getMenuForIndex (i
             break;
         case MenuViewIndex:
             retval.addCommandItem (&parent.commandManager, CommsbusCommands::ChatToggle);
-            retval.addCommandItem (&parent.commandManager, CommsbusCommands::ToggleFullInfoView);
             break;
 
         case MenuHelpIndex:

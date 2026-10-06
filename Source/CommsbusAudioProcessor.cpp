@@ -111,6 +111,9 @@ static String reconnectServerLossKey("reconnServLoss");
 static String monitorDeviceKey("MonitorDevice");
 static String sendMultichannelMigratedKey("SendMultiMigrated");
 static String dynResampleMigratedKey("DynResampleMigrated");
+static String networkRoleKey("NetworkRole");
+static String receiveMatrixShownKey("ReceiveMatrixShown");
+static String centralNameKey("CentralName");
 
 static String compressorStateKey("CompressorState");
 static String expanderStateKey("ExpanderState");
@@ -7378,6 +7381,9 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
                         }
                     }
                 }
+                else if (busidx == ChannelGroupParams::BusAssignUnpatched) {
+                    // unpatched in the routing matrix: reaches no main output
+                }
                 else {
                     // todo change dest ch target
                     int dstch = remote->chanGroups[i].params.panDestStartIndex;
@@ -7722,42 +7728,6 @@ void AooServerConnectionInfo::setFromValueTree(const ValueTree & item)
 }
 
 
-static String videoLinkInfoKey("VideoLinkInfo");
-static String videoLinkRoomModeKey("roomMode");
-static String videoLinkShowNamesKey("showNames");
-static String videoLinkExtraParamsKey("extraParams");
-static String videoLinkBeDirectorKey("beDir");
-static String videoLinkLargeShareKey("largeShare");
-static String videoLinkPushViewModeKey("pushViewMode");
-static String videoLinkScreenShareParamsKey("screenShare");
-
-ValueTree CommsbusAudioProcessor::VideoLinkInfo::getValueTree() const
-{
-    ValueTree item(videoLinkInfoKey);
-    
-    item.setProperty(videoLinkRoomModeKey, roomMode, nullptr);
-    item.setProperty(videoLinkShowNamesKey, showNames, nullptr);
-    item.setProperty(videoLinkScreenShareParamsKey, screenShareMode, nullptr);
-    item.setProperty(videoLinkExtraParamsKey, extraParams, nullptr);
-    item.setProperty(videoLinkBeDirectorKey, beDirector, nullptr);
-    item.setProperty(videoLinkLargeShareKey, largeShare, nullptr);
-    item.setProperty(videoLinkPushViewModeKey, pushViewMode, nullptr);
-
-    return item;
-}
-
-void CommsbusAudioProcessor::VideoLinkInfo::setFromValueTree(const ValueTree & item)
-{
-    roomMode = item.getProperty(videoLinkRoomModeKey, roomMode);
-    showNames = item.getProperty(videoLinkShowNamesKey, showNames);
-    screenShareMode = item.getProperty(videoLinkScreenShareParamsKey, screenShareMode);
-    extraParams = item.getProperty(videoLinkExtraParamsKey, extraParams);
-    beDirector = item.getProperty(videoLinkBeDirectorKey, beDirector);
-    largeShare = item.getProperty(videoLinkLargeShareKey, largeShare);
-    pushViewMode = item.getProperty(videoLinkPushViewModeKey, pushViewMode);
-}
-
-
 void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destData, bool includecache, bool includeInputGroups, bool xmlformat)
 {
     // You should use this method to store your parameters in the memory block.
@@ -7820,11 +7790,12 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(autoresizeDropRateThreshKey, var((float)mAutoresizeDropRateThresh), nullptr);
     extraTree.setProperty(reconnectServerLossKey, mReconnectAfterServerLoss.get(), nullptr);
     extraTree.setProperty(monitorDeviceKey, mMonitorDeviceId, nullptr);
+    extraTree.setProperty(networkRoleKey, var((int)mNetworkRole), nullptr);
+    extraTree.setProperty(centralNameKey, mCentralName, nullptr);
+    extraTree.setProperty(receiveMatrixShownKey, mReceiveMatrixShown, nullptr);
     extraTree.setProperty(sendMultichannelMigratedKey, true, nullptr);
     extraTree.setProperty(dynResampleMigratedKey, true, nullptr);
 
-    extraTree.appendChild(mVideoLinkInfo.getValueTree(), nullptr);
-    
     ValueTree inputChannelGroupsTree = tempstate.getOrCreateChildWithName(inputChannelGroupsStateKey, nullptr);
     if (includeInputGroups) {
         inputChannelGroupsTree.removeAllChildren(nullptr);
@@ -7984,11 +7955,13 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
                 mMonitorApplied = false; // maintainMonitorOutput opens it
             }
 
-            
-            ValueTree videoinfo = extraTree.getChildWithName(videoLinkInfoKey);
-            if (videoinfo.isValid()) {
-                mVideoLinkInfo.setFromValueTree(videoinfo);
-            }
+            setNetworkRole((int) extraTree.getProperty(networkRoleKey, (int)mNetworkRole) == (int) NetworkRoleCampus
+                           ? NetworkRoleCampus : NetworkRoleCentral);
+            setCentralName(extraTree.getProperty(centralNameKey, mCentralName).toString());
+            setReceiveRoutingMatrixShown(extraTree.getProperty(receiveMatrixShownKey, mReceiveMatrixShown));
+
+            // A VideoLinkInfo child left by the removed VDO.Ninja support is ignored,
+            // and dropped on the next save (extraTree is rebuilt from scratch).
         }
 
         if (includeInputGroups) {
@@ -8206,6 +8179,265 @@ void CommsbusAudioProcessor::setRemotePeerChannelGroupBus(int index, int changro
     auto remote = mRemotePeers.getUnchecked(index);
     if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return;
     remote->chanGroups[changroup].params.busAssign = busIndex;
+}
+
+bool CommsbusAudioProcessor::getRemotePeerChannelGroupOutputs(int index, int changroup, int & retstart, int & retcount, int & retbus) const
+{
+    retstart = -1;
+    retcount = 0;
+    retbus = -1;
+
+    int bus = ChannelGroupParams::BusAssignDirect;
+    int dst = 0, dcnt = 1;
+    {
+        const ScopedReadLock sl (mCoreLock);
+        if (!isPositiveAndBelow(index, mRemotePeers.size())) return false;
+        auto remote = mRemotePeers.getUnchecked(index);
+        if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return false;
+        const auto & params = remote->chanGroups[changroup].params;
+        bus = params.busAssign;
+        dst = params.panDestStartIndex;
+        dcnt = params.panDestChannels;
+    }
+
+    if (bus == ChannelGroupParams::BusAssignUnpatched) {
+        return false;
+    }
+
+    if (bus >= 0) {
+        OutputBus ob;
+        if (getOutputBus(bus, ob)) {
+            retstart = ob.destStartIndex;
+            retcount = jmax(1, ob.destChannels);
+            retbus = bus;
+            return true;
+        }
+        // a stale bus index behaves as direct out in processBlock
+    }
+
+    retstart = dst;
+    retcount = jmax(1, dcnt);
+    return true;
+}
+
+bool CommsbusAudioProcessor::isRemotePeerChannelGroupPatchedTo(int index, int changroup, int outch) const
+{
+    int start = -1, count = 0, bus = -1;
+    if (!getRemotePeerChannelGroupOutputs(index, changroup, start, count, bus)) return false;
+    return outch >= start && outch < start + count;
+}
+
+void CommsbusAudioProcessor::patchRemotePeerChannelGroupToOutput(int index, int changroup, int outch, String * retNote)
+{
+    if (mPatchingLocked.get()) return;
+
+    if (retNote) retNote->clear();
+
+    if (!isPositiveAndBelow(index, getNumberRemotePeers())) return;
+    if (!isPositiveAndBelow(changroup, getRemotePeerChannelGroupCount(index))) return;
+    if (outch < 0) return;
+
+    if (isRemotePeerChannelGroupPatchedTo(index, changroup, outch)) {
+        return; // already there
+    }
+
+    // What else already lands on this output? Streams going straight out to
+    // exactly this channel, and buses whose output is this channel.
+    struct GroupRef { int peer; int group; };
+    Array<GroupRef> directOthers;
+    int otherCount = 0;
+
+    const int numpeers = getNumberRemotePeers();
+    for (int p = 0; p < numpeers; ++p) {
+        const int groups = getRemotePeerChannelGroupCount(p);
+        for (int g = 0; g < groups; ++g) {
+            if (p == index && g == changroup) continue;
+            int start = -1, count = 0, bus = -1;
+            if (!getRemotePeerChannelGroupOutputs(p, g, start, count, bus)) continue;
+            if (outch < start || outch >= start + count) continue;
+            ++otherCount;
+            if (bus < 0 && start == outch && count == 1) {
+                directOthers.add({ p, g });
+            }
+        }
+    }
+
+    int busOnOutput = -1;
+    const int numbuses = getNumOutputBuses();
+    for (int b = 0; b < numbuses && busOnOutput < 0; ++b) {
+        OutputBus ob;
+        if (getOutputBus(b, ob) && ob.destStartIndex == outch && jmax(1, ob.destChannels) == 1) {
+            busOnOutput = b;
+        }
+    }
+
+    // keep the direct destination pointing here too, so if the bus is ever
+    // removed the stream falls back to this same output
+    int cst = 0, ccnt = 1;
+    getRemotePeerChannelGroupDestStartAndCount(index, changroup, cst, ccnt);
+    setRemotePeerChannelGroupDestStartAndCount(index, changroup, outch, 1);
+
+    if (otherCount == 0 && busOnOutput < 0) {
+        // the simple Dante case: nothing else here, so straight out
+        setRemotePeerChannelGroupBus(index, changroup, ChannelGroupParams::BusAssignDirect);
+        return;
+    }
+
+    bool created = false;
+    if (busOnOutput < 0 && directOthers.size() > 0) {
+        OutputBus nb(TRANS("Out") + " " + String(outch + 1) + " " + TRANS("Mix"), outch, 1);
+        busOnOutput = addOutputBus(nb);
+        created = busOnOutput >= 0;
+    }
+
+    if (busOnOutput < 0) {
+        // No bus could be made (all MAX_OUTPUT_BUSES in use), or what is already
+        // here is a wider destination. Direct outs to one channel still sum, so
+        // this still works, it just has no shared level.
+        setRemotePeerChannelGroupBus(index, changroup, ChannelGroupParams::BusAssignDirect);
+        if (retNote) {
+            *retNote << TRANS("Out") << " " << (outch + 1) << " " << TRANS("now carries") << " " << (otherCount + 1) << " "
+                     << TRANS("streams, summed directly (no free bus to combine them through).");
+        }
+        return;
+    }
+
+    for (auto & ref : directOthers) {
+        setRemotePeerChannelGroupBus(ref.peer, ref.group, busOnOutput);
+    }
+    setRemotePeerChannelGroupBus(index, changroup, busOnOutput);
+
+    if (retNote) {
+        const String busname = getOutputBusName(busOnOutput);
+        int total = 0;
+        for (int p = 0; p < numpeers; ++p) {
+            const int groups = getRemotePeerChannelGroupCount(p);
+            for (int g = 0; g < groups; ++g) {
+                if (getRemotePeerChannelGroupBus(p, g) == busOnOutput) ++total;
+            }
+        }
+        *retNote << TRANS("Out") << " " << (outch + 1) << " " << TRANS("now carries") << " " << total << " "
+                 << TRANS("streams, combined through bus") << " \"" << busname << "\""
+                 << (created ? String(" (") + TRANS("created") + ")" : String()) << ".";
+    }
+}
+
+void CommsbusAudioProcessor::unpatchRemotePeerChannelGroup(int index, int changroup)
+{
+    if (mPatchingLocked.get()) return;
+
+    if (!isPositiveAndBelow(index, getNumberRemotePeers())) return;
+    if (!isPositiveAndBelow(changroup, MAX_CHANGROUPS)) return;
+
+    // Leave panDest alone so the destination menu still shows a sensible
+    // channel to go back to; mark the groups modified so a format update from
+    // the peer does not reset the routing.
+    int dst = 0, dcnt = 1;
+    getRemotePeerChannelGroupDestStartAndCount(index, changroup, dst, dcnt);
+    setRemotePeerChannelGroupDestStartAndCount(index, changroup, dst, dcnt);
+    setRemotePeerChannelGroupBus(index, changroup, ChannelGroupParams::BusAssignUnpatched);
+}
+
+int CommsbusAudioProcessor::unpatchOutputChannel(int outch)
+{
+    if (mPatchingLocked.get()) return 0;
+
+    int count = 0;
+    const int numpeers = getNumberRemotePeers();
+    for (int p = 0; p < numpeers; ++p) {
+        const int groups = getRemotePeerChannelGroupCount(p);
+        for (int g = 0; g < groups; ++g) {
+            if (isRemotePeerChannelGroupPatchedTo(p, g, outch)) {
+                unpatchRemotePeerChannelGroup(p, g);
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+String CommsbusAudioProcessor::getRemotePeerDisplayName(int index) const
+{
+    String name = getRemotePeerUserName(index);
+    if (name.isEmpty()) {
+        String host;
+        int port = 0;
+        if (getRemotePeerAddressInfo(index, host, port) && host.isNotEmpty()) {
+            name << host << ":" << port;
+        }
+    }
+    return name;
+}
+
+bool CommsbusAudioProcessor::isPeerVisible(int index) const
+{
+    if (mNetworkRole != NetworkRoleCampus) {
+        return true;
+    }
+
+    const int numpeers = getNumberRemotePeers();
+    if (index < 0 || index >= numpeers) {
+        return false;
+    }
+
+    String host;
+    int port = 0;
+    const bool haveaddr = getRemotePeerAddressInfo(index, host, port);
+
+    // A Central name was given: show the peer that carries it -- by user name,
+    // or for a nameless direct peer by its address or its saved direct-peer label.
+    if (mCentralName.isNotEmpty()) {
+        if (getRemotePeerUserName(index).trim().equalsIgnoreCase(mCentralName)) {
+            return true;
+        }
+        if (haveaddr && host.isNotEmpty()) {
+            if (host.equalsIgnoreCase(mCentralName) || (host + ":" + String(port)).equalsIgnoreCase(mCentralName)) {
+                return true;
+            }
+            for (const auto & entry : mAutoConnectManager.getPeers()) {
+                if (entry.host == host && entry.port == port && entry.name.trim().equalsIgnoreCase(mCentralName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // No Central name. A campus normally reaches the host as a configured direct
+    // peer, so any peer at a direct-peer address is taken to be the host.
+    bool anydirect = false;
+    const auto directpeers = mAutoConnectManager.getPeers();
+    for (int i = 0; i < numpeers && !directpeers.isEmpty(); ++i) {
+        String h;
+        int p = 0;
+        if (!getRemotePeerAddressInfo(i, h, p)) continue;
+        for (const auto & entry : directpeers) {
+            if (entry.host == h && entry.port == p) {
+                if (i == index) return true;
+                anydirect = true;
+            }
+        }
+    }
+    if (anydirect) {
+        return false;
+    }
+
+    // Otherwise the earliest-connected peer still present (peers are kept in
+    // connection order) is the best guess at the host.
+    return index == 0;
+}
+
+int CommsbusAudioProcessor::getNumberVisibleRemotePeers() const
+{
+    const int numpeers = getNumberRemotePeers();
+    if (mNetworkRole != NetworkRoleCampus) {
+        return numpeers;
+    }
+    int count = 0;
+    for (int i = 0; i < numpeers; ++i) {
+        if (isPeerVisible(i)) ++count;
+    }
+    return count;
 }
 
 void CommsbusAudioProcessor::setMonitorDevice(const String & deviceId)

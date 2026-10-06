@@ -21,11 +21,9 @@ public:
         ShowViewMenu,
         ShowConnectMenu,
         ShowGroupMenu,
-        ToggleFullInfoView,
         ToggleAllMonitorDelay,
         CopyGroupLink,
         GroupLatencyMatch,
-        VDONinjaVideoLink,
         SuggestNewGroup,
         ResetAllJitterBuffers
     };

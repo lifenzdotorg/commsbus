@@ -11,6 +11,7 @@
 #include "SonoChoiceButton.h"
 #include "SonoDrawableButton.h"
 #include "GenericItemChooser.h"
+#include "ChannelTrimView.h"
 
 
 class OptionsView :
@@ -64,6 +65,7 @@ public:
 
     void showAudioTab();
     void showOptionsTab();
+    void showChannelsTab();
     void showRecordingTab();
 
     void showWarnings();
@@ -151,6 +153,17 @@ protected:
     StringArray mMonitorDeviceIds; // parallel to the choice items, id = index + 1
     std::unique_ptr<ToggleButton> mOptionsUnivFontButton;
 
+    // star-network role
+    void updateRoleVisibility();
+    std::unique_ptr<SonoChoiceButton> mOptionsRoleChoice;
+    std::unique_ptr<Label> mOptionsRoleLabel;
+    std::unique_ptr<TextEditor> mOptionsCentralNameEditor;
+    std::unique_ptr<Label> mOptionsCentralNameLabel;
+
+    // CHANNELS tab: per-channel trim
+    std::unique_ptr<ChannelTrimView> mChannelTrimView;
+    std::unique_ptr<Viewport> mChannelsViewport;
+
 
 
 
@@ -174,6 +187,8 @@ protected:
     FlexBox optionsLanguageBox;
     FlexBox optionsAllowBluetoothBox;
     FlexBox optionsAutoDropThreshBox;
+    FlexBox optionsRoleBox;
+    FlexBox optionsCentralNameBox;
 
     FlexBox optionsRecMixMinusBox;
     FlexBox optionsRecOthersBox;

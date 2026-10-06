@@ -12,7 +12,7 @@ public:
     DestChannelListItemData(const DestChannelListItemData & other) : startIndex(other.startIndex), count(other.count), busIndex(other.busIndex) {}
     DestChannelListItemData(int start, int cnt) : startIndex(start), count(cnt) {}
     // busIndex >= 0 routes the group to that output bus instead of straight out;
-    // -2 means "create a new bus and route to it".
+    // -2 means "create a new bus and route to it", -3 "not patched anywhere".
     DestChannelListItemData(int bus) : startIndex(0), count(0), busIndex(bus) {}
 
     int startIndex;
@@ -1555,10 +1555,12 @@ void ChannelGroupsView::setupChildren(ChannelGroupView * pvf)
     pvf->addAndMakeVisible(pvf->destButton.get());
     pvf->addAndMakeVisible(pvf->muteButton.get());
     pvf->addAndMakeVisible(pvf->soloButton.get());
-    pvf->addAndMakeVisible(pvf->levelSlider.get());
+    // Level is set from the CHANNELS settings tab, not on the strip; the slider
+    // still exists (and tracks the gain) but is never shown or laid out.
+    pvf->addChildComponent(pvf->levelSlider.get());
     pvf->addChildComponent(pvf->monitorSlider.get());
     //pvf->addAndMakeVisible(pvf->levelLabel.get());
-    pvf->addAndMakeVisible(pvf->panLabel.get());
+    pvf->addChildComponent(pvf->panLabel.get()); // no panning anywhere: all channels are mono
     pvf->addAndMakeVisible(pvf->nameLabel.get());
     pvf->addAndMakeVisible(pvf->chanLabel.get());
     pvf->addChildComponent(pvf->nameEditor.get());
@@ -1571,7 +1573,7 @@ void ChannelGroupsView::setupChildren(ChannelGroupView * pvf)
 
     pvf->addAndMakeVisible(pvf->monfxButton.get());
 
-    pvf->addAndMakeVisible(pvf->panSlider.get());
+    pvf->addChildComponent(pvf->panSlider.get());
 
     pvf->panSlider->setPopupDisplayEnabled(true, true, dw);
 
@@ -1725,9 +1727,11 @@ void ChannelGroupsView::updateLayoutForRemotePeer(bool notify)
             pvf->inbox.items.add(FlexItem(3, 3));
 
 
-            pvf->inbox.items.add(FlexItem(namewidth, minitemheight, pvf->namebox).withMargin(0).withFlex(0));
+            // The name takes up the room the level slider used to have.
+            pvf->inbox.items.add(FlexItem(namewidth, minitemheight, pvf->namebox).withMargin(0).withFlex(1));
             if (!isNarrow) {
-                // Receive rows carry level and routing -- no effects, no panning.
+                // Receive rows carry routing only -- no effects, no panning, and
+                // level is set from the CHANNELS settings tab.
                 // Solo only picks what is heard on the monitor output.
                 pvf->inbox.items.add(FlexItem(6, 3));
                 pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->muteButton).withMargin(0).withFlex(0));
@@ -1736,9 +1740,7 @@ void ChannelGroupsView::updateLayoutForRemotePeer(bool notify)
                     pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->soloButton).withMargin(0).withFlex(0));
                 }
             }
-            pvf->inbox.items.add(FlexItem(3, 3));
-            pvf->inbox.items.add(FlexItem(minSliderWidth, minitemheight, *pvf->levelSlider).withMargin(0).withFlex(1));
-            pvf->inbox.items.add(FlexItem(1, 3));
+            pvf->inbox.items.add(FlexItem(4, 3));
 
             if (isNarrow) {
                 pvf->inbox.items.add(FlexItem(2, 3));
@@ -1920,10 +1922,7 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
 {
     int minitemheight =  30;
     int mincheckheight = 32;
-    int minPannerWidth = isNarrow ? 50 : 64;
     int minButtonWidth = 60;
-    int maxPannerWidth = 130;
-    int compactMaxPannerWidth = 90;
     int minSliderWidth = isNarrow ? 90 : 100;
     int meterwidth = 10;
     int mainmeterwidth = 10;
@@ -1933,8 +1932,8 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     int destbuttwidth = 44;
     int destminbuttwidth = isNarrow ? 36 : 44;
     // Local input is never monitored on the main outputs (see the monitor / solo
-    // output), so the transmit strip has no monitor level or monitor-out button.
-    int monsliderwidth =  0;
+    // output), so the transmit strip has no monitor level or monitor-out button,
+    // and every channel is mono, so it has no pan control either.
     int namewidth = isNarrow ? 88 : 100;
     int addrowheight = minitemheight - 2;
 
@@ -1942,7 +1941,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     // make the button heights a bit more for touchscreen purposes
     minitemheight =  38;
     mincheckheight = 40;
-    minPannerWidth = 60;
 #endif
 
     const int textheight = minitemheight / 2;
@@ -1979,8 +1977,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     int deststart = 0;
     int destcnt = 1;
 
-    bool pannervisible = true;
-
     int totaloutchans = 1;
 
     int estwidth = mEstimatedWidth > 13 ? mEstimatedWidth - 13 : 320;
@@ -2001,9 +1997,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
     processor.getInputGroupChannelDestStartAndCount(changroup, deststart, destcnt);
 
     destcnt = jmin(totaloutchans, destcnt);
-    if ((sendcnt != 2 && destcnt != 2) || chcnt == 0) {
-        pannervisible = false;
-    }
 
 
     // Main connected peer views
@@ -2035,11 +2028,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
             processor.getInputGroupChannelDestStartAndCount(changroup, deststart, destcnt);
 
             destcnt = jmin(totaloutchans, destcnt);
-            if ((sendcnt != 2 && destcnt != 2) || chcnt == 0) {
-                pannervisible = false;
-            } else {
-                pannervisible = true;
-            }
             chi = 0;
         }
 
@@ -2082,16 +2070,15 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
             pvf->inbox.items.add(FlexItem(3, 3));
 
 
-            pvf->inbox.items.add(FlexItem(namewidth, minitemheight, pvf->namebox).withMargin(0).withFlex(0));
+            // The name takes up the room the level slider used to have.
+            pvf->inbox.items.add(FlexItem(namewidth, minitemheight, pvf->namebox).withMargin(0).withFlex(1));
             if (!isNarrow) {
                 pvf->inbox.items.add(FlexItem(6, 3));
                 pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->muteButton).withMargin(0).withFlex(0));
                 pvf->inbox.items.add(FlexItem(3, 3));
                 pvf->inbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->soloButton).withMargin(0).withFlex(0));
             }
-            pvf->inbox.items.add(FlexItem(3, 3));
-            pvf->inbox.items.add(FlexItem(minSliderWidth, minitemheight, *pvf->levelSlider).withMargin(0).withFlex(1));
-            pvf->inbox.items.add(FlexItem(1, 3));
+            pvf->inbox.items.add(FlexItem(4, 3));
 
 
             if (isNarrow) {
@@ -2122,15 +2109,6 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
 
                 pvf->monbox.items.add(FlexItem(4, 3));
 
-                //if (pannervisible)
-                {
-                    pvf->monbox.items.add(FlexItem(2, 3));
-                    pvf->monbox.items.add(FlexItem(minPannerWidth, minitemheight, *pvf->panSlider).withMargin(0).withFlex(1).withMaxWidth(maxPannerWidth));
-                    pvf->monbox.items.add(FlexItem(1, 3).withFlex(0.1).withMaxWidth(meterwidth + 10));
-                }
-
-
-
                 if (destbuttvisible) {
                     pvf->monbox.items.add(FlexItem(destminbuttwidth, minitemheight, *pvf->destButton).withMargin(0).withFlex(1).withMaxWidth(destbuttwidth));
                     pvf->monbox.items.add(FlexItem(2, 3));
@@ -2139,12 +2117,8 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
             }
             else {
                 pvf->monbox.items.add(FlexItem(mainmeterwidth, minitemheight, *pvf->meter).withMargin(0).withFlex(0));
-                pvf->monbox.items.add(FlexItem(4, 3));
+                pvf->monbox.items.add(FlexItem(3, 3));
 
-                //if (pannervisible) {
-                    pvf->monbox.items.add(FlexItem(minPannerWidth, minitemheight, *pvf->panSlider).withMargin(0).withFlex(0.25).withMaxWidth(maxPannerWidth));
-                    pvf->monbox.items.add(FlexItem(3, 3));
-                //}
                 //pvf->monbox.items.add(FlexItem(mutebuttwidth, minitemheight, *pvf->fxButton).withMargin(0).withFlex(0));
                 //pvf->monbox.items.add(FlexItem(2, 3));
 
@@ -2196,13 +2170,8 @@ void ChannelGroupsView::updateLayoutForInput(bool notify)
                 pvf->maincontentbox.items.add(FlexItem(3, 2));
                 pvf->maincontentbox.items.add(FlexItem(ipw, iph , pvf->inbox).withMargin(0).withFlex(2));
                 pvf->maincontentbox.items.add(FlexItem(2, 2));
-                //if (pannervisible)
-                {
-                    pvf->maincontentbox.items.add(FlexItem(mpw, mph , pvf->monbox).withMargin(0).withFlex(1).withMaxWidth(maxPannerWidth + (monsliderwidth) + (destbuttvisible ? destbuttwidth + 2 : 0) + 6));
-                }
-                //else {
-                //    pvf->maincontentbox.items.add(FlexItem(mpw, mph , pvf->monbox).withMargin(0).withFlex(0)); // (1).withMaxWidth(mutebuttwidth + destbuttwidth + 4));
-                //}
+                // just the meter (and dest button if shown) -- no pan, so no flex
+                pvf->maincontentbox.items.add(FlexItem(mpw, mph , pvf->monbox).withMargin(0).withFlex(0));
 
 
                 pvf->mainbox.items.add(FlexItem(60, iph, pvf->maincontentbox).withMargin(0).withFlex(0));
@@ -2425,32 +2394,14 @@ void ChannelGroupsView::updateInputModeChannelViews(int specific)
         }
         pvf->destButton->setButtonText(desttext);
 
-        if (sendcnt != 2 && destcnt != 2) {
-            pvf->panSlider->setVisible(false);
-            pvf->panLabel->setVisible(false);
-        }
-        else if (chcnt == 1) {
-            pvf->panLabel->setVisible(true);
-            pvf->panSlider->setVisible(true);
-            pvf->panSlider->setDoubleClickReturnValue(true, 0.0);
-
-        } else {
-            pvf->panLabel->setVisible(true);
-            pvf->panSlider->setDoubleClickReturnValue(true, (chi & 2) ? 1.0f : -1.0f); // double click defaults to alternating left/right
-            pvf->panSlider->setVisible(true);
-
-        }
-
-        if (pvf->panSlider->isTwoValue()) {
-            pvf->panSlider->setMinAndMaxValues(processor.getInputChannelPan(changroup, 0), processor.getInputChannelPan(changroup, 1), dontSendNotification);
-        }
-        else {
-            pvf->panSlider->setValue(processor.getInputChannelPan(changroup, chi), dontSendNotification);
-        }
+        // Every channel is mono, so the transmit side has no panning either
+        // (the pan state and DSP remain, so saved state still loads).
+        pvf->panSlider->setVisible(false);
+        pvf->panLabel->setVisible(false);
 
         // hide things if we are not the first channel
         bool isprimary = chi == 0;
-        pvf->levelSlider->setVisible(isprimary);
+        pvf->levelSlider->setVisible(false); // level lives in the CHANNELS settings tab
         pvf->soloButton->setVisible(isprimary);
         pvf->soloButton->setEnabled(processor.isMonitorEnabled());
         pvf->muteButton->setVisible(isprimary);
@@ -2572,6 +2523,7 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
     }
 
     mMainChannelView->monitorSlider->setVisible(false);
+    mMainChannelView->levelSlider->setVisible(false);
 
     float disalpha = 0.4;
     mMainChannelView->nameLabel->setAlpha(connected ? 1.0 : 0.8);
@@ -2693,7 +2645,11 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
         // glance without opening the menu.
         String desttext;
         const int assignedBus = processor.getRemotePeerChannelGroupBus(mPeerIndex, changroup);
-        if (assignedBus >= 0) {
+        if (assignedBus == ChannelGroupParams::BusAssignUnpatched) {
+            desttext = TRANS("None");
+            pvf->destButton->setTooltip(TRANS("Not patched to any output -- click to choose one, or patch it in the routing matrix"));
+        }
+        else if (assignedBus >= 0) {
             desttext = processor.getOutputBusName(assignedBus);
             if (desttext.isEmpty()) desttext << TRANS("Bus") << " " << (assignedBus + 1);
             pvf->destButton->setTooltip(TRANS("Feeding bus:") + " " + desttext + " -- " + TRANS("click to change"));
@@ -2713,7 +2669,7 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
 
         bool isprimary = chi == 0;
         bool destbuttvisible = isprimary /*&& chcnt < totaloutchans */;
-        pvf->levelSlider->setVisible(isprimary);
+        pvf->levelSlider->setVisible(false); // level lives in the CHANNELS settings tab
         pvf->soloButton->setVisible(isprimary);
         pvf->soloButton->setEnabled(processor.isMonitorEnabled());
         pvf->soloButton->setToggleState(processor.getRemotePeerChannelSoloed(mPeerIndex, changroup), dontSendNotification);
@@ -3953,6 +3909,11 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
                                          std::make_shared<DestChannelListItemData>(-2), numbuses == 0));
         ++ind;
 
+        items.add(GenericItemChooserItem(TRANS("Not patched (silent)"), Image(),
+                                         std::make_shared<DestChannelListItemData>(-3), true));
+        if (currentBus == ChannelGroupParams::BusAssignUnpatched) selindex = ind;
+        ++ind;
+
         items.add(GenericItemChooserItem(TRANS("DIRECT TO OUTPUT:"), {}, nullptr, true, true));
         ++ind;
     }
@@ -3982,7 +3943,7 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
             auto udata = std::make_shared<DestChannelListItemData>(i, cc);
             items.add(GenericItemChooserItem(name, Image(), udata, i==0));
 
-            if (i == destst && cc == destcnt) {
+            if (i == destst && cc == destcnt && (!mPeerMode || processor.getRemotePeerChannelGroupBus(mPeerIndex, changroup) == ChannelGroupParams::BusAssignDirect)) {
                 selindex = ind;
             }
             ++ind;
@@ -4006,7 +3967,10 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
         if (safeThis->mPeerMode && dclitem->busIndex != -1) {
             int bus = dclitem->busIndex;
 
-            if (bus == -2) {
+            if (bus == -3) {
+                safeThis->processor.unpatchRemotePeerChannelGroup(safeThis->mPeerIndex, changroup);
+            }
+            else if (bus == -2) {
                 // create a bus named after the next free slot, landing on the
                 // output channel the group was already pointing at
                 int dst = 0, dcnt = 1;

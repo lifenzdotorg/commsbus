@@ -61,7 +61,9 @@ SuggestNewGroupView::SuggestNewGroupView(CommsbusAudioProcessor& proc) :  smallL
         selectedPeers.clear();
         auto numpeers = processor.getNumberRemotePeers();
         for (int i = 0; i < numpeers; ++i) {
-            selectedPeers.insert(processor.getRemotePeerUserName(i));
+            if (processor.isPeerVisible(i)) {
+                selectedPeers.insert(processor.getRemotePeerUserName(i));
+            }
         }
         updatePeerRows(true);
     };
@@ -292,6 +294,12 @@ void SuggestNewGroupView::updatePeerRows(bool force)
         toggle->setButtonText(peerstr);
 
         toggle->setToggleState(selectedPeers.find(peerstr) != selectedPeers.end(), dontSendNotification);
+
+        // a campus is only shown the Central (see isPeerVisible)
+        toggle->setVisible(processor.isPeerVisible(i));
+        if (!toggle->isVisible()) {
+            continue;
+        }
 
         peerRowsBox.items.add(FlexItem(minButtonWidth, minitemheight, *toggle).withMargin(2).withFlex(1));
     }

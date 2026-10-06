@@ -378,10 +378,14 @@ void ChatView::showTabMenu(bool show)
 
     items.add(GenericItemChooserItem(TRANS("Private Chat with:"), {}, nullptr, true, true));
 
+    // only the peers this machine is shown (a campus sees just the Central)
+    Array<int> peerIndexes;
     for (int i=0; i < processor.getNumberRemotePeers(); ++i) {
+        if (!processor.isPeerVisible(i)) continue;
         auto username = processor.getRemotePeerUserName(i);
         auto inuse = mPrivateChatMap.find(username) != mPrivateChatMap.end();
         items.add(GenericItemChooserItem(username, {}, nullptr, false, false));
+        peerIndexes.add(i);
     }
 
     Component* dw = mChatTabMenuButton->findParentComponentOfClass<AudioProcessorEditor>();
@@ -390,7 +394,7 @@ void ChatView::showTabMenu(bool show)
 
     SafePointer<ChatView> safeThis(this);
 
-    auto callback = [safeThis,dw,bounds](GenericItemChooser* chooser,int index) mutable {
+    auto callback = [safeThis,dw,bounds,peerIndexes](GenericItemChooser* chooser,int index) mutable {
         if (!safeThis) return;
 
         if (index == 0) {
@@ -407,7 +411,8 @@ void ChatView::showTabMenu(bool show)
 
             GenericItemChooser::launchPopupChooser(citems, bounds, dw, callback, -1, dw ? dw->getHeight()-30 : 0);
         } else if (index >= 1) {
-            int adjindex = index - 2;
+            if (!isPositiveAndBelow(index - 2, peerIndexes.size())) return;
+            int adjindex = peerIndexes[index - 2];
 
             auto name = safeThis->processor.getRemotePeerUserName(adjindex);
             auto found = safeThis->mPrivateChatMap.find(name);

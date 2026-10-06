@@ -190,12 +190,15 @@ input groups each landing on their own output channel, and `panDestChannels` /
 `monDestChannels` default to 1. Stereo pairing is not used in this application.
 
 The receive strips carry **level and routing only** -- name, mute, solo, level,
-meter and destination (`Out N` or a bus name; the menu offers mono outputs only). Panning is laid out and made visible in
-`updateLayoutForInput`/`updateInputModeChannelViews` (transmit) but never in
-`updateLayoutForRemotePeer`/`updatePeerModeChannelViews` (receive).
-`ChannelGroupView` still *owns* the pan widgets, because the same class serves
-both sides -- the receive path simply leaves them out of the FlexBox and hidden.
-Do not "restore" them on the receive side.
+meter and destination (`Out N` or a bus name; the menu offers mono outputs only).
+
+**There is no pan control on either side**, since every channel is mono.
+`ChannelGroupView` still *owns* the pan widgets (`panSlider`/`panLabel`), but
+`setupChildren` adds them hidden. None of the four update paths
+(`updateLayoutForInput`/`updateInputModeChannelViews` on transmit,
+`updateLayoutForRemotePeer`/`updatePeerModeChannelViews` on receive) put them in
+a FlexBox or make them visible. The pan state, its persistence and the panning
+DSP are untouched, so saved state still loads. Do not "restore" pan on either side.
 
 **No per-channel effects UI on either side.** The `FX` and `M.FX` buttons are
 gone from both the transmit and receive strips, and the `In Reverb` button is
@@ -271,6 +274,43 @@ instead of panning to `tempBuffer`, and after the loop each bus is mixed into
 `tempBuffer` at its destination with its gain. The bus list is snapshotted under
 `mBusLock` at the top of the block so a UI edit cannot change routing mid-block.
 
+**No level faders on the main window.** The strips' `levelSlider` (transmit,
+receive and the peer's main row) and the main `mOutGainSlider`/`mOutGainLabel`
+still exist and stay attached, but are `addChildComponent`'d, hidden, and in no
+FlexBox; the name field takes the space. Levels are set as fixed trims (-12, -6,
+-3, 0, +3, +6, +12 dB) in the **CHANNELS** settings tab (`ChannelTrimView`),
+which writes `ChannelGroupParams::gain` through `setInputGroupGain` /
+`setRemotePeerChannelGain`, so it persists exactly as the sliders did. A gain
+that is not one of the steps is shown as its real value.
+
+**Settings is a full-window overlay** (`SettingsOverlay` in the editor .cpp,
+`mSettingsOverlay`, `isSettingsShown()`), not a callout; Done or Esc closes it.
+Its tabs are AUDIO (standalone only), CHANNELS, OPTIONS, found by name.
+
+**Star-network visibility.** The processor's Role (`NetworkRole`, Central by
+default) and Central name persist in the extra state. A Campus is shown only the
+Central: `isPeerVisible(index)` is the single filter, used by
+`PeersContainerView` (hidden peers are ordered last and their views hidden),
+the chat private-chat list, `SuggestNewGroupView`, the group user count and
+`ChannelTrimView`. With no Central name, a peer at a configured direct-peer
+address is the host, else the earliest-connected peer. Display only -- audio
+routing is untouched.
+
+**Receive routing matrix (Dante Controller style).** The RECEIVE area has a
+`MATRIX | LIST` switch (persisted as `ReceiveMatrixShown`, default MATRIX).
+`RoutingMatrixView` puts received streams (visible peers only, grouped and
+collapsible per peer) as rotated columns and this device's output channels as
+rows, with frozen headers, filter boxes and a green tick per patched crosspoint.
+Double-clicking a device header opens a `DeviceViewWindow` (Receive tab with
+Connected To / Unsubscribe and a drag-and-drop Available Channels tree; Transmit
+tab). Every patch is written by the processor:
+`patchRemotePeerChannelGroupToOutput` / `unpatchRemotePeerChannelGroup`. A
+stream goes to exactly one output; patching a second stream onto an output that
+already carries one moves them all onto a bus on that output (reusing a bus
+already landing there, else creating "Out N Mix"). `busAssign ==
+BusAssignUnpatched` (-2) means "patched nowhere" and is skipped in
+`processBlock`; the per-row destination menu offers it as "Not patched".
+
 ### Removed subsystems
 
 The metronome (`Metronome.*`), the file playback transport (`WaveformTransportComponent.h`, `AudioTransportSource`, `loadURLIntoTransport`) and the whole Soundboard subsystem (`Soundboard*.*`, `SampleEditView.*`, `SonoPlaybackProgressButton.*`) are gone, along with ~12 parameters (`paramMet*`, `paramSendFileAudio`, `paramSendSoundboardAudio`, `paramSyncMet*`), their toolbar buttons, menu commands and translation entries.
@@ -281,6 +321,20 @@ Two things survived that look like they belong to those features but do not:
 - **`images/lgc_bar.wav`** is the `LatencyMeasurer` pulse, not a metronome click. It stays in the binary-data list; the actual click samples (`bar_click.wav`, `beat_click.wav`) were removed.
 
 `CommsbusAudioProcessor` no longer derives from `ChangeListener` — the only thing that used it was the transport.
+
+**VDO.Ninja video links** are gone too: `VDONinjaView.h`, the video button in the
+group row, the `VDONinjaVideoLink` command and its Group-menu and group-popup
+entries, the processor's `VideoLinkInfo`, and the translation entries. A
+`VideoLinkInfo` child in old saved state is ignored on load and dropped on the
+next save.
+
+**The peer layout toggles** (the minimal/detailed view buttons,
+`mPeerLayoutMinimalButton`/`mPeerLayoutFullButton`, left of the group name) and
+the `ToggleFullInfoView` command (Cmd-I, View menu) that flipped them are gone.
+The processor's `get/setPeerDisplayMode` and its `PeerDisplayMode` persistence
+remain, so a saved mode still applies; there is just no UI to change it.
+`images/dispfull.svg`, `dispminimal.svg` and `videocam-outline.svg` were dropped
+from the binary-data list (the files remain for the unmigrated mobile build).
 
 ### Resources and localization
 

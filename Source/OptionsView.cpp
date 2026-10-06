@@ -93,7 +93,7 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
 
     mOptionsComponent = std::make_unique<Component>();
 
-    mSettingsTab = std::make_unique<TabbedComponent>(TabbedButtonBar::Orientation::TabsAtTop);
+    mSettingsTab = std::make_unique<CommsbusOptionsTabbedComponent>(TabbedButtonBar::Orientation::TabsAtTop, *this);
     mSettingsTab->setTabBarDepth(36);
     mSettingsTab->setOutline(0);
     mSettingsTab->getTabbedButtonBar().setMinimumTabScaleFactor(0.1f);
@@ -205,6 +205,30 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     configLabel(mOptionsLanguageLabel.get(), false);
     mOptionsLanguageLabel->setJustificationType(Justification::centredRight);
 
+
+    // Star network: a Central host sees every campus; a Campus is shown only the
+    // Central. Display-only -- audio routing is unaffected.
+    mOptionsRoleChoice = std::make_unique<SonoChoiceButton>();
+    mOptionsRoleChoice->setTitle(TRANS("Role"));
+    mOptionsRoleChoice->addChoiceListener(this);
+    mOptionsRoleChoice->addItem(TRANS("Central (host)"), CommsbusAudioProcessor::NetworkRoleCentral + 1);
+    mOptionsRoleChoice->addItem(TRANS("Campus"), CommsbusAudioProcessor::NetworkRoleCampus + 1);
+    mOptionsRoleChoice->setTooltip(TRANS("Central (host) sees every connected campus. A Campus is shown only the Central host, not the other campuses. This only changes what is listed; audio routing is unaffected."));
+
+    mOptionsRoleLabel = std::make_unique<Label>("", TRANS("Role:"));
+    configLabel(mOptionsRoleLabel.get(), false);
+    mOptionsRoleLabel->setJustificationType(Justification::centredRight);
+
+    mOptionsCentralNameEditor = std::make_unique<TextEditor>("centralname");
+    mOptionsCentralNameEditor->setTitle(TRANS("Central name"));
+    mOptionsCentralNameEditor->setFont(Font(16 * SonoLookAndFeel::getFontScale()));
+    mOptionsCentralNameEditor->setTextToShowWhenEmpty(TRANS("host's user name"), Colour(0x44ffffff));
+    mOptionsCentralNameEditor->setTooltip(TRANS("The user name of the Central host. Only the peer with this name is shown. Left blank, the host is taken to be a saved direct peer, or else the first peer that connected."));
+    configEditor(mOptionsCentralNameEditor.get());
+
+    mOptionsCentralNameLabel = std::make_unique<Label>("", TRANS("Central name:"));
+    configLabel(mOptionsCentralNameLabel.get(), false);
+    mOptionsCentralNameLabel->setJustificationType(Justification::centredRight);
 
     mOptionsUnivFontButton = std::make_unique<ToggleButton>(TRANS("Use Universal Font"));
     mOptionsUnivFontButton->setTooltip(TRANS("Use font that always supports Chinese, Japanese, and Korean characters. Can cause slowdowns on some systems, so only use it if you need it."));
@@ -366,6 +390,10 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     mOptionsComponent->addAndMakeVisible(mOptionsLanguageLabel.get());
     mOptionsComponent->addAndMakeVisible(mOptionsAutoDropThreshSlider.get());
     mOptionsComponent->addAndMakeVisible(mOptionsAutoDropThreshLabel.get());
+    mOptionsComponent->addAndMakeVisible(mOptionsRoleChoice.get());
+    mOptionsComponent->addAndMakeVisible(mOptionsRoleLabel.get());
+    mOptionsComponent->addChildComponent(mOptionsCentralNameEditor.get());
+    mOptionsComponent->addChildComponent(mOptionsCentralNameLabel.get());
 
     //mOptionsComponent->addAndMakeVisible(mTitleImage.get());
 
@@ -458,6 +486,12 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
         }
 
     }
+
+    mChannelTrimView = std::make_unique<ChannelTrimView>(processor);
+    mChannelsViewport = std::make_unique<Viewport>();
+    mChannelsViewport->setViewedComponent(mChannelTrimView.get(), false);
+    mChannelsViewport->setScrollBarsShown(true, false);
+    mSettingsTab->addTab(TRANS("CHANNELS"), Colour::fromFloatRGBA(0.1, 0.1, 0.1, 1.0), mChannelsViewport.get(), false);
 
     mOtherOptionsViewport = std::make_unique<Viewport>();
     mOtherOptionsViewport->setViewedComponent(mOptionsComponent.get(), false);
@@ -643,6 +677,16 @@ void OptionsView::updateState(bool ignorecheck)
 
     mOptionsUnivFontButton->setToggleState(processor.getUseUniversalFont(), dontSendNotification);
 
+    mOptionsRoleChoice->setSelectedId((int) processor.getNetworkRole() + 1, dontSendNotification);
+    if (!mOptionsCentralNameEditor->hasKeyboardFocus(false)) {
+        mOptionsCentralNameEditor->setText(processor.getCentralName(), dontSendNotification);
+    }
+    updateRoleVisibility();
+
+    if (mChannelTrimView) {
+        mChannelTrimView->refresh();
+    }
+
     mOptionsSliderSnapToMouseButton->setToggleState(processor.getSlidersSnapToMousePosition(), dontSendNotification);
     mOptionsDisableShortcutButton->setToggleState(processor.getDisableKeyboardShortcuts(), dontSendNotification);
 
@@ -726,6 +770,16 @@ void OptionsView::updateLayout()
     optionsAutoDropThreshBox.items.add(FlexItem(100, minitemheight, *mOptionsAutoDropThreshSlider).withMargin(0).withFlex(1));
 
 
+    optionsRoleBox.items.clear();
+    optionsRoleBox.flexDirection = FlexBox::Direction::row;
+    optionsRoleBox.items.add(FlexItem(minButtonWidth, minitemheight, *mOptionsRoleLabel).withMargin(0).withFlex(1));
+    optionsRoleBox.items.add(FlexItem(minButtonWidth, minitemheight, *mOptionsRoleChoice).withMargin(0).withFlex(1));
+
+    optionsCentralNameBox.items.clear();
+    optionsCentralNameBox.flexDirection = FlexBox::Direction::row;
+    optionsCentralNameBox.items.add(FlexItem(minButtonWidth, minitemheight, *mOptionsCentralNameLabel).withMargin(0).withFlex(1));
+    optionsCentralNameBox.items.add(FlexItem(minButtonWidth, minitemheight, *mOptionsCentralNameEditor).withMargin(0).withFlex(1));
+
     optionsUdpBox.items.clear();
     optionsUdpBox.flexDirection = FlexBox::Direction::row;
     optionsUdpBox.items.add(FlexItem(10, 12));
@@ -792,6 +846,11 @@ void OptionsView::updateLayout()
     optionsBox.items.add(FlexItem(100, 15, *mVersionLabel).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(4, 4));
     optionsBox.items.add(FlexItem(100, minitemheight, optionsLanguageBox).withMargin(2).withFlex(0));
+    optionsBox.items.add(FlexItem(4, 4));
+    optionsBox.items.add(FlexItem(100, minitemheight, optionsRoleBox).withMargin(2).withFlex(0));
+    if (processor.getNetworkRole() == CommsbusAudioProcessor::NetworkRoleCampus) {
+        optionsBox.items.add(FlexItem(100, minitemheight, optionsCentralNameBox).withMargin(2).withFlex(0));
+    }
     optionsBox.items.add(FlexItem(4, 4));
     optionsBox.items.add(FlexItem(100, minitemheight, optionsSendQualBox).withMargin(2).withFlex(0));
     optionsBox.items.add(FlexItem(100, minitemheight - 10, optionsChangeAllQualBox).withMargin(1).withFlex(0));
@@ -867,6 +926,9 @@ void OptionsView::resized()  {
         mAudioDeviceSelector->setBounds(Rectangle<int>(0,0,innerbounds.getWidth() - 10,mAudioDeviceSelector->getHeight()));
     }
     mOptionsComponent->setBounds(Rectangle<int>(0,0,innerbounds.getWidth() - 10, minOptionsHeight));
+    if (mChannelTrimView) {
+        mChannelTrimView->setSize(innerbounds.getWidth() - 10, mChannelTrimView->getHeight());
+    }
 
 
 
@@ -883,27 +945,53 @@ void OptionsView::resized()  {
 
 }
 
+// Tabs are found by name, not position: AUDIO only exists in the standalone.
 void OptionsView::showAudioTab()
 {
-    if (mSettingsTab->getNumTabs() == 3) {
-        mSettingsTab->setCurrentTabIndex(0);
+    const int index = mSettingsTab->getTabNames().indexOf(TRANS("AUDIO"));
+    if (index >= 0) {
+        mSettingsTab->setCurrentTabIndex(index);
     }
 }
 
 void OptionsView::showOptionsTab()
 {
-    mSettingsTab->setCurrentTabIndex(mSettingsTab->getNumTabs() == 3 ? 1 : 0);
+    const int index = mSettingsTab->getTabNames().indexOf(TRANS("OPTIONS"));
+    if (index >= 0) {
+        mSettingsTab->setCurrentTabIndex(index);
+    }
+}
+
+void OptionsView::showChannelsTab()
+{
+    const int index = mSettingsTab->getTabNames().indexOf(TRANS("CHANNELS"));
+    if (index >= 0) {
+        mSettingsTab->setCurrentTabIndex(index);
+    }
 }
 
 void OptionsView::showRecordingTab()
 {
-    mSettingsTab->setCurrentTabIndex(mSettingsTab->getNumTabs() == 3 ? 2 : 1);
+    // recording was removed; nothing to show
 }
 
 
 void OptionsView::optionsTabChanged (int newCurrentTabIndex)
 {
+    if (mChannelTrimView && mSettingsTab && mSettingsTab->getTabNames()[newCurrentTabIndex] == TRANS("CHANNELS")) {
+        mChannelTrimView->refresh();
+    }
+}
 
+void OptionsView::updateRoleVisibility()
+{
+    const bool campus = processor.getNetworkRole() == CommsbusAudioProcessor::NetworkRoleCampus;
+    if (mOptionsCentralNameEditor->isVisible() != campus) {
+        mOptionsCentralNameEditor->setVisible(campus);
+        mOptionsCentralNameLabel->setVisible(campus);
+        updateLayout();
+        resized();
+    }
 }
 
 void OptionsView::showWarnings()
@@ -938,7 +1026,12 @@ void OptionsView::textEditorEscapeKeyPressed (TextEditor& ed)
 
 void OptionsView::textEditorTextChanged (TextEditor& ed)
 {
-
+    if (&ed == mOptionsCentralNameEditor.get()) {
+        processor.setCentralName(ed.getText());
+        if (mChannelTrimView) {
+            mChannelTrimView->refresh();
+        }
+    }
 }
 
 
@@ -1111,6 +1204,15 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
     }
     else if (comp == mOptionsAutosizeDefaultChoice.get()) {
         processor.setDefaultAutoresizeBufferMode((CommsbusAudioProcessor::AutoNetBufferMode) ident);
+    }
+    else if (comp == mOptionsRoleChoice.get()) {
+        processor.setNetworkRole(ident - 1 == CommsbusAudioProcessor::NetworkRoleCampus
+                                 ? CommsbusAudioProcessor::NetworkRoleCampus : CommsbusAudioProcessor::NetworkRoleCentral);
+        updateRoleVisibility();
+        if (mChannelTrimView) {
+            mChannelTrimView->refresh();
+        }
+        listeners.call(&OptionsView::Listener::optionsChanged, this);
     }
     
     

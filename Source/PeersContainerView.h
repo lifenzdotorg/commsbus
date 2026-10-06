@@ -221,6 +221,10 @@ public:
     
     
     int getPeerViewCount() const { return mPeerViews.size(); }
+
+    /** True when the set of peers the processor says to show (isPeerVisible)
+        differs from what the views were last built for. */
+    bool peerVisibilityChanged() const;
     
     void resetPendingUsers();
     void peerPendingJoin(String & group, String & user);
@@ -291,6 +295,12 @@ protected:
     std::map<String, int> mPeerPriorityOrdering;
     
     std::vector<int> mPeerUpdateOrdering;
+
+    // Star-network filtering: hidden peers are ordered after the visible ones,
+    // so views [0, mNumVisiblePeerViews) are shown and the rest are hidden.
+    int mNumVisiblePeerViews = 0;
+    std::vector<bool> mPeerVisibleFlags; // by peer index, as of the last ordering
+    bool isPendingUserVisible(const String & user) const;
 
     std::unique_ptr<BubbleMessageComponent> popTip;
 
