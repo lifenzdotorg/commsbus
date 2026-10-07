@@ -114,6 +114,10 @@ static String dynResampleMigratedKey("DynResampleMigrated");
 static String networkRoleKey("NetworkRole");
 static String receiveMatrixShownKey("ReceiveMatrixShown");
 static String centralNameKey("CentralName");
+static String outputChannelNamesKey("OutputChannelNames");
+static String outputChannelNameKey("OutputChannel");
+static String outputChannelIndexKey("index");
+static String outputChannelNameValueKey("name");
 
 static String compressorStateKey("CompressorState");
 static String expanderStateKey("ExpanderState");
@@ -294,6 +298,10 @@ struct CommsbusAudioProcessor::RemotePeer {
     bool recvAllow = true;
     bool recvAllowCache = false; // used for recvmute all state
     bool sendAllowCache = false; // used for sendmute all state
+    // Commsbus star network: another campus, so no audio either way. Kept apart
+    // from sendAllow/recvAllow so the user's mutes and the mute-all cache are
+    // untouched and come back as they were if the peer is unblocked.
+    std::atomic<bool> starBlocked { false };
     bool soloed = false;
     bool invitedPeer = false;
     int  formatIndex = -1; // default
@@ -599,6 +607,7 @@ CommsbusAudioProcessor::BusesProperties CommsbusAudioProcessor::getDefaultLayout
 CommsbusAudioProcessor::CommsbusAudioProcessor()
 : AudioProcessor ( getDefaultLayout() ),
 mReconnectTimer(*this),
+mStarTopologyTimer(*this),
 mGlobalState("CommsbusGlobalState"),
 mState (*this, &mUndoManager, "CommsbusAoO",
 {
@@ -2064,7 +2073,7 @@ void CommsbusAudioProcessor::doReceiveData()
                         // this is a compact data message, try them all
                         if (remote->oursink->handle_message(buf, nbytes, endpoint, endpoint_send)) {
                             remote->dataPacketsReceived += 1;
-                            if (remote->recvAllow && !remote->recvActive) {
+                            if (remote->recvAllow && !remote->starBlocked && !remote->recvActive) {
                                 remote->recvActive = true;
                             }
                             if (remote->resetSafetyMuted) {
@@ -2077,7 +2086,7 @@ void CommsbusAudioProcessor::doReceiveData()
                     if (id == AOO_ID_WILDCARD || (remote->oursink->get_id(dummyid) && id == dummyid) ) {
                         if (remote->oursink->handle_message(buf, nbytes, endpoint, endpoint_send)) {
                             remote->dataPacketsReceived += 1;
-                            if (remote->recvAllow && !remote->recvActive) {
+                            if (remote->recvAllow && !remote->starBlocked && !remote->recvActive) {
                                 remote->recvActive = true;
                             }
                             if (remote->resetSafetyMuted) {
@@ -3288,7 +3297,7 @@ int32_t CommsbusAudioProcessor::handleSourceEvents(const aoo_event ** events, in
                     peer->oursource->add_sink(es, peer->remoteSinkId, endpoint_send);
                     peer->oursource->set_sinkoption(es, peer->remoteSinkId, aoo_opt_protocol_flags, &e->flags, sizeof(int32_t));
 
-                    if (peer->sendAllow) {
+                    if (peer->sendAllow && !peer->starBlocked) {
                         peer->oursource->start();
                         peer->sendActive = true;
                     } else {
@@ -3321,7 +3330,7 @@ int32_t CommsbusAudioProcessor::handleSourceEvents(const aoo_event ** events, in
                         peer->oursource->add_sink(es, peer->remoteSinkId, endpoint_send);
                         peer->oursource->set_sinkoption(es, peer->remoteSinkId, aoo_opt_protocol_flags, &e->flags, sizeof(int32_t));
                         
-                        if (peer->sendAllow) {
+                        if (peer->sendAllow && !peer->starBlocked) {
                             peer->oursource->start();
                             
                             peer->sendActive = true;
@@ -3342,13 +3351,17 @@ int32_t CommsbusAudioProcessor::handleSourceEvents(const aoo_event ** events, in
                     else {
                         // find by echo id
                         if (auto * echopeer = findRemotePeerByEchoId(es, sourceId)) {
+                            // star network: no latency echo for another campus either
+                            if (echopeer->starBlocked) break;
                             echopeer->echosource->add_sink(es, e->id, endpoint_send);                            
                             echopeer->echosource->start();
                             DBG("Invite to echo source adding sink " << e->id);
                         }
                         else if (auto * latpeer = findRemotePeerByLatencyId(es, sourceId)) {
-                            echopeer->latencysource->add_sink(es, e->id, endpoint_send);                                                        
-                            echopeer->latencysource->start();
+                            // (upstream used the null echopeer here)
+                            if (latpeer->starBlocked) break;
+                            latpeer->latencysource->add_sink(es, e->id, endpoint_send);                                                        
+                            latpeer->latencysource->start();
                             DBG("Invite to our latency source adding sink " << e->id);
                         }
                         else {
@@ -3404,8 +3417,9 @@ int32_t CommsbusAudioProcessor::handleSourceEvents(const aoo_event ** events, in
                     DBG("UnInvite to echo source adding sink " << e->id);
                 }
                 else if (auto * latpeer = findRemotePeerByLatencyId(es, sourceId)) {
-                    echopeer->latencysource->remove_sink(es, e->id);
-                    echopeer->latencysource->stop();
+                    // (upstream used the null echopeer here)
+                    latpeer->latencysource->remove_sink(es, e->id);
+                    latpeer->latencysource->stop();
                     DBG("UnInvite to latency source adding sink " << e->id);
                 }
 
@@ -3487,7 +3501,7 @@ int32_t CommsbusAudioProcessor::handleSinkEvents(const aoo_event ** events, int3
                     
                     peer->oursink->uninvite_source(es, 0, endpoint_send); // get rid of existing bogus one
 
-                    if (peer->recvAllow) {
+                    if (peer->recvAllow && !peer->starBlocked) {
                         peer->oursink->invite_source(es, peer->remoteSourceId, endpoint_send);
                         //peer->recvActive = true;
                     } else {
@@ -3644,7 +3658,7 @@ int32_t CommsbusAudioProcessor::handleSinkEvents(const aoo_event ** events, int3
 
             RemotePeer * peer = findRemotePeer(es, sinkId);
             if (peer) {
-                peer->recvActive = peer->recvAllow && e->state > 0;
+                peer->recvActive = peer->recvAllow && !peer->starBlocked && e->state > 0;
                 if (!peer->recvActive && !peer->sendActive) {
                     peer->connected = false;
                 } else {
@@ -4168,7 +4182,7 @@ int CommsbusAudioProcessor::connectRemotePeerRaw(void * sockaddr, const String &
         remote->connected = true;
         remote->invitedPeer = reciprocate;
         //remote->recvActive = reciprocate;
-        if (!mMainSendMute.get()) {
+        if (!mMainSendMute.get() && !remote->starBlocked) {
             remote->sendActive = true;
             remote->oursource->start();
             updateRemotePeerUserFormat(-1, remote);
@@ -4203,7 +4217,7 @@ int CommsbusAudioProcessor::connectRemotePeer(const String & host, int port, con
         remote->connected = true;
         remote->invitedPeer = reciprocate;
         //remote->recvActive = reciprocate;
-        if (!mMainSendMute.get()) {
+        if (!mMainSendMute.get() && !remote->starBlocked) {
             remote->sendActive = true;
             remote->oursource->start();
             updateRemotePeerUserFormat(-1, remote);
@@ -4616,6 +4630,7 @@ void CommsbusAudioProcessor::setRemotePeerUserName(int index, const String & nam
         auto * remote = mRemotePeers.getUnchecked(index);
         remote->userName = name;
     }
+    enforceStarTopology();
 }
 
 String CommsbusAudioProcessor::getRemotePeerUserName(int index) const
@@ -5102,7 +5117,10 @@ void CommsbusAudioProcessor::setRemotePeerRecvActive(int index, bool active)
         
         // TODO
 #if 1
-        if (active) {
+        if (active && remote->starBlocked) {
+            // another campus: the allow is remembered, but nothing is invited
+        }
+        else if (active) {
             DBG("inviting peer " <<  remote->ourId << " source " << remote->remoteSourceId);
             remote->oursink->invite_source(remote->endpoint,remote->remoteSourceId, endpoint_send);
         } else {
@@ -5452,6 +5470,9 @@ bool CommsbusAudioProcessor::startRemotePeerLatencyTest(int index, float duratio
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
         RemotePeer * remote = mRemotePeers.getUnchecked(index);
+        if (remote->starBlocked) {
+            return false; // star network: no traffic to another campus
+        }
         if (!remote->activeLatencyTest) {
             // invite remote's echosource to send to our latency sink
 
@@ -5508,11 +5529,14 @@ void CommsbusAudioProcessor::setRemotePeerSendActive(int index, bool active)
     const ScopedReadLock sl (mCoreLock);        
     if (index < mRemotePeers.size()) {
         RemotePeer * remote = mRemotePeers.getUnchecked(index);
-        remote->sendActive = active;
+        remote->sendActive = active && !remote->starBlocked;
         if (active) {
             remote->sendAllow = true; // implied
             remote->sendAllowCache = true; // implied
-            remote->oursource->start();
+            // another campus: the allow is remembered, but nothing is sent
+            if (!remote->starBlocked) {
+                remote->oursource->start();
+            }
         } else {
             remote->oursource->stop();            
         }
@@ -5774,7 +5798,11 @@ CommsbusAudioProcessor::RemotePeer * CommsbusAudioProcessor::doAddRemotePeerIfNe
         
         retpeer->recvAllow = !mMainRecvMute.get();
         retpeer->recvAllowCache = true;
-        
+
+        // Commsbus star network: decided before it is ever started, so another
+        // campus never gets a single block. Nothing is running yet to stop.
+        retpeer->starBlocked = shouldStarBlockPeer(retpeer, mAutoConnectManager.getPeers());
+
         retpeer->lastSendPingTimeMs = Time::getMillisecondCounterHiRes() - PEER_PING_INTERVAL_MS/2; // so that first ping doesn't happen immediately
         retpeer->haveSentFirstPeerInfo = false;
 
@@ -5816,6 +5844,9 @@ CommsbusAudioProcessor::RemotePeer * CommsbusAudioProcessor::doAddRemotePeerIfNe
                     retpeer->chanGroups[i].commitEqParams();
                 }
             }
+
+            // the name is what identifies the Central, so look again
+            applyStarBlock(retpeer, shouldStarBlockPeer(retpeer, mAutoConnectManager.getPeers()));
 
         }
     }
@@ -7261,6 +7292,13 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
 
             remote->workBuffer.clear(0, numSamples);
 
+            if (remote->starBlocked) {
+                // Commsbus star network: another campus. Nothing is decoded or
+                // mixed; the cleared work buffer keeps any cross-routing silent.
+                ++rindex;
+                continue;
+            }
+
             // calculate fill ratio before processing the sink
             float retratio = 0.0f;
             if (remote->oursink->get_sourceoption(remote->endpoint, remote->remoteSourceId, aoo_opt_buffer_fill_ratio, &retratio, sizeof(retratio)) > 0) {
@@ -7417,7 +7455,9 @@ void CommsbusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffe
         int i=0;
         for (auto & remote : mRemotePeers) 
         {
-            if (remote->oursource /*&& remote->sendActive */) {
+            // a star-blocked peer (another campus) gets nothing: no main stream,
+            // no latency echo
+            if (remote->oursource && !remote->starBlocked /*&& remote->sendActive */) {
 
                 workBuffer.clear(0, numSamples);
 
@@ -7790,8 +7830,21 @@ void CommsbusAudioProcessor::getStateInformationWithOptions(MemoryBlock& destDat
     extraTree.setProperty(autoresizeDropRateThreshKey, var((float)mAutoresizeDropRateThresh), nullptr);
     extraTree.setProperty(reconnectServerLossKey, mReconnectAfterServerLoss.get(), nullptr);
     extraTree.setProperty(monitorDeviceKey, mMonitorDeviceId, nullptr);
-    extraTree.setProperty(networkRoleKey, var((int)mNetworkRole), nullptr);
-    extraTree.setProperty(centralNameKey, mCentralName, nullptr);
+    extraTree.setProperty(networkRoleKey, var((int) mNetworkRole.load()), nullptr);
+    extraTree.setProperty(centralNameKey, getCentralName(), nullptr);
+    {
+        // user names for this device's output channels (only the ones given)
+        ValueTree namesTree(outputChannelNamesKey);
+        const ScopedLock onl (mOutputNamesLock);
+        for (int i = 0; i < mOutputChannelNames.size(); ++i) {
+            if (mOutputChannelNames[i].isEmpty()) continue;
+            ValueTree item(outputChannelNameKey);
+            item.setProperty(outputChannelIndexKey, i, nullptr);
+            item.setProperty(outputChannelNameValueKey, mOutputChannelNames[i], nullptr);
+            namesTree.appendChild(item, nullptr);
+        }
+        extraTree.appendChild(namesTree, nullptr);
+    }
     extraTree.setProperty(receiveMatrixShownKey, mReceiveMatrixShown, nullptr);
     extraTree.setProperty(sendMultichannelMigratedKey, true, nullptr);
     extraTree.setProperty(dynResampleMigratedKey, true, nullptr);
@@ -7955,9 +8008,22 @@ void CommsbusAudioProcessor::setStateInformationWithOptions (const void* data, i
                 mMonitorApplied = false; // maintainMonitorOutput opens it
             }
 
-            setNetworkRole((int) extraTree.getProperty(networkRoleKey, (int)mNetworkRole) == (int) NetworkRoleCampus
+            setNetworkRole((int) extraTree.getProperty(networkRoleKey, (int) mNetworkRole.load()) == (int) NetworkRoleCampus
                            ? NetworkRoleCampus : NetworkRoleCentral);
-            setCentralName(extraTree.getProperty(centralNameKey, mCentralName).toString());
+            setCentralName(extraTree.getProperty(centralNameKey, getCentralName()).toString());
+
+            {
+                ValueTree namesTree = extraTree.getChildWithName(outputChannelNamesKey);
+                {
+                    const ScopedLock onl (mOutputNamesLock);
+                    mOutputChannelNames.clearQuick();
+                }
+                for (auto item : namesTree) {
+                    if (!item.hasType(outputChannelNameKey)) continue;
+                    setOutputChannelUserName((int) item.getProperty(outputChannelIndexKey, -1),
+                                         item.getProperty(outputChannelNameValueKey).toString());
+                }
+            }
             setReceiveRoutingMatrixShown(extraTree.getProperty(receiveMatrixShownKey, mReceiveMatrixShown));
 
             // A VideoLinkInfo child left by the removed VDO.Ninja support is ignored,
@@ -8369,6 +8435,175 @@ String CommsbusAudioProcessor::getRemotePeerDisplayName(int index) const
     return name;
 }
 
+//==============================================================================
+// Star network (Central / Campus)
+
+void CommsbusAudioProcessor::setNetworkRole(NetworkRole role)
+{
+    mNetworkRole = role;
+
+    // a campus is swept once a second; a Central blocks nobody, so it only needs
+    // the one pass below to unblock anything a campus setting had blocked
+    if (role == NetworkRoleCampus) {
+        if (!mStarTopologyTimer.isTimerRunning()) mStarTopologyTimer.startTimer(1000);
+    } else {
+        mStarTopologyTimer.stopTimer();
+    }
+
+    enforceStarTopology();
+}
+
+String CommsbusAudioProcessor::getCentralName() const
+{
+    const ScopedLock sl (mStarLock);
+    return mCentralName;
+}
+
+void CommsbusAudioProcessor::setCentralName(const String & name)
+{
+    {
+        const ScopedLock sl (mStarLock);
+        mCentralName = name.trim();
+    }
+    enforceStarTopology();
+}
+
+bool CommsbusAudioProcessor::isCentralNameMissing() const
+{
+    return mNetworkRole == NetworkRoleCampus && getCentralName().isEmpty();
+}
+
+bool CommsbusAudioProcessor::shouldStarBlockPeer(const RemotePeer * peer, const Array<DirectPeerEntry> & directPeers) const
+{
+    if (peer == nullptr || mNetworkRole != NetworkRoleCampus) {
+        return false;
+    }
+
+    // No Central name: nothing is cut. Guessing which peer is the host is good
+    // enough for what is shown, not for what is silenced.
+    const String central = getCentralName();
+    if (central.isEmpty()) {
+        return false;
+    }
+
+    // A peer with no name cannot be told apart from the Central (an unlabelled
+    // direct peer, or the Central dialling us directly), so it is never cut.
+    const String name = peer->userName.trim();
+    if (name.isEmpty()) {
+        return false;
+    }
+
+    if (name.equalsIgnoreCase(central)) {
+        return false;
+    }
+
+    // A configured direct peer is a deliberate link (and is how a campus usually
+    // reaches the host), so it is never cut either -- matched by address, or by
+    // its label, which is the user name a direct peer is connected with.
+    for (const auto & entry : directPeers) {
+        if (entry.name.trim().isNotEmpty() && entry.name.trim().equalsIgnoreCase(name)) {
+            return false;
+        }
+    }
+
+    if (peer->endpoint != nullptr) {
+        const String host = peer->endpoint->ipaddr;
+        const int port = peer->endpoint->port;
+        if (host.isNotEmpty()) {
+            if (host.equalsIgnoreCase(central) || (host + ":" + String(port)).equalsIgnoreCase(central)) {
+                return false;
+            }
+            for (const auto & entry : directPeers) {
+                if (entry.host == host && entry.port == port) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    // a named peer that is not the Central: another campus
+    return true;
+}
+
+void CommsbusAudioProcessor::applyStarBlock(RemotePeer * peer, bool block)
+{
+    if (peer == nullptr) return;
+
+    const ScopedReadLock sl (mCoreLock);
+    const ScopedLock stl (mStarLock); // one thread at a time starts/stops a peer here
+
+    if (peer->starBlocked.load() == block) return;
+    peer->starBlocked = block;
+
+    if (block) {
+        DBG("Star network: blocking audio with " << peer->userName);
+
+        // stop sending: a stopped AOO source sends nothing at all (no data, no pings)
+        peer->oursource->stop();
+        peer->sendActive = false;
+
+        // stop receiving: ask its source to drop us, so it stops sending and
+        // our jitter buffer and decoder sit idle (processBlock skips it too)
+        peer->oursink->uninvite_all();
+        peer->recvActive = false;
+
+        // the latency-measurement pair and the echo pair carry audio too
+        if (peer->activeLatencyTest) {
+            peer->latencysink->uninvite_all();
+            peer->latencysource->remove_all();
+            peer->latencysource->stop();
+            peer->activeLatencyTest = false;
+        }
+        peer->echosource->remove_all();
+        peer->echosource->stop();
+    }
+    else {
+        DBG("Star network: unblocking audio with " << peer->userName);
+
+        // back to whatever the user's own send/receive mutes allow
+        if (peer->sendAllow) {
+            peer->oursource->start();
+            peer->sendActive = true;
+        }
+        if (peer->recvAllow && peer->remoteSourceId != AOO_ID_NONE) {
+            peer->oursink->invite_source(peer->endpoint, peer->remoteSourceId, endpoint_send);
+        }
+    }
+}
+
+void CommsbusAudioProcessor::enforceStarTopology()
+{
+    // fetched before the core lock; the manager never calls us with its lock held
+    const auto directpeers = mAutoConnectManager.getPeers();
+
+    const ScopedReadLock sl (mCoreLock);
+    for (auto * peer : mRemotePeers) {
+        const bool block = shouldStarBlockPeer(peer, directpeers);
+        if (block != peer->starBlocked.load()) {
+            applyStarBlock(peer, block);
+        }
+    }
+}
+
+bool CommsbusAudioProcessor::isPeerStarBlocked(int index) const
+{
+    const ScopedReadLock sl (mCoreLock);
+    if (isPositiveAndBelow(index, mRemotePeers.size())) {
+        return mRemotePeers.getUnchecked(index)->starBlocked.load();
+    }
+    return false;
+}
+
+int CommsbusAudioProcessor::getNumberStarBlockedPeers() const
+{
+    const ScopedReadLock sl (mCoreLock);
+    int count = 0;
+    for (auto * peer : mRemotePeers) {
+        if (peer->starBlocked.load()) ++count;
+    }
+    return count;
+}
+
 bool CommsbusAudioProcessor::isPeerVisible(int index) const
 {
     if (mNetworkRole != NetworkRoleCampus) {
@@ -8380,31 +8615,16 @@ bool CommsbusAudioProcessor::isPeerVisible(int index) const
         return false;
     }
 
-    String host;
-    int port = 0;
-    const bool haveaddr = getRemotePeerAddressInfo(index, host, port);
-
-    // A Central name was given: show the peer that carries it -- by user name,
-    // or for a nameless direct peer by its address or its saved direct-peer label.
-    if (mCentralName.isNotEmpty()) {
-        if (getRemotePeerUserName(index).trim().equalsIgnoreCase(mCentralName)) {
-            return true;
-        }
-        if (haveaddr && host.isNotEmpty()) {
-            if (host.equalsIgnoreCase(mCentralName) || (host + ":" + String(port)).equalsIgnoreCase(mCentralName)) {
-                return true;
-            }
-            for (const auto & entry : mAutoConnectManager.getPeers()) {
-                if (entry.host == host && entry.port == port && entry.name.trim().equalsIgnoreCase(mCentralName)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+    // A Central name was given: what is shown is exactly what carries audio --
+    // the Central, plus any peer that is never cut (nameless, or a configured
+    // direct peer). A peer whose audio flows is never hidden.
+    if (getCentralName().isNotEmpty()) {
+        return !isPeerStarBlocked(index);
     }
 
-    // No Central name. A campus normally reaches the host as a configured direct
-    // peer, so any peer at a direct-peer address is taken to be the host.
+    // No Central name (nothing is cut, and the Options warn about it). Display
+    // only: a campus normally reaches the host as a configured direct peer, so
+    // any peer at a direct-peer address is taken to be the host.
     bool anydirect = false;
     const auto directpeers = mAutoConnectManager.getPeers();
     for (int i = 0; i < numpeers && !directpeers.isEmpty(); ++i) {
@@ -8438,6 +8658,29 @@ int CommsbusAudioProcessor::getNumberVisibleRemotePeers() const
         if (isPeerVisible(i)) ++count;
     }
     return count;
+}
+
+String CommsbusAudioProcessor::getOutputChannelUserName(int outch) const
+{
+    const ScopedLock sl (mOutputNamesLock);
+    return isPositiveAndBelow(outch, mOutputChannelNames.size()) ? mOutputChannelNames[outch] : String();
+}
+
+void CommsbusAudioProcessor::setOutputChannelUserName(int outch, const String & name)
+{
+    if (outch < 0 || outch >= 1024) return; // sanity bound on a saved index
+
+    const ScopedLock sl (mOutputNamesLock);
+    const String trimmed = name.trim();
+    while (mOutputChannelNames.size() <= outch) {
+        mOutputChannelNames.add(String());
+    }
+    mOutputChannelNames.set(outch, trimmed);
+
+    // keep no trailing blanks, so the saved state stays small
+    while (mOutputChannelNames.size() > 0 && mOutputChannelNames[mOutputChannelNames.size() - 1].isEmpty()) {
+        mOutputChannelNames.remove(mOutputChannelNames.size() - 1);
+    }
 }
 
 void CommsbusAudioProcessor::setMonitorDevice(const String & deviceId)

@@ -92,6 +92,26 @@ public:
 
     void setNote(const String & text) { note->setText(text, dontSendNotification); }
 
+    /** Makes the first column renamable by double-click: getEditText gives the
+        text to start from, onRename gets what was typed (possibly empty). */
+    void setRenamable(std::function<String(int row)> getEditText, std::function<void(int row, const String &)> onRename)
+    {
+        getRenameText = std::move(getEditText);
+        renameRow = std::move(onRename);
+    }
+
+    void cellDoubleClicked(int row, int columnId, const MouseEvent &) override
+    {
+        if (columnId != 1 || !renameRow || !isPositiveAndBelow(row, rows.cells.size())) return;
+
+        Component::SafePointer<InfoTablePanel> safeThis(this);
+        renamer.show(*table, table->getCellPosition(columnId, row, true).reduced(1),
+                     getRenameText ? getRenameText(row) : rows.cells.getReference(row)[0],
+                     [safeThis, row](const String & text) {
+            if (safeThis && safeThis->renameRow) safeThis->renameRow(row, text);
+        });
+    }
+
     void refresh()
     {
         rows = Rows();
@@ -134,10 +154,13 @@ public:
 
 private:
     std::function<void(Rows &)> fetch;
+    std::function<String(int)> getRenameText;
+    std::function<void(int, const String &)> renameRow;
     Rows rows;
     int numColumns = 0;
     std::unique_ptr<TableListBox> table;
     std::unique_ptr<Label> note;
+    ReceiveRouting::InlineRenameEditor renamer; // after table: its editor is a child of it
 };
 
 
@@ -530,7 +553,33 @@ public:
         if (!isPositiveAndBelow(row, rows.size())) return {};
         const auto & r = rows.getReference(row);
         if (columnId == 2 && r.connected.isNotEmpty()) return r.connected;
+        if (columnId == 1) return TRANS("Double-click to rename. Drop a channel from Available Channels here to patch it");
         return TRANS("Drop a channel from Available Channels here to patch it");
+    }
+
+    void cellDoubleClicked(int row, int columnId, const MouseEvent &) override
+    {
+        if (columnId != 1 || !isPositiveAndBelow(row, rows.size())) return;
+        startRenamingOutput(row);
+    }
+
+    /** Renames output channel `row` in place. Allowed while patching is locked:
+        a name changes no routing. */
+    void startRenamingOutput(int row)
+    {
+        AudioDeviceManager * adm = getAudioDeviceManager ? getAudioDeviceManager() : nullptr;
+
+        Component::SafePointer<ReceivePanel> safeThis(this);
+        renamer.show(*table, table->getCellPosition(1, row, true).reduced(1),
+                     ReceiveRouting::getOutputChannelEditName(processor, adm, row),
+                     [safeThis, row](const String & text) {
+            if (!safeThis) return;
+            AudioDeviceManager * adm2 = safeThis->getAudioDeviceManager ? safeThis->getAudioDeviceManager() : nullptr;
+            ReceiveRouting::renameOutputChannel(safeThis->processor, adm2, row, text);
+            safeThis->refresh();
+            // the matrix, the list view's menus and every other device view too
+            if (safeThis->onRoutingChanged) safeThis->onRoutingChanged();
+        });
     }
 
     void deleteKeyPressed(int) override { unsubscribeSelected(); }
@@ -590,6 +639,7 @@ public:
     std::unique_ptr<TreeView> tree;
     std::unique_ptr<TreeViewItem> rootItem;
     std::unique_ptr<Label> statusLabel;
+    ReceiveRouting::InlineRenameEditor renamer; // after table: its editor is a child of it
 };
 
 
@@ -624,7 +674,9 @@ public:
             transmitPanel = new InfoTablePanel({ TRANS("Transmit Channel"), TRANS("Device Inputs"), TRANS("Sending") },
                                                { 220, 200, 70 },
                                                [this](InfoTablePanel::Rows & rows) { fetchLocalTransmit(rows); });
-            transmitPanel->setNote(TRANS("Every transmit channel is sent to every connected peer as its own stream."));
+            transmitPanel->setNote(TRANS("Every transmit channel is sent to every connected peer as its own stream. Double-click a channel to rename it."));
+            transmitPanel->setRenamable([this](int row) { return getInputGroupEditName(row); },
+                                        [this](int row, const String & text) { renameInputGroup(row, text); });
             tabs->addTab(TRANS("Transmit"), panelColour, transmitPanel, true);
         }
         else {
@@ -638,6 +690,36 @@ public:
         refresh();
     }
 
+    static String defaultInputGroupName(int g)
+    {
+        return TRANS("Input") + " " + String(g + 1);
+    }
+
+    String getInputGroupEditName(int g)
+    {
+        const String name = processor.getInputGroupName(g).trim();
+        return name.isNotEmpty() ? name : defaultInputGroupName(g);
+    }
+
+    /** Renames local input group `g` -- the transmit strip's name, and the stream
+        name the far end sees. Empty text (or the default) clears it. */
+    void renameInputGroup(int g, const String & text)
+    {
+        if (!isPositiveAndBelow(g, processor.getInputGroupCount())) return;
+
+        String name = text.trim();
+        if (name == defaultInputGroupName(g)) name.clear();
+
+        if (processor.getInputGroupName(g) != name) {
+            processor.setInputGroupName(g, name);
+            // send the new layout (with the name) to every peer
+            processor.updateRemotePeerUserFormat();
+        }
+
+        refresh();
+        if (window.onRoutingChanged) window.onRoutingChanged();
+    }
+
     void fetchLocalTransmit(InfoTablePanel::Rows & rows)
     {
         const int groups = processor.getInputGroupCount();
@@ -645,7 +727,7 @@ public:
             int start = 0, count = 1;
             processor.getInputGroupChannelStartAndCount(g, start, count);
             String name = processor.getInputGroupName(g).trim();
-            if (name.isEmpty()) name << TRANS("Input") << " " << (g + 1);
+            if (name.isEmpty()) name = defaultInputGroupName(g);
 
             String ins;
             ins << TRANS("In") << " " << (start + 1);

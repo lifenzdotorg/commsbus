@@ -287,14 +287,71 @@ that is not one of the steps is shown as its real value.
 `mSettingsOverlay`, `isSettingsShown()`), not a callout; Done or Esc closes it.
 Its tabs are AUDIO (standalone only), CHANNELS, OPTIONS, found by name.
 
-**Star-network visibility.** The processor's Role (`NetworkRole`, Central by
-default) and Central name persist in the extra state. A Campus is shown only the
-Central: `isPeerVisible(index)` is the single filter, used by
+**Star network.** The processor's Role (`NetworkRole`, Central by default) and
+Central name persist in the extra state. A Central behaves exactly as upstream.
+A Campus **with a Central name set** exchanges no audio with any other campus,
+to save bandwidth: each `RemotePeer` carries a `starBlocked` flag, decided by
+`shouldStarBlockPeer` and applied by `applyStarBlock`. It is kept apart from
+`sendAllow`/`recvAllow`, so the user's mutes and the mute-all cache come back
+untouched if the peer is unblocked.
+
+- **What is blocked.** A peer is blocked only if it has a user name, that name
+  is not the Central name, its address is not the Central name, and it is not a
+  configured direct peer (by address or by label -- a direct peer connects with
+  its label as its user name). Nameless peers and configured direct peers are
+  never blocked, since they cannot be told apart from the Central. With the
+  Central name **blank, nothing is blocked**. The Options row then shows an
+  orange "Set the Central name" note, and the group label carries a tooltip.
+- **What stops.** Our main `oursource` is stopped, and a stopped AOO source
+  sends nothing, not even pings. `oursink->uninvite_all()` makes a compliant far
+  source drop us, so its audio stops arriving. Any latency test is stopped, and
+  the echo source is cleared. `processBlock` skips a blocked peer entirely: no
+  sink decode, no mix, no send, no echo/latency processing.
+- **Re-enabling is guarded.** Every path that could restart audio checks the
+  flag: the AOO invite and source-add events, the source-state event, the
+  data-arrival `recvActive` set in the recv thread,
+  `connectRemotePeer`/`connectRemotePeerRaw`, `setRemotePeerSendActive`,
+  `setRemotePeerRecvActive` (so the main send/recv mute toggles), and
+  `startRemotePeerLatencyTest`.
+- **When it is evaluated.** The flag is set in `doAddRemotePeerIfNecessary`
+  before the peer is ever started, so another campus never gets a block. It is
+  checked again when a peer's name arrives, and on `setNetworkRole` /
+  `setCentralName`, which also covers state restore. `StarTopologyTimer` sweeps
+  once a second while in Campus mode, because a direct peer's label can change
+  what matches without any event. `enforceStarTopology()` fetches the
+  direct-peer list *before* taking `mCoreLock`. `mStarLock` guards
+  `mCentralName` and serialises `applyStarBlock`; take it after `mCoreLock`.
+- **The Central name field** is applied on Return or focus loss, not per
+  keystroke, because a half-typed name would cut the real Central. Esc reverts it.
+- **Limitation.** The peer connection itself remains: the AOO handshake, peer
+  info, pings, latency-info requests and chat still pass, so it costs a little
+  control traffic. Audio does not. Group chat from blocked peers is not
+  filtered.
+
+`isPeerVisible(index)` is the single display filter, used by
 `PeersContainerView` (hidden peers are ordered last and their views hidden),
 the chat private-chat list, `SuggestNewGroupView`, the group user count and
-`ChannelTrimView`. With no Central name, a peer at a configured direct-peer
-address is the host, else the earliest-connected peer. Display only -- audio
-routing is untouched.
+`ChannelTrimView`. With a Central name it is exactly `!isPeerStarBlocked`, so a
+peer whose audio flows is never hidden. With no Central name it is a display-only
+guess: a peer at a configured direct-peer address is the host, else the
+earliest-connected peer.
+
+**Output channel names.** `get/setOutputChannelUserName(outch)` holds a
+persisted per-output name (extra state, `OutputChannelNames`). An empty name
+means the device's own name. (It is not called `getOutputChannelName` because
+that would collide with the deprecated `AudioProcessor` virtual.)
+`ReceiveRouting::getOutputChannelLabels` applies it as "01 <name>", so the matrix
+rows, the device view and the Available Channels destinations all use it. The
+receive dest menus, the dest buttons and the bus output menu use it too.
+`ReceiveRouting::renameOutputChannel` treats empty text, or the default name, as
+clearing it. Renaming is allowed while patching is locked. Rename by
+double-clicking an output row in the matrix (the device header row still opens
+the Device View), or a Receive Channel cell in the Device View.
+`ReceiveRouting::InlineRenameEditor` is the shared in-place editor: Enter or
+clicking away commits, Esc cancels. The Device View's local Transmit tab renames
+input groups the same way, through `setInputGroupName` +
+`updateRemotePeerUserFormat()`, so the name reaches the transmit strips and the
+far end's stream name.
 
 **Receive routing matrix (Dante Controller style).** The RECEIVE area has a
 `MATRIX | LIST` switch (persisted as `ReceiveMatrixShown`, default MATRIX).
@@ -421,3 +478,7 @@ Two things that will get a submission rejected, both seen in practice:
 The script zips bundles with `ditto -c -k --keepParent`, not `zip -r`, which
 mangles the symlinks inside a bundle. It staples the original `.app`, not the
 zip, and exits 42 with the full notary log on rejection.
+
+### Naming: "Host (hub)"
+
+The role the UI calls **Host (hub)** (and its **Host name** field) is `NetworkRoleCentral` / `CentralName` in code and saved state. Only the user-visible strings were renamed; the identifiers and state keys stay so saved settings keep loading.

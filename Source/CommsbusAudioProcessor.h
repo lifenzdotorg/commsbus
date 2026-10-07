@@ -613,6 +613,13 @@ public:
     bool isPatchingLocked() const { return mPatchingLocked.get(); }
     void setPatchingLocked(bool locked) { mPatchingLocked = locked; }
 
+    /** A user-given name for this device's output channel `outch` (0-based), or
+        empty when it has none and the audio device's own name applies. Setting an
+        empty (or all-whitespace) name restores the default. Persisted with the
+        state. Renaming is not subject to the patching lock. */
+    juce::String getOutputChannelUserName(int outch) const;
+    void setOutputChannelUserName(int outch, const juce::String & name);
+
     /** Remembered choice of MATRIX (true) or LIST view for the receive area. */
     bool getReceiveRoutingMatrixShown() const { return mReceiveMatrixShown; }
     void setReceiveRoutingMatrixShown(bool flag) { mReceiveMatrixShown = flag; }
@@ -659,24 +666,42 @@ public:
     void setDisableKeyboardShortcuts(bool flag) {  mDisableKeyboardShortcuts = flag; }
 
     /**
-     * Star-network visibility. The deployment is one Central host with campuses
-     * connecting to it. A Central sees every peer; a Campus is shown only the
-     * Central (matched by user name), so it does not see the other campuses.
-     * This is display-only: audio routing is never affected. Everything that
-     * lists peers asks isPeerVisible().
+     * Star network. The deployment is one Central host with campuses connecting
+     * to it. A Central sees, sends to and receives from every peer, exactly as
+     * upstream. A Campus with a Central name set is *star-blocked* from every
+     * named peer that is not the Central: no audio is sent to it or accepted from
+     * it (see isPeerStarBlocked), and it is not listed. Everything that lists
+     * peers asks isPeerVisible().
+     *
+     * With the Central name blank nothing is blocked -- guessing the host is fine
+     * for what is shown, but not for what is cut -- and the UI warns about it.
      */
     enum NetworkRole {
         NetworkRoleCentral = 0,
         NetworkRoleCampus = 1
     };
     NetworkRole getNetworkRole() const { return mNetworkRole; }
-    void setNetworkRole(NetworkRole role) { mNetworkRole = role; }
-    juce::String getCentralName() const { return mCentralName; }
-    void setCentralName(const juce::String & name) { mCentralName = name.trim(); }
+    void setNetworkRole(NetworkRole role);
+    juce::String getCentralName() const;
+    void setCentralName(const juce::String & name);
+
+    /** True for a Campus whose Central name is blank: nothing is blocked, and
+        other campuses' audio still flows. The Options row warns about it. */
+    bool isCentralNameMissing() const;
 
     /** Message thread. Whether peer `index` should be listed in the UI. */
     bool isPeerVisible(int index) const;
     int getNumberVisibleRemotePeers() const;
+
+    /** Whether no audio (main, latency or echo streams) flows to or from peer
+        `index` because it is another campus. */
+    bool isPeerStarBlocked(int index) const;
+    int getNumberStarBlockedPeers() const;
+
+    /** Re-evaluates every peer against the role and Central name, and starts or
+        stops its audio accordingly. Called on role/name changes, on a peer's name
+        arriving, and once a second as a sweep. Any thread. */
+    void enforceStarTopology();
     /** The user name, or host:port for a nameless (direct) peer. */
     juce::String getRemotePeerDisplayName(int index) const;
 
@@ -938,6 +963,10 @@ private:
 
     void ensureBuffers(int samples);
 
+    // star network: whether a peer should carry no audio, and applying that
+    bool shouldStarBlockPeer(const RemotePeer * peer, const Array<DirectPeerEntry> & directPeers) const;
+    void applyStarBlock(RemotePeer * peer, bool block);
+
     void commitCacheForPeer(RemotePeer * peer);
     bool findAndLoadCacheForPeer(RemotePeer * peer);
     // the peer cache key: the user name, or for a direct (nameless) peer its address
@@ -1159,7 +1188,19 @@ private:
     };
 
     ServerReconnectTimer mReconnectTimer;
-    
+
+    // once a second, re-applies the star-network blocking (a direct peer's label
+    // can change what matches the Central without any event)
+    class StarTopologyTimer : public Timer
+    {
+    public:
+        StarTopologyTimer(CommsbusAudioProcessor & proc) : processor(proc) {}
+        void timerCallback() override { processor.enforceStarTopology(); }
+        CommsbusAudioProcessor & processor;
+    };
+
+    StarTopologyTimer mStarTopologyTimer;
+
     CriticalSection  mRemotesLock;
 
 
@@ -1235,8 +1276,14 @@ private:
     // misc
     bool mSliderSnapToMouse = true;
     bool mDisableKeyboardShortcuts = false;
-    NetworkRole mNetworkRole = NetworkRoleCentral;
+    std::atomic<NetworkRole> mNetworkRole { NetworkRoleCentral };
     String mCentralName;
+    CriticalSection mStarLock; // guards mCentralName, read from the event thread
+
+    // custom names for this device's output channels, by channel index; empty
+    // means the device's own name (see getOutputChannelUserName)
+    juce::StringArray mOutputChannelNames;
+    CriticalSection mOutputNamesLock;
     bool mReceiveMatrixShown = true;
     
     File mSupportDir;

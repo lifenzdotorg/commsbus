@@ -11,10 +11,8 @@
 namespace ReceiveRouting
 {
 
-StringArray getOutputChannelLabels(CommsbusAudioProcessor & proc, AudioDeviceManager * adm)
+static StringArray getActiveOutputDeviceNames(AudioDeviceManager * adm)
 {
-    const int total = proc.getTotalNumOutputChannels();
-
     StringArray names;
     if (adm) {
         if (auto cad = adm->getCurrentAudioDevice()) {
@@ -27,18 +25,119 @@ StringArray getOutputChannelLabels(CommsbusAudioProcessor & proc, AudioDeviceMan
             }
         }
     }
+    return names;
+}
+
+static String defaultOutputName(const StringArray & devnames, int outch)
+{
+    if (isPositiveAndBelow(outch, devnames.size()) && devnames[outch].trim().isNotEmpty()) {
+        return devnames[outch].trim();
+    }
+    return TRANS("Out") + " " + String(outch + 1);
+}
+
+StringArray getOutputChannelLabels(CommsbusAudioProcessor & proc, AudioDeviceManager * adm)
+{
+    const int total = proc.getTotalNumOutputChannels();
+    const StringArray names = getActiveOutputDeviceNames(adm);
 
     StringArray labels;
     for (int i = 0; i < total; ++i) {
         String label = String(i + 1).paddedLeft('0', 2) + " ";
-        if (i < names.size() && names[i].trim().isNotEmpty()) {
-            label << names[i].trim();
-        } else {
-            label << TRANS("Out") << " " << (i + 1);
-        }
+        const String custom = proc.getOutputChannelUserName(i);
+        label << (custom.isNotEmpty() ? custom : defaultOutputName(names, i));
         labels.add(label);
     }
     return labels;
+}
+
+String getDefaultOutputChannelName(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch)
+{
+    ignoreUnused(proc);
+    return defaultOutputName(getActiveOutputDeviceNames(adm), outch);
+}
+
+String getOutputChannelEditName(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch)
+{
+    const String custom = proc.getOutputChannelUserName(outch);
+    return custom.isNotEmpty() ? custom : getDefaultOutputChannelName(proc, adm, outch);
+}
+
+void renameOutputChannel(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch, const String & text)
+{
+    const String name = text.trim();
+    // giving it back its default name is the same as clearing it, so it follows
+    // the device again if the device's own names change
+    if (name.isEmpty() || name == getDefaultOutputChannelName(proc, adm, outch)) {
+        proc.setOutputChannelUserName(outch, {});
+    } else {
+        proc.setOutputChannelUserName(outch, name);
+    }
+}
+
+InlineRenameEditor::~InlineRenameEditor()
+{
+    if (editor) {
+        // no callbacks into a half-destroyed owner
+        editor->onReturnKey = nullptr;
+        editor->onEscapeKey = nullptr;
+        editor->onFocusLost = nullptr;
+        editor.reset();
+    }
+}
+
+void InlineRenameEditor::show(Component & parent, juce::Rectangle<int> area, const String & text,
+                              std::function<void(const String &)> onCommit)
+{
+    finish(false);
+
+    editor = std::make_unique<TextEditor>("rename");
+    editor->setFont(Font(13));
+    editor->setIndents(4, 2);
+    editor->setColour(TextEditor::backgroundColourId, Colour(0xff10161c));
+    editor->setColour(TextEditor::outlineColourId, Colour::fromFloatRGBA(0.55f, 0.78f, 0.95f, 1.0f));
+    editor->setColour(TextEditor::focusedOutlineColourId, Colour::fromFloatRGBA(0.55f, 0.78f, 0.95f, 1.0f));
+    editor->setColour(TextEditor::textColourId, Colours::white);
+    editor->setTitle(TRANS("Rename"));
+    editor->setText(text, false);
+    editor->selectAll();
+
+    commitFunc = std::move(onCommit);
+    editor->onReturnKey = [this]() { finish(true); };
+    editor->onEscapeKey = [this]() { finish(false); };
+    editor->onFocusLost = [this]() { finish(true); };
+
+    parent.addAndMakeVisible(editor.get());
+    editor->setBounds(area);
+    editor->grabKeyboardFocus();
+}
+
+void InlineRenameEditor::finish(bool commit)
+{
+    if (!editor || finishing) return;
+    finishing = true;
+
+    const String text = editor->getText();
+    auto func = std::move(commitFunc);
+    commitFunc = nullptr;
+
+    // This usually runs inside one of the editor's own callbacks, so it is hidden
+    // now and deleted afterwards (its callbacks are only cleared then, not while
+    // one of them is running). Hidden, it gets no more key or focus events.
+    auto * ed = editor.release();
+    ed->setVisible(false);
+    MessageManager::callAsync([ed]() {
+        ed->onReturnKey = nullptr;
+        ed->onEscapeKey = nullptr;
+        ed->onFocusLost = nullptr;
+        delete ed;
+    });
+
+    finishing = false;
+
+    if (commit && func) {
+        func(text);
+    }
 }
 
 String getLocalDeviceName(AudioDeviceManager * adm)
@@ -253,7 +352,7 @@ namespace {
 
     const String defaultStatusText()
     {
-        return TRANS("Click a crosspoint to patch or unpatch. Double-click a device name to open its Device View.");
+        return TRANS("Click a crosspoint to patch or unpatch. Double-click a device name to open its Device View, or an output channel to rename it.");
     }
 }
 
@@ -398,6 +497,10 @@ void RoutingMatrixView::paint(Graphics & g)
 
 void RoutingMatrixView::viewportMoved()
 {
+    // an in-place rename is laid over a row: if the rows moved, drop it
+    if (mRowRenamer.isShowing() && mViewport->getViewPositionY() != mRenameViewY) {
+        mRowRenamer.cancel();
+    }
     mColHeader->repaint();
     mRowHeader->repaint();
 }
@@ -993,6 +1096,34 @@ void RoutingMatrixView::rowHeaderMouseDown(const MouseEvent & e)
         }
     }
     else if (e.getNumberOfClicks() >= 2) {
-        if (onOpenDeviceView) onOpenDeviceView(-1);
+        if (item.isHeader) {
+            if (onOpenDeviceView) onOpenDeviceView(-1);
+        } else {
+            // an output channel: rename it in place
+            startRenamingOutput(r);
+        }
     }
+}
+
+void RoutingMatrixView::startRenamingOutput(int row)
+{
+    if (!isPositiveAndBelow(row, mRows.size()) || mRows[row].isHeader) return;
+
+    const int outch = mRows[row].index;
+    AudioDeviceManager * adm = getAudioDeviceManager ? getAudioDeviceManager() : nullptr;
+
+    mRenameViewY = mViewport->getViewPositionY();
+    const int y0 = row * cellSize - mRenameViewY;
+    const juce::Rectangle<int> area(20, y0, mRowHeader->getWidth() - 22, cellSize);
+
+    Component::SafePointer<RoutingMatrixView> safeThis(this);
+    mRowRenamer.show(*mRowHeader, area, ReceiveRouting::getOutputChannelEditName(processor, adm, outch),
+                     [safeThis, outch](const String & text) {
+        if (!safeThis) return;
+        AudioDeviceManager * adm2 = safeThis->getAudioDeviceManager ? safeThis->getAudioDeviceManager() : nullptr;
+        ReceiveRouting::renameOutputChannel(safeThis->processor, adm2, outch, text);
+        safeThis->refresh();
+        // the list view's menus, the buses panel and every device view show it too
+        if (safeThis->onRoutingChanged) safeThis->onRoutingChanged();
+    });
 }

@@ -1358,6 +1358,8 @@ void CommsbusAudioProcessorEditor::routingChanged()
     // created), the matrix, and every open device view
     mPeerContainer->updatePeerViews();
     mBusesContainer->refreshIfBusesChanged();
+    // a transmit channel may have been renamed in a device view
+    mInputChannelsContainer->updateChannelViews();
 
     if (mRoutingMatrix->isVisible()) {
         mRoutingMatrix->refresh();
@@ -2782,6 +2784,10 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         String grouptext;
         grouptext << currGroup;
         mMainGroupLabel->setText(grouptext, dontSendNotification);
+        // a campus with no Central name cuts nothing: every campus's audio still flows
+        mMainGroupLabel->setTooltip(processor.isCentralNameMissing()
+                                    ? TRANS("Set the host name (Settings, OPTIONS). Until it is set, this campus exchanges audio with every campus in the group.")
+                                    : String());
         String userstr;
 
         // Only the peers this machine is shown (see isPeerVisible) are counted.
@@ -2808,9 +2814,12 @@ void CommsbusAudioProcessorEditor::updateState(bool rebuildInputChannels)
         if (processor.getNumberVisibleRemotePeers() == 0 && mPeerContainer->getPendingPeerCount() == 0) {
             String labstr;
             if (processor.getNetworkRole() == CommsbusAudioProcessor::NetworkRoleCampus && processor.getNumberRemotePeers() > 0) {
-                labstr << TRANS("Waiting for the Central host to join group") << " \"" << currGroup << "\"...";
+                labstr << TRANS("Waiting for the host (hub) to join group") << " \"" << currGroup << "\"...";
             } else {
                 labstr << TRANS("Waiting for other users to join group") << " \"" << currGroup << "\"...";
+            }
+            if (processor.isCentralNameMissing()) {
+                labstr << "\n" << TRANS("Set the host name in Settings, OPTIONS.");
             }
             mMainMessageLabel->setText(labstr, dontSendNotification);
             mMainMessageLabel->setVisible(true);

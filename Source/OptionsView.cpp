@@ -206,29 +206,34 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     mOptionsLanguageLabel->setJustificationType(Justification::centredRight);
 
 
-    // Star network: a Central host sees every campus; a Campus is shown only the
-    // Central. Display-only -- audio routing is unaffected.
+    // Star network: a Central host sees every campus; a Campus sees, sends to and
+    // receives from only the Central (once the Central name is set).
     mOptionsRoleChoice = std::make_unique<SonoChoiceButton>();
     mOptionsRoleChoice->setTitle(TRANS("Role"));
     mOptionsRoleChoice->addChoiceListener(this);
-    mOptionsRoleChoice->addItem(TRANS("Central (host)"), CommsbusAudioProcessor::NetworkRoleCentral + 1);
+    mOptionsRoleChoice->addItem(TRANS("Host (hub)"), CommsbusAudioProcessor::NetworkRoleCentral + 1);
     mOptionsRoleChoice->addItem(TRANS("Campus"), CommsbusAudioProcessor::NetworkRoleCampus + 1);
-    mOptionsRoleChoice->setTooltip(TRANS("Central (host) sees every connected campus. A Campus is shown only the Central host, not the other campuses. This only changes what is listed; audio routing is unaffected."));
+    mOptionsRoleChoice->setTooltip(TRANS("Host (hub) sees and exchanges audio with every connected campus. A Campus exchanges audio only with the host (hub) (named below), so the other campuses in the group cost it no bandwidth and are not shown."));
 
     mOptionsRoleLabel = std::make_unique<Label>("", TRANS("Role:"));
     configLabel(mOptionsRoleLabel.get(), false);
     mOptionsRoleLabel->setJustificationType(Justification::centredRight);
 
     mOptionsCentralNameEditor = std::make_unique<TextEditor>("centralname");
-    mOptionsCentralNameEditor->setTitle(TRANS("Central name"));
+    mOptionsCentralNameEditor->setTitle(TRANS("Host name"));
     mOptionsCentralNameEditor->setFont(Font(16 * SonoLookAndFeel::getFontScale()));
     mOptionsCentralNameEditor->setTextToShowWhenEmpty(TRANS("host's user name"), Colour(0x44ffffff));
-    mOptionsCentralNameEditor->setTooltip(TRANS("The user name of the Central host. Only the peer with this name is shown. Left blank, the host is taken to be a saved direct peer, or else the first peer that connected."));
+    mOptionsCentralNameEditor->setTooltip(TRANS("The user name of the host (hub) (or its address, or a saved direct peer's label). Audio is exchanged only with that peer -- any other named peer, i.e. another campus, gets no audio and sends none. Unnamed peers and saved direct peers are never cut. Left blank, nothing is cut."));
     configEditor(mOptionsCentralNameEditor.get());
 
-    mOptionsCentralNameLabel = std::make_unique<Label>("", TRANS("Central name:"));
+    mOptionsCentralNameLabel = std::make_unique<Label>("", TRANS("Host name:"));
     configLabel(mOptionsCentralNameLabel.get(), false);
     mOptionsCentralNameLabel->setJustificationType(Justification::centredRight);
+
+    mOptionsCentralNoteLabel = std::make_unique<Label>("", "");
+    configLabel(mOptionsCentralNoteLabel.get(), false);
+    mOptionsCentralNoteLabel->setJustificationType(Justification::centred);
+    mOptionsCentralNoteLabel->setMinimumHorizontalScale(0.7f);
 
     mOptionsUnivFontButton = std::make_unique<ToggleButton>(TRANS("Use Universal Font"));
     mOptionsUnivFontButton->setTooltip(TRANS("Use font that always supports Chinese, Japanese, and Korean characters. Can cause slowdowns on some systems, so only use it if you need it."));
@@ -394,6 +399,7 @@ OptionsView::OptionsView(CommsbusAudioProcessor& proc, std::function<AudioDevice
     mOptionsComponent->addAndMakeVisible(mOptionsRoleLabel.get());
     mOptionsComponent->addChildComponent(mOptionsCentralNameEditor.get());
     mOptionsComponent->addChildComponent(mOptionsCentralNameLabel.get());
+    mOptionsComponent->addChildComponent(mOptionsCentralNoteLabel.get());
 
     //mOptionsComponent->addAndMakeVisible(mTitleImage.get());
 
@@ -682,6 +688,7 @@ void OptionsView::updateState(bool ignorecheck)
         mOptionsCentralNameEditor->setText(processor.getCentralName(), dontSendNotification);
     }
     updateRoleVisibility();
+    updateCentralNote();
 
     if (mChannelTrimView) {
         mChannelTrimView->refresh();
@@ -850,6 +857,7 @@ void OptionsView::updateLayout()
     optionsBox.items.add(FlexItem(100, minitemheight, optionsRoleBox).withMargin(2).withFlex(0));
     if (processor.getNetworkRole() == CommsbusAudioProcessor::NetworkRoleCampus) {
         optionsBox.items.add(FlexItem(100, minitemheight, optionsCentralNameBox).withMargin(2).withFlex(0));
+        optionsBox.items.add(FlexItem(100, 36, *mOptionsCentralNoteLabel).withMargin(2).withFlex(0));
     }
     optionsBox.items.add(FlexItem(4, 4));
     optionsBox.items.add(FlexItem(100, minitemheight, optionsSendQualBox).withMargin(2).withFlex(0));
@@ -989,6 +997,7 @@ void OptionsView::updateRoleVisibility()
     if (mOptionsCentralNameEditor->isVisible() != campus) {
         mOptionsCentralNameEditor->setVisible(campus);
         mOptionsCentralNameLabel->setVisible(campus);
+        mOptionsCentralNoteLabel->setVisible(campus);
         updateLayout();
         resized();
     }
@@ -1017,20 +1026,52 @@ void OptionsView::textEditorReturnKeyPressed (TextEditor& ed)
         int port = mOptionsUdpPortEditor->getText().getIntValue();
         changeUdpPort(port);
     }
+    else if (&ed == mOptionsCentralNameEditor.get()) {
+        commitCentralName();
+        ed.unfocusAllComponents();
+    }
 }
 
 void OptionsView::textEditorEscapeKeyPressed (TextEditor& ed)
 {
     DBG("escape pressed");
+    if (&ed == mOptionsCentralNameEditor.get()) {
+        // back to what is in force
+        ed.setText(processor.getCentralName(), dontSendNotification);
+        ed.unfocusAllComponents();
+    }
 }
 
 void OptionsView::textEditorTextChanged (TextEditor& ed)
 {
-    if (&ed == mOptionsCentralNameEditor.get()) {
-        processor.setCentralName(ed.getText());
+    // The Central name now decides whose audio is cut, so it is applied on Return
+    // or on leaving the field, not per keystroke: a half-typed name would briefly
+    // cut the real Central.
+}
+
+void OptionsView::commitCentralName()
+{
+    const auto name = mOptionsCentralNameEditor->getText().trim();
+    if (name != processor.getCentralName()) {
+        processor.setCentralName(name);
         if (mChannelTrimView) {
             mChannelTrimView->refresh();
         }
+        listeners.call(&OptionsView::Listener::optionsChanged, this);
+    }
+    updateCentralNote();
+}
+
+void OptionsView::updateCentralNote()
+{
+    if (!mOptionsCentralNoteLabel) return;
+
+    if (processor.isCentralNameMissing()) {
+        mOptionsCentralNoteLabel->setText(TRANS("Set the Host name. Until it is set, audio still flows to and from every campus in the group."), dontSendNotification);
+        mOptionsCentralNoteLabel->setColour(Label::textColourId, Colour(0xffffa040));
+    } else {
+        mOptionsCentralNoteLabel->setText(TRANS("Audio is exchanged only with the host (hub). Other campuses get none and send none (a small control connection remains)."), dontSendNotification);
+        mOptionsCentralNoteLabel->setColour(Label::textColourId, Colour(0xa0cccccc));
     }
 }
 
@@ -1041,6 +1082,9 @@ void OptionsView::textEditorFocusLost (TextEditor& ed)
     if (&ed == mOptionsUdpPortEditor.get()) {
         int port = mOptionsUdpPortEditor->getText().getIntValue();
         changeUdpPort(port);
+    }
+    else if (&ed == mOptionsCentralNameEditor.get()) {
+        commitCentralName();
     }
 }
 
@@ -1209,6 +1253,7 @@ void OptionsView::choiceButtonSelected(SonoChoiceButton *comp, int index, int id
         processor.setNetworkRole(ident - 1 == CommsbusAudioProcessor::NetworkRoleCampus
                                  ? CommsbusAudioProcessor::NetworkRoleCampus : CommsbusAudioProcessor::NetworkRoleCentral);
         updateRoleVisibility();
+        updateCentralNote();
         if (mChannelTrimView) {
             mChannelTrimView->refresh();
         }

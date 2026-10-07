@@ -18,9 +18,46 @@
  */
 namespace ReceiveRouting
 {
-    /** "01 Out 1" style labels, one per processor output channel, using the
-        audio device's active output channel names where available. */
+    /** "01 Out 1" style labels, one per processor output channel: the user's
+        name for it (getOutputChannelUserName) if it has one, else the audio device's
+        active output channel name, else "Out N". */
     juce::StringArray getOutputChannelLabels(CommsbusAudioProcessor & proc, AudioDeviceManager * adm);
+
+    /** Output channel `outch`'s name without the user's override: the device's
+        name for it, or "Out N". */
+    juce::String getDefaultOutputChannelName(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch);
+
+    /** The text to start a rename of `outch` from: its current name, unnumbered. */
+    juce::String getOutputChannelEditName(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch);
+
+    /** Renames output channel `outch`. Empty text, or the default name, removes
+        the user's name. Not subject to the patching lock. */
+    void renameOutputChannel(CommsbusAudioProcessor & proc, AudioDeviceManager * adm, int outch, const juce::String & text);
+
+    /**
+     * A one-line TextEditor laid over part of another component, for renaming in
+     * place: Enter or clicking away commits, Esc cancels. Only one at a time.
+     */
+    class InlineRenameEditor
+    {
+    public:
+        InlineRenameEditor() = default;
+        ~InlineRenameEditor();
+
+        void show(Component & parent, juce::Rectangle<int> area, const juce::String & text,
+                  std::function<void(const juce::String &)> onCommit);
+        void cancel() { finish(false); }
+        bool isShowing() const { return editor != nullptr; }
+
+    private:
+        void finish(bool commit);
+
+        std::unique_ptr<TextEditor> editor;
+        std::function<void(const juce::String &)> commitFunc;
+        bool finishing = false;
+
+        JUCE_DECLARE_NON_COPYABLE (InlineRenameEditor)
+    };
 
     /** The local audio device name, or a generic fallback. */
     juce::String getLocalDeviceName(AudioDeviceManager * adm);
@@ -142,6 +179,9 @@ private:
     void columnHeaderMouseDown(const MouseEvent & e);
     void columnHeaderMouseMove(int px, int py);
     void rowHeaderMouseDown(const MouseEvent & e);
+    void startRenamingOutput(int row);
+    ReceiveRouting::InlineRenameEditor mRowRenamer;
+    int mRenameViewY = 0;
     void rowHeaderMouseMove(int px, int py);
     void headerMouseExit();
 

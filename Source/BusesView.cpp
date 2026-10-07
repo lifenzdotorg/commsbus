@@ -323,6 +323,14 @@ void BusesView::showBusDestSelectionMenu(Component * source, int index)
         }
     }
 
+    // the user's names for output channels win over the device's
+    for (int i = 0; i < totalouts; ++i) {
+        const String custom = processor.getOutputChannelUserName(i);
+        if (custom.isEmpty()) continue;
+        while (outputnames.size() <= i) outputnames.add(String());
+        outputnames.set(i, custom);
+    }
+
     Array<GenericItemChooserItem> items;
     items.add(GenericItemChooserItem(TRANS("SEND BUS TO OUTPUT:"), {}, nullptr, false, true));
 

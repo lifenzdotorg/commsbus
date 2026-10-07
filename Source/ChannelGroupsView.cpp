@@ -2515,7 +2515,10 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
     if (maindestbuttvisible) {
         String desttext;
         if (destcnt == 1) {
-            desttext << TRANS("Out") << " " << deststart + 1;
+            // a renamed output shows its name
+            const String custom = processor.getOutputChannelUserName(deststart);
+            if (custom.isNotEmpty()) desttext = custom;
+            else desttext << TRANS("Out") << " " << deststart + 1;
         } else {
             desttext << TRANS("Out") << " " << deststart + 1 << "-" << deststart+destcnt;
         }
@@ -2655,7 +2658,10 @@ void ChannelGroupsView::updatePeerModeChannelViews(int specific)
             pvf->destButton->setTooltip(TRANS("Feeding bus:") + " " + desttext + " -- " + TRANS("click to change"));
         }
         else if (destcnt == 1) {
-            desttext << TRANS("Out") << " " << deststart + 1;
+            // a renamed output shows its name
+            const String custom = processor.getOutputChannelUserName(deststart);
+            if (custom.isNotEmpty()) desttext = custom;
+            else desttext << TRANS("Out") << " " << deststart + 1;
             pvf->destButton->setTooltip(TRANS("Straight out to device channel") + " " + String(deststart + 1) + " -- " + TRANS("click to change"));
         } else {
             desttext << TRANS("Out") << " " << deststart + 1 << "-" << deststart+destcnt;
@@ -3879,6 +3885,17 @@ void ChannelGroupsView::showDestSelectionMenu(Component * source, int index)
         }
     }
 
+
+    // receive side: the user's names for output channels (renamed in the routing
+    // matrix or the device view) win over the device's
+    if (mPeerMode) {
+        for (int i = 0; i < totalouts; ++i) {
+            const String custom = processor.getOutputChannelUserName(i);
+            if (custom.isEmpty()) continue;
+            while (outputnames.size() <= i) outputnames.add(String(outputnames.size() + 1));
+            outputnames.set(i, custom);
+        }
+    }
 
     int selindex = -1;
     int ind = 1;

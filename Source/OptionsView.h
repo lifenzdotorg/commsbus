@@ -159,6 +159,11 @@ protected:
     std::unique_ptr<Label> mOptionsRoleLabel;
     std::unique_ptr<TextEditor> mOptionsCentralNameEditor;
     std::unique_ptr<Label> mOptionsCentralNameLabel;
+    // below the Central name: a warning while it is blank (nothing is cut then),
+    // else what is cut
+    std::unique_ptr<Label> mOptionsCentralNoteLabel;
+    void updateCentralNote();
+    void commitCentralName();
 
     // CHANNELS tab: per-channel trim
     std::unique_ptr<ChannelTrimView> mChannelTrimView;
